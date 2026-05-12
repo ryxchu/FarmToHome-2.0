@@ -11,7 +11,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onShopClick, onFarmerR
   return (
     <div className="relative min-h-screen bg-background amakan-pattern">
       {/* Hero Section */}
-      <section className="relative h-[95vh] flex items-center justify-center text-center px-4 overflow-hidden rounded-b-[5rem] shadow-2xl pt-56">
+      <section className="relative min-h-[95vh] flex items-center justify-center text-center px-4 overflow-hidden rounded-b-[5rem] shadow-2xl pt-32 pb-20">
         {/* Background Image with Overlay */}
         <div className="absolute inset-0 z-0">
           <img 
@@ -24,7 +24,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onShopClick, onFarmerR
         </div>
 
         {/* Content Container */}
-        <div className="relative z-10 max-w-4xl mx-auto">
+        <div className="relative z-10 max-w-4xl mx-auto flex flex-col items-center">
           {/* Badge */}
           <motion.button
             whileHover={{ scale: 1.05, backgroundColor: 'rgba(255, 255, 255, 0.2)' }}
@@ -35,7 +35,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onShopClick, onFarmerR
             }}
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-3 px-6 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-full mb-12 shadow-xl cursor-pointer relative z-40 hover:border-white/40 transition-colors"
+            className="inline-flex items-center gap-3 px-6 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-full mb-8 shadow-xl cursor-pointer relative z-40 hover:border-white/40 transition-colors"
           >
             <div className="w-2.5 h-2.5 bg-accent rounded-full animate-pulse shadow-[0_0_10px_#b87333]" />
             <span className="text-white text-[10px] font-bold uppercase tracking-[0.5em]">
@@ -48,19 +48,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onShopClick, onFarmerR
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="mb-12"
+            className="mb-10 w-full"
           >
-            <div className="flex justify-center mb-8">
+            <div className="flex justify-center mb-6">
               <img 
                 src="/logo.png" 
                 alt="FarmToHome Logo" 
-                className="h-32 md:h-48 w-auto object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.3)]" 
+                className="h-24 md:h-36 w-auto object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.3)]" 
                 onError={(e) => e.currentTarget.style.display = 'none'}
               />
             </div>
-            <h1 className="text-6xl md:text-[8.5rem] font-bold text-white mb-8 tracking-tighter leading-[0.8] font-serif">
+            <h1 className="text-5xl md:text-[7rem] font-bold text-white mb-6 tracking-tighter leading-[0.9] font-serif">
               Fresh From <br /> 
-              <span className="text-accent underline decoration-accent/30 underline-offset-[20px] italic">Farm to Home</span>
+              <span className="text-accent underline decoration-accent/30 underline-offset-[16px] italic">Farm to Home</span>
             </h1>
           </motion.div>
 
@@ -69,7 +69,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onShopClick, onFarmerR
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="text-lg md:text-2xl text-white/80 mb-16 max-w-2xl mx-auto leading-relaxed font-medium"
+            className="text-lg md:text-xl text-white/80 mb-10 max-w-2xl mx-auto leading-relaxed font-medium"
           >
             Direct from farms to your family. High-quality local products you can trust.
             Freshly harvested and delivered fast.
@@ -80,37 +80,39 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onShopClick, onFarmerR
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-8"
+            className="flex flex-col xl:flex-row items-center justify-center gap-6 w-full"
           >
-            <button 
-              onClick={onShopClick}
-              className="px-12 py-6 bg-primary text-white rounded-full font-bold text-xl hover:bg-primary/90 transition-all flex items-center gap-4 group shadow-2xl shadow-primary/40 hover:scale-105 hover:rotate-1 active:scale-95 border-2 border-white/10"
-            >
-              Shop Local Produce
-              <ArrowRight className="w-6 h-6 group-hover:translate-x-2 transition-transform" />
-            </button>
-            <button 
-              onClick={() => document.getElementById('farmers-info')?.scrollIntoView({ behavior: 'smooth' })}
-              className="px-12 py-6 bg-secondary text-white rounded-full font-bold text-xl hover:bg-secondary/90 transition-all shadow-2xl shadow-secondary/40 hover:scale-105 hover:-rotate-1 active:scale-95 border-2 border-white/10"
-            >
-              Farmer Registration
-            </button>
-          </motion.div>
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+              <button 
+                onClick={onShopClick}
+                className="px-10 py-5 bg-primary text-white rounded-full font-bold text-lg hover:bg-primary/90 transition-all flex items-center gap-3 group shadow-2xl shadow-primary/40 hover:scale-105 hover:rotate-1 active:scale-95 border-2 border-white/10 whitespace-nowrap"
+              >
+                Shop Local Produce
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform" />
+              </button>
+              <button 
+                onClick={() => document.getElementById('farmers-info')?.scrollIntoView({ behavior: 'smooth' })}
+                className="px-10 py-5 bg-secondary text-white rounded-full font-bold text-lg hover:bg-secondary/90 transition-all shadow-2xl shadow-secondary/40 hover:scale-105 hover:-rotate-1 active:scale-95 border-2 border-white/10 whitespace-nowrap"
+              >
+                Farmer Registration
+              </button>
+            </div>
 
-          {/* Floating Card */}
-          <motion.div
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.8 }}
-            className="hidden lg:flex absolute top-[85%] -right-32 -translate-y-1/2 flex-col items-center gap-4 bg-white/10 backdrop-blur-xl border border-white/20 p-6 rounded-[2.5rem] shadow-2xl"
-          >
-            <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white">
-              <Heart className="w-6 h-6 fill-current" />
-            </div>
-            <div className="text-left">
-              <p className="text-white font-bold leading-tight">Fresh Daily</p>
-              <p className="text-white/60 text-xs font-medium uppercase tracking-tighter">Harvested for You</p>
-            </div>
+            {/* Fresh Daily Badge - Now positioned to the side */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.8 }}
+              className="flex items-center gap-4 bg-white/10 backdrop-blur-xl border border-white/20 p-4 rounded-3xl shadow-xl"
+            >
+              <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center text-white border border-white/10">
+                <Heart className="w-5 h-5 text-accent fill-accent" />
+              </div>
+              <div className="text-left pr-4">
+                <p className="text-white font-bold leading-tight text-sm">Fresh Daily</p>
+                <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest whitespace-nowrap">Harvested for You</p>
+              </div>
+            </motion.div>
           </motion.div>
 
           {/* Stats Section */}

@@ -1,0 +1,85 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #2d4f1e; /* Deep Forest Green */
+  --color-secondary: #9e6240; /* Terracotta / Clay */
+  --color-accent: #b87333; /* Burnt Ochre */
+  --color-accent-light: #fdfaf5; /* Buko Cream */
+  --color-background: #fdfbfa; /* Warm Paper */
+  --color-surface: #ffffff;
+  --color-border: #eceae3; /* Warm Stone */
+  
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-serif: "Playfair Display", serif;
+
+  --radius-4xl: 32px;
+  --radius-5xl: 48px;
+  --radius-6xl: 64px;
+}
+
+@layer utilities {
+  .banig-pattern {
+    background-color: var(--color-accent-light);
+    background-image: repeating-linear-gradient(45deg, rgba(158, 98, 64, 0.03) 0px, rgba(158, 98, 64, 0.03) 2px, transparent 2px, transparent 12px),
+                      repeating-linear-gradient(-45deg, rgba(158, 98, 64, 0.03) 0px, rgba(158, 98, 64, 0.03) 2px, transparent 2px, transparent 12px);
+  }
+
+  .amakan-pattern {
+    background-color: var(--color-background);
+    background-image: linear-gradient(45deg, rgba(45, 79, 30, 0.02) 25%, transparent 25%, transparent 75%, rgba(45, 79, 30, 0.02) 75%, rgba(45, 79, 30, 0.02)),
+                      linear-gradient(45deg, rgba(45, 79, 30, 0.02) 25%, transparent 25%, transparent 75%, rgba(45, 79, 30, 0.02) 75%, rgba(45, 79, 30, 0.02));
+    background-size: 40px 40px;
+    background-position: 0 0, 20px 20px;
+  }
+  
+  .clay-shadow {
+    box-shadow: 0 20px 40px -15px rgba(158, 98, 64, 0.15);
+  }
+
+  .forest-shadow {
+    box-shadow: 0 30px 60px -12px rgba(45, 79, 30, 0.15);
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-background text-slate-900 font-sans selection:bg-primary/10 selection:text-primary;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(45, 79, 30, 0.03) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(158, 98, 64, 0.03) 0px, transparent 50%);
+  }
+
+  .chatbot-markdown ul {
+    list-style-type: disc !important;
+    padding-left: 1.25rem !important;
+    margin-top: 0.5rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+  .chatbot-markdown ol {
+    list-style-type: decimal !important;
+    padding-left: 1.25rem !important;
+    margin-top: 0.5rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+  .chatbot-markdown li {
+    margin-bottom: 0.25rem !important;
+    display: list-item !important;
+  }
+  .chatbot-markdown p {
+    margin-bottom: 0.5rem !important;
+  }
+  .chatbot-markdown strong {
+    font-weight: 600 !important;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+

@@ -1,0 +1,131 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents a user (Buyer, Farmer, or Admin) of the FarmToHome platform.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["buyer", "farmer", "admin"] },
+        "fullName": { "type": "string" },
+        "phone": { "type": "string" },
+        "status": { "type": "string", "enum": ["verified", "unverified"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "farmName": { "type": "string" },
+        "farmAddress": { "type": "string" },
+        "farmStory": { "type": "string" },
+        "farmingMethods": { "type": "string" },
+        "certifications": { "type": "array", "items": { "type": "string" } },
+        "isApproved": { "type": "boolean" },
+        "rewardsPoints": { "type": "integer" },
+        "ecoMetrics": {
+          "type": "object",
+          "properties": {
+            "carbonSavings": { "type": "number" },
+            "localSupportImpact": { "type": "number" },
+            "foodTravelDistance": { "type": "number" }
+          }
+        }
+      },
+      "required": ["uid", "email", "role", "fullName"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "A farm product listed for sale.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "category": { "type": "string" },
+        "unit": { "type": "string", "enum": ["kg", "unit", "pack", "gallon", "tray", "sack"] },
+        "stock": { "type": "integer" },
+        "farmerId": { "type": "string" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "harvestDate": { "type": "string", "format": "date-time" },
+        "rating": { "type": "number" },
+        "reviewCount": { "type": "integer" },
+        "isPublished": { "type": "boolean" },
+        "qrCodeUrl": { "type": "string" }
+      },
+      "required": ["id", "name", "price", "farmerId", "stock"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A transaction between a Buyer and a Farmer.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "buyerId": { "type": "string" },
+        "farmerId": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "productId": { "type": "string" },
+              "name": { "type": "string" },
+              "quantity": { "type": "integer" },
+              "price": { "type": "number" }
+            }
+          }
+        },
+        "total": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "preparing", "shipped", "delivered", "cancelled"] },
+        "deliveryAddress": { "type": "string" },
+        "contactNumber": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "riderLocation": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        },
+        "eta": { "type": "string" }
+      },
+      "required": ["id", "buyerId", "farmerId", "items", "total", "status"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Buyer feedback for a product/farmer.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderId": { "type": "string" },
+        "productId": { "type": "string" },
+        "buyerId": { "type": "string" },
+        "farmerId": { "type": "string" },
+        "rating": { "type": "integer" },
+        "comment": { "type": "string" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Post": {
+      "title": "Post",
+      "description": "A social update from a farmer.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "farmerId": { "type": "string" },
+        "content": { "type": "string" },
+        "media": { "type": "array", "items": { "type": "string" } },
+        "likes": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "User profiles" },
+    "/products/{productId}": { "schema": "Product", "description": "Product listings" },
+    "/orders/{orderId}": { "schema": "Order", "description": "Customer orders" },
+    "/reviews/{reviewId}": { "schema": "Review", "description": "Product reviews" },
+    "/posts/{postId}": { "schema": "Post", "description": "Community marketplace posts" },
+    "/admins/{adminId}": { "schema": { "type": "object", "properties": { "uid": { "type": "string" } } }, "description": "Platform administrators" }
+  }
+}

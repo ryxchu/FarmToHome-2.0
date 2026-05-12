@@ -1,0 +1,8 @@
+{
+  "name": "FarmToHome",
+  "description": "A modern farm-to-table e-commerce platform connecting local farmers with consumers for fresh, quality produce.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": []
+}

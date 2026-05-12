@@ -1,0 +1,294 @@
+import React, { useState, useEffect } from 'react';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { Product } from '../types';
+import { Star, Clock, MapPin, Plus, Filter, MessageSquare, ShoppingBag, Sun } from 'lucide-react';
+import { motion } from 'motion/react';
+import { SocialFeed } from '../components/SocialFeed';
+import { useCart } from '../context/CartContext';
+
+interface BuyerHomeProps {
+  onProductClick: (id: string) => void;
+  category?: string;
+  onCategoryChange?: (category: string) => void;
+  searchQuery?: string;
+}
+
+export const BuyerHome: React.FC<BuyerHomeProps> = ({ onProductClick, category = 'All', onCategoryChange, searchQuery = '' }) => {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [activeCategory, setActiveCategory] = useState(category);
+  const [viewMode, setViewMode] = useState<'shop' | 'community'>('shop');
+  const [loading, setLoading] = useState(true);
+
+  const categories = [
+    { name: 'All', icon: '🌳' },
+    { name: 'Vegetables', icon: '🥬' },
+    { name: 'Fruits', icon: '🍎' },
+    { name: 'Rice', icon: '🌾' },
+    { name: 'Poultry', icon: '🍗' },
+    { name: 'Dairy', icon: '🥚' }
+  ];
+
+  const VerifiedBadge = () => (
+    <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-400 to-amber-600 rounded-full shadow-lg shadow-amber-500/20 group/badge">
+      <div className="relative">
+        <Sun className="w-4 h-4 text-white animate-[spin_5s_linear_infinite]" />
+        <div className="absolute inset-0 bg-white blur-md opacity-20" />
+      </div>
+      <span className="text-[9px] font-bold text-white uppercase tracking-[0.2em] whitespace-nowrap">Verified Local</span>
+    </div>
+  );
+
+  useEffect(() => {
+    setActiveCategory(category);
+  }, [category]);
+
+  const handleCategoryClick = (cat: string) => {
+    setActiveCategory(cat);
+    onCategoryChange?.(cat);
+  };
+
+  useEffect(() => {
+    if (viewMode !== 'shop') return;
+    const q = activeCategory === 'All' 
+      ? query(collection(db, 'products'), where('isPublished', '==', true))
+      : query(collection(db, 'products'), where('isPublished', '==', true), where('category', '==', activeCategory));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const prods = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product));
+      
+      // Filter by search query client side for faster feedback
+      const filteredProds = searchQuery 
+        ? prods.filter(p => 
+            p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+            p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            p.description.toLowerCase().includes(searchQuery.toLowerCase())
+          )
+        : prods;
+
+      setProducts(filteredProds);
+      setLoading(false);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'products'));
+
+    return () => unsubscribe();
+  }, [activeCategory, viewMode, searchQuery]);
+
+  return (
+    <div className="space-y-12">
+      {/* View Selector & Header */}
+      <div className="flex flex-col sm:flex-row gap-8 justify-between items-start sm:items-end p-10 banig-pattern rounded-[3rem] border-4 border-white shadow-xl">
+        <div>
+          <h1 className="text-5xl font-bold text-primary tracking-tighter mb-4 font-serif italic">Marketplace</h1>
+          <p className="text-secondary font-bold uppercase tracking-[0.3em] text-[10px]">Directly supporting local farmers.</p>
+        </div>
+
+        <div className="bg-accent-light p-2 rounded-[2.5rem] flex items-center border border-primary/5">
+          <button 
+            onClick={() => setViewMode('shop')}
+            className={`flex items-center gap-3 py-3.5 px-10 rounded-[2rem] font-bold text-[10px] uppercase tracking-widest transition-all hover:scale-105 active:scale-95 ${viewMode === 'shop' ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'text-slate-400 hover:text-primary hover:bg-white/50'}`}
+          >
+            <ShoppingBag className="w-4 h-4" /> The Market
+          </button>
+          <button 
+            onClick={() => setViewMode('community')}
+            className={`flex items-center gap-3 py-3.5 px-10 rounded-[2rem] font-bold text-[10px] uppercase tracking-widest transition-all hover:scale-105 active:scale-95 ${viewMode === 'community' ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'text-slate-400 hover:text-primary hover:bg-white/50'}`}
+          >
+            <MessageSquare className="w-4 h-4" /> Community Feed
+          </button>
+        </div>
+      </div>
+
+      {viewMode === 'shop' ? (
+        <React.Fragment>
+          {/* Featured Spotlight Section */}
+          <section className="relative rounded-[5rem] overflow-hidden group shadow-2xl forest-shadow">
+            <div className="absolute inset-0 bg-primary">
+               <img 
+                src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=2000" 
+                className="w-full h-full object-cover opacity-60 group-hover:scale-110 transition-transform duration-[4000ms] mix-blend-luminosity" 
+              />
+            </div>
+            <div className="relative p-16 md:p-24 text-white max-w-4xl">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <div className="flex items-center gap-4 mb-10">
+                  <span className="w-12 h-px bg-secondary" />
+                  <span className="text-secondary text-[10px] font-bold uppercase tracking-[0.5em]">Fresh Selection</span>
+                </div>
+                <h2 className="text-5xl md:text-8xl font-bold mb-10 tracking-tighter leading-[0.9] font-serif">Fresh <br /> <span className="italic text-accent-light">Harvests</span></h2>
+                <p className="text-xl text-white/70 mb-14 leading-relaxed font-medium max-w-xl">Shop fresh products directly from local farmers. High-quality rice, vegetables, and more.</p>
+                <div className="flex items-center gap-10">
+                  <button className="px-12 py-6 bg-white text-primary rounded-full font-bold hover:scale-105 hover:bg-accent-light transition-all shadow-2xl active:scale-95 text-lg">Start Exploring</button>
+                  <button className="text-[10px] font-bold border-b-2 border-white/20 pb-1 hover:border-white transition-all uppercase tracking-[0.3em] text-white/60">Farm Story</button>
+                </div>
+              </motion.div>
+            </div>
+          </section>
+
+          {/* Category Navigation */}
+          <div className="py-4">
+            <div className="flex items-center gap-6 overflow-x-auto no-scrollbar py-6">
+              {categories.map((cat) => (
+                <button
+                  key={cat.name}
+                  onClick={() => handleCategoryClick(cat.name)}
+                  className={`flex items-center gap-4 px-10 py-5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] whitespace-nowrap transition-all border-2 group/cat active:scale-95 ${
+                    activeCategory === cat.name 
+                      ? 'bg-primary text-white border-primary shadow-2xl clay-shadow scale-105' 
+                      : 'bg-white text-slate-400 border-border hover:border-primary/20 hover:text-primary hover:bg-background hover:translate-y-[-4px]'
+                  }`}
+                >
+                  <span className="text-2xl opacity-80 group-hover/cat:scale-125 transition-transform">{cat.icon}</span>
+                  {cat.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-12">
+             <div className="flex items-end justify-between mb-16 border-b border-border pb-10">
+               <div>
+                 <h2 className="text-5xl font-bold text-slate-900 tracking-tighter mb-4 font-serif">Product <span className="italic text-primary">List</span></h2>
+                 <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-[10px]">Pure, unprocessed, and delivered fresh to your door.</p>
+               </div>
+               <div className="flex items-center gap-6">
+                 <div className="flex flex-col items-end">
+                    <p className="text-[10px] font-bold text-secondary uppercase tracking-[0.3em] mb-2">Market Status</p>
+                    <p className="text-xs font-bold text-slate-400">Fresh arrivals available now</p>
+                 </div>
+                 <div className="w-16 h-16 bg-accent-light rounded-3xl flex items-center justify-center border border-primary/5 shadow-inner">
+                    <Clock className="w-6 h-6 text-primary animate-pulse" />
+                 </div>
+               </div>
+             </div>
+             
+             {loading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12">
+                {[1,2,3,4,5,6].map(i => (
+                  <div key={i} className="aspect-[4/5] bg-accent-light rounded-[4rem] animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12">
+                {products.length > 0 ? (
+                  products.map((product) => (
+                    <ProductCard key={product.id} product={product} onClick={() => onProductClick(product.id)} />
+                  ))
+                ) : (
+                  <div className="col-span-full py-48 text-center flex flex-col items-center">
+                    <div className="w-24 h-24 bg-accent-light rounded-full flex items-center justify-center mb-8 border border-primary/5">
+                      <ShoppingBag className="w-10 h-10 text-primary/20" />
+                    </div>
+                    <p className="text-slate-400 font-bold uppercase tracking-[0.4em] text-[10px]">No products found</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </React.Fragment>
+      ) : (
+        <SocialFeed />
+      )}
+    </div>
+  );
+};
+
+const ProductCard: React.FC<{ product: Product; onClick: () => void }> = ({ product, onClick }) => {
+  return (
+    <motion.div 
+      layout
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -12 }}
+      className="group flex flex-col cursor-pointer"
+      onClick={onClick}
+    >
+      <div className="relative aspect-[4/5] rounded-[4rem] bg-accent-light mb-8 overflow-hidden transition-all duration-700 border-4 border-white forest-shadow">
+        <img 
+          src={product.images?.[0] || 'https://images.unsplash.com/photo-1615485290382-441e4d0c9cb5?auto=format&fit=crop&q=80&w=600'} 
+          alt={product.name}
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-[2000ms]"
+        />
+        
+        {/* Overlay Badges */}
+        <div className="absolute inset-x-0 bottom-0 p-8 bg-gradient-to-t from-black/60 via-black/20 to-transparent">
+          <div className="flex items-center justify-between">
+            <span className="px-5 py-2 bg-white/10 backdrop-blur-md rounded-full text-[9px] font-bold text-white uppercase tracking-[0.2em] border border-white/20">
+              {product.category}
+            </span>
+            <div className="flex items-center gap-2 px-3 py-2 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20">
+              <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+              <span className="text-[10px] font-bold text-white">4.9</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Verified Sun Badge */}
+        <div className="absolute top-8 left-8 flex items-center gap-2 px-4 py-2 bg-amber-500/90 backdrop-blur-md rounded-full shadow-lg border border-white/20 scale-90 -translate-x-20 group-hover:translate-x-0 transition-transform duration-500">
+           <Sun className="w-4 h-4 text-white animate-spin-slow" />
+           <span className="text-[8px] font-bold text-white uppercase tracking-widest">Verified</span>
+        </div>
+
+        {/* Action Button Overlays */}
+        <div className="absolute top-8 right-8 flex flex-col gap-4 translate-x-16 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-500">
+           <AddToCartButton product={product} />
+        </div>
+      </div>
+
+      <div className="px-6">
+        <div className="flex justify-between items-start mb-4">
+          <h4 className="text-2xl font-bold text-slate-800 tracking-tight leading-tight group-hover:text-primary transition-colors font-serif italic">{product.name}</h4>
+          <div className="text-right">
+             <p className="text-xl font-bold text-primary tracking-tighter">₱{product.price}</p>
+             <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">{product.unit}</p>
+          </div>
+        </div>
+        
+        <div className="flex items-center justify-between pt-4 border-t border-border">
+           <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-accent-light rounded-xl flex items-center justify-center text-[10px] font-bold text-primary overflow-hidden border border-primary/5 shadow-inner">
+                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${product.farmerId}`} alt="Farmer" className="w-full h-full object-cover" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Farmer</span>
+                <span className="text-[11px] font-bold text-slate-600">Local Farm #4</span>
+              </div>
+           </div>
+           
+           <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${product.stock > 0 ? 'bg-primary' : 'bg-secondary'} animate-pulse`} />
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">
+                {product.stock > 0 ? `${product.stock} In Stock` : 'Out of Stock'}
+              </span>
+           </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+const AddToCartButton: React.FC<{ product: Product }> = ({ product }) => {
+  const { addToCart } = useCart();
+  const [added, setAdded] = useState(false);
+
+  const handleAdd = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (product.stock <= 0) return;
+    addToCart(product, 1);
+    setAdded(true);
+    setTimeout(() => setAdded(false), 2000);
+  };
+
+  return (
+    <button 
+      disabled={product.stock <= 0}
+      className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all shadow-xl active:scale-90 border-2 ${added ? 'bg-primary text-white border-primary scale-110' : 'bg-white text-primary border-border hover:border-primary hover:scale-110 hover:rotate-6'}`}
+      onClick={handleAdd}
+    >
+      <Plus className={`w-6 h-6 transition-transform ${added ? 'rotate-90 scale-0' : ''}`} />
+      <ShoppingBag className={`w-6 h-6 absolute transition-transform ${added ? 'scale-100 rotate-0' : 'scale-0'}`} />
+    </button>
+  );
+};

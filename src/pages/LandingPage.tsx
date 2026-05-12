@@ -11,7 +11,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onShopClick, onFarmerR
   return (
     <div className="relative min-h-screen bg-background amakan-pattern">
       {/* Hero Section */}
-      <section className="relative h-[90vh] flex items-center justify-center text-center px-4 overflow-hidden rounded-b-[5rem] shadow-2xl pt-24">
+      <section className="relative h-[95vh] flex items-center justify-center text-center px-4 overflow-hidden rounded-b-[5rem] shadow-2xl pt-56">
         {/* Background Image with Overlay */}
         <div className="absolute inset-0 z-0">
           <img 
@@ -26,16 +26,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onShopClick, onFarmerR
         {/* Content Container */}
         <div className="relative z-10 max-w-4xl mx-auto">
           {/* Badge */}
-          <motion.div
+          <motion.button
+            whileHover={{ scale: 1.05, backgroundColor: 'rgba(255, 255, 255, 0.2)' }}
+            whileTap={{ scale: 0.95 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              document.getElementById('farmers-story')?.scrollIntoView({ behavior: 'smooth' });
+            }}
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-3 px-6 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-full mb-10 shadow-xl"
+            className="inline-flex items-center gap-3 px-6 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-full mb-12 shadow-xl cursor-pointer relative z-40 hover:border-white/40 transition-colors"
           >
             <div className="w-2.5 h-2.5 bg-accent rounded-full animate-pulse shadow-[0_0_10px_#b87333]" />
             <span className="text-white text-[10px] font-bold uppercase tracking-[0.5em]">
               Direct from local farms
             </span>
-          </motion.div>
+          </motion.button>
 
           {/* Headings */}
           <motion.div
@@ -44,6 +50,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onShopClick, onFarmerR
             transition={{ delay: 0.2 }}
             className="mb-12"
           >
+            <div className="flex justify-center mb-8">
+              <img 
+                src="/logo.png" 
+                alt="FarmToHome Logo" 
+                className="h-32 md:h-48 w-auto object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.3)]" 
+                onError={(e) => e.currentTarget.style.display = 'none'}
+              />
+            </div>
             <h1 className="text-6xl md:text-[8.5rem] font-bold text-white mb-8 tracking-tighter leading-[0.8] font-serif">
               Fresh From <br /> 
               <span className="text-accent underline decoration-accent/30 underline-offset-[20px] italic">Farm to Home</span>
@@ -88,7 +102,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onShopClick, onFarmerR
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.8 }}
-            className="hidden lg:flex absolute top-1/2 -right-24 -translate-y-1/2 flex-col items-center gap-4 bg-white/10 backdrop-blur-xl border border-white/20 p-6 rounded-[2.5rem] shadow-2xl"
+            className="hidden lg:flex absolute top-[85%] -right-32 -translate-y-1/2 flex-col items-center gap-4 bg-white/10 backdrop-blur-xl border border-white/20 p-6 rounded-[2.5rem] shadow-2xl"
           >
             <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white">
               <Heart className="w-6 h-6 fill-current" />
@@ -123,7 +137,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onShopClick, onFarmerR
       </section>
 
       {/* Narrative Section */}
-      <section className="py-40 px-8 relative overflow-hidden">
+      <section id="farmers-story" className="py-40 px-8 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-[50vw] h-[50vw] bg-accent/5 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/4" />
         <div className="absolute bottom-0 left-0 w-[40vw] h-[40vw] bg-secondary/5 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/4" />
         

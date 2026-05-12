@@ -144,7 +144,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         </button>
 
         <div className="p-8 md:p-16">
-          <div className="text-center mb-8 md:mb-14">
+          <div className="text-center mb-8 md:mb-14 flex flex-col items-center">
+            <div className="h-24 mb-6">
+              <img 
+                src="/logo.png" 
+                alt="FarmToHome Logo" 
+                className="h-full w-auto object-contain" 
+                onError={(e) => e.currentTarget.style.display = 'none'}
+              />
+            </div>
             <h2 className="text-3xl md:text-4xl font-bold text-slate-800 tracking-tighter font-serif italic mb-4">
               {mode === 'login' ? 'Welcome Back' : mode === 'register' ? 'Create Account' : 'Verification'}
             </h2>

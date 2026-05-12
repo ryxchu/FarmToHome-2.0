@@ -87,7 +87,9 @@ IMPORTANT:
           >
             <div className="p-4 bg-primary text-white flex justify-between items-center">
               <div className="flex items-center gap-2">
-                <Bot className="w-6 h-6" />
+                <div className="w-10 h-10 bg-white rounded-lg p-1 flex items-center justify-center overflow-hidden">
+                  <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" onError={(e) => e.currentTarget.style.display = 'none'} />
+                </div>
                 <div>
                   <h3 className="font-bold text-sm leading-none">FarmToHome AI</h3>
                   <span className="text-[10px] text-white/60">Always online to help</span>

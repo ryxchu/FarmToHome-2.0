@@ -28,7 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
       <nav className={`z-50 transition-all ${!user ? 'h-24 bg-transparent border-none fixed w-full' : 'h-24 sticky top-0 bg-background/80 backdrop-blur-xl border-b border-white/40'} px-8 flex items-center`}>
       <div className="max-w-[1600px] mx-auto w-full flex items-center justify-between">
         <div 
-          className="flex items-center gap-4 cursor-pointer group"
+          className="flex items-center gap-3 cursor-pointer group"
           onClick={() => {
             if (user) {
               if (profile?.role === 'admin') setView('admin-dashboard');
@@ -42,12 +42,26 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
           }}
         >
           <motion.div
-            whileHover={{ scale: 1.1, rotate: 5 }}
-            className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/10"
+            whileHover={{ scale: 1.05 }}
+            className="h-16 flex items-center"
           >
-            <Sprout className="w-6 h-6 text-accent-light" />
+            <img 
+              src="/logo.png" 
+              alt="FarmToHome Logo" 
+              className="h-full w-auto object-contain"
+              onError={(e) => {
+                // Fallback if logo.png is not yet uploaded
+                e.currentTarget.style.display = 'none';
+                const parent = e.currentTarget.parentElement;
+                if (parent) {
+                  const span = document.createElement('span');
+                  span.className = `text-2xl font-bold tracking-tighter font-serif ${!user ? 'text-white' : 'text-slate-900'}`;
+                  span.innerText = 'FarmToHome';
+                  parent.appendChild(span);
+                }
+              }}
+            />
           </motion.div>
-          <span className={`text-2xl font-bold tracking-tighter font-serif ${!user ? 'text-white' : 'text-slate-900'}`}>FarmToHome</span>
         </div>
 
         {!user ? (

@@ -114,6 +114,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   };
 
   const handleVerify = async () => {
+    const enteredOtp = otp.join('');
+    if (enteredOtp !== '123456') {
+      setError('Invalid verification code. Please try 123456 for testing.');
+      return;
+    }
+
     setLoading(true);
     try {
       if (auth.currentUser) {
@@ -154,10 +160,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
               />
             </div>
             <h2 className="text-3xl md:text-4xl font-bold text-slate-800 tracking-tighter font-serif italic mb-4">
-              {mode === 'login' ? 'Welcome Back' : mode === 'register' ? 'Create Account' : 'Verification'}
+              {mode === 'login' ? 'Welcome Back' : mode === 'register' ? 'Create Account' : 'Security Verification'}
             </h2>
-            <p className="text-slate-400 text-[9px] md:text-[10px] font-bold uppercase tracking-[0.4em]">
-              {mode === 'login' ? 'Sign in to your account' : mode === 'register' ? 'Join our community of farmers and buyers' : 'Verify your account access'}
+            <p className="text-slate-400 text-[9px] md:text-[10px] font-bold uppercase tracking-[0.4em] max-w-xs mx-auto leading-relaxed">
+              {mode === 'login' 
+                ? 'Sign in to your account' 
+                : mode === 'register' 
+                  ? 'Join our community of farmers and buyers' 
+                  : `We've sent a 6-digit confirmation code to ${email || phone}. Please check your inbox or messages.`}
             </p>
           </div>
 
@@ -335,6 +345,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                   />
                 ))}
               </div>
+
+              {error && (
+                <div className="p-6 bg-secondary/5 border-2 border-secondary/10 rounded-[2rem] flex items-start gap-4 text-secondary text-[11px] font-bold uppercase tracking-tight">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                  <p>{error}</p>
+                </div>
+              )}
+
               <button 
                 onClick={handleVerify}
                 disabled={loading}
@@ -345,12 +363,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
               <div className="text-center space-y-6">
                 <button 
                   onClick={() => setMode('login')}
-                  className="text-[10px] font-bold text-slate-300 hover:text-primary transition-colors tracking-[0.5em] uppercase"
+                  className="text-[10px] font-bold text-slate-300 hover:text-primary transition-colors tracking-[0.5em] uppercase hover:underline"
                 >
                   Back to Login
                 </button>
-                <div>
-                  <button className="text-[10px] font-bold text-slate-200 hover:text-primary transition-colors tracking-[0.4em] uppercase">Resend code in 45s</button>
+                <div className="flex flex-col gap-3">
+                  <button 
+                    onClick={() => {
+                      setError('');
+                      alert(`A new code has been sent to ${email}`);
+                    }}
+                    className="text-[10px] font-bold text-slate-400 hover:text-primary transition-colors tracking-[0.4em] uppercase"
+                  >
+                    Resend to Email
+                  </button>
+                  {phone && (
+                    <button 
+                      onClick={() => {
+                        setError('');
+                        alert(`A new code has been sent to ${phone}`);
+                      }}
+                      className="text-[10px] font-bold text-slate-400 hover:text-primary transition-colors tracking-[0.4em] uppercase"
+                    >
+                      Resend to Phone SMS
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

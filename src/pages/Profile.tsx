@@ -128,7 +128,7 @@ export const Profile: React.FC = () => {
           <div className="absolute -bottom-20 left-16 p-2 bg-white rounded-[2.5rem] shadow-2xl border-4 border-accent-light">
             <div className="w-40 h-40 rounded-[2rem] bg-accent-light flex items-center justify-center overflow-hidden border border-primary/5">
               {profile.photoURL ? (
-                <img src={profile.photoURL} alt="Profile Picture" className="w-full h-full object-cover" />
+                <img src={profile.photoURL} alt="Profile Picture" className="w-full h-full object-contain bg-slate-50" />
               ) : (
                 <User className="w-20 h-20 text-primary opacity-20" />
               )}
@@ -316,7 +316,7 @@ export const Profile: React.FC = () => {
                     <div className="relative group">
                       <div className="w-24 h-24 rounded-3xl overflow-hidden bg-slate-100 border-2 border-slate-200">
                         {editForm.photoURL ? (
-                          <img src={editForm.photoURL} alt="Preview" className="w-full h-full object-cover" />
+                          <img src={editForm.photoURL} alt="Preview" className="w-full h-full object-contain bg-slate-50" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-slate-300">
                             <User className="w-10 h-10" />

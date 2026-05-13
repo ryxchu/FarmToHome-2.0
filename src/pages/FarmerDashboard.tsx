@@ -3,7 +3,7 @@ import { collection, query, where, onSnapshot, setDoc, updateDoc, doc, deleteDoc
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Product, Order } from '../types';
-import { Plus, Package, ShoppingBag, TrendingUp, Edit, Trash2, X, Check, Image as ImageIcon, Star, User, Settings, MessageSquare } from 'lucide-react';
+import { Plus, Package, ShoppingBag, TrendingUp, Edit, Trash2, X, Check, Image as ImageIcon, Star, User, Settings, MessageSquare, ArrowLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Chat } from '../components/Chat';
 
@@ -119,143 +119,144 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile 
     }
   };
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [currentProductPage, setCurrentProductPage] = useState(1);
+  const ordersPerPage = 4;
+  const productsPerPage = 5;
+  
+  const totalPages = Math.ceil(orders.length / ordersPerPage);
+  const totalProductPages = Math.ceil(products.length / productsPerPage);
+
+  const paginatedOrders = orders
+    .sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice((currentPage - 1) * ordersPerPage, currentPage * ordersPerPage);
+
+  const paginatedProducts = products
+    .sort((a,b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
+    .slice((currentProductPage - 1) * productsPerPage, currentProductPage * productsPerPage);
+
   return (
     <div className="max-w-7xl mx-auto px-6 py-12">
       {/* Header Area */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-10 mb-16">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-10 mb-12">
         <div>
           <div className="flex items-center gap-4 mb-3">
             <div className="w-2 h-10 bg-primary rounded-full" />
-            <h1 className="text-5xl font-bold text-slate-800 tracking-tighter font-serif">Farmer <span className="italic text-primary">Dashboard</span></h1>
+            <h1 className="text-4xl font-bold text-slate-800 tracking-tighter font-serif">Store <span className="italic text-primary">Management</span></h1>
           </div>
-          <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-[10px]">Managing {profile?.farmName || "Your Farm"}'s daily operations.</p>
+          <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-[10px]">Real-time operational overview for {profile?.farmName || "Your Farm"}.</p>
         </div>
         
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4">
           <button 
             onClick={onEditProfile}
-            className="p-5 bg-white text-slate-400 hover:text-primary rounded-full transition-all border-2 border-slate-100 hover:border-primary/20 shadow-sm hover:shadow-lg hover:scale-110 active:scale-90"
+            className="px-6 py-3 bg-white text-slate-600 font-bold text-[10px] uppercase tracking-widest rounded-2xl transition-all border border-slate-100 shadow-sm hover:shadow-md active:scale-95 flex items-center gap-3"
           >
-            <User className="w-5 h-5" />
+            <User className="w-4 h-4" /> Profile Settings
           </button>
-          <div className="hidden sm:flex flex-col items-end mr-6">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Climate Intelligence</p>
-            <p className="text-sm font-bold text-slate-700">Optimal Soil Energy • 28°C</p>
-          </div>
           <button 
-            onClick={() => setShowAddModal(true)}
-            className="group flex items-center gap-4 px-10 py-5 bg-primary text-white rounded-full font-bold hover:scale-105 transition-all shadow-2xl shadow-primary/20 active:scale-95 text-xs uppercase tracking-widest"
+            onClick={() => setActiveTab('messages')}
+            className="px-6 py-3 bg-white text-slate-600 font-bold text-[10px] uppercase tracking-widest rounded-2xl transition-all border border-slate-100 shadow-sm hover:shadow-md active:scale-95 flex items-center gap-3 relative"
           >
-            <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-500" />
-            Add Product
+            <MessageSquare className="w-4 h-4" /> Support
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white" />
           </button>
         </div>
       </div>
 
-      {/* Weather Alert Panel */}
-      {weatherAlert && (
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={`mb-12 p-8 rounded-[3rem] border-2 flex items-center gap-8 ${
-            weatherAlert.type === 'warning' 
-              ? 'bg-secondary/5 border-secondary/10 text-secondary' 
-              : 'bg-primary/5 border-primary/10 text-primary'
-          }`}
-        >
-          <div className={`p-4 rounded-2xl ${weatherAlert.type === 'warning' ? 'bg-secondary' : 'bg-primary'} text-white shadow-xl`}>
-            <TrendingUp className="w-6 h-6" />
+      {/* Stats Row - Professional Analytics Style */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-16">
+        <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Active Products</p>
+          <div className="flex items-end gap-3">
+            <h3 className="text-4xl font-black text-slate-800 tracking-tighter">{products.length}</h3>
+            <span className="text-[10px] font-bold text-slate-400 mb-1.5 italic font-serif">Listed Products</span>
           </div>
-          <div className="flex-grow">
-            <p className="text-[10px] font-bold uppercase tracking-[0.4em] opacity-60 mb-2">Farm Updates</p>
-            <p className="text-lg font-bold tracking-tight">{weatherAlert.message}</p>
-          </div>
-          <button 
-            onClick={() => setWeatherAlert(null)}
-            className="p-3 hover:bg-black/5 rounded-full transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </motion.div>
-      )}
+          <Package className="absolute right-6 bottom-6 w-12 h-12 text-slate-50 -mb-2 -mr-2" />
+        </div>
 
-      {/* Bento Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-16">
-        {/* Main Stat: Revenue */}
-        <div className="lg:col-span-2 bg-primary text-white p-12 rounded-[4rem] relative overflow-hidden group shadow-2xl forest-shadow">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-secondary/10 rounded-full -mr-40 -mt-40 transition-transform duration-1000 group-hover:scale-125" />
-          <div className="relative z-10">
-            <div className="flex justify-between items-start mb-16">
-              <div className="p-5 bg-white/10 backdrop-blur-2xl rounded-3xl border border-white/10 shadow-inner">
-                <TrendingUp className="text-accent-light w-8 h-8" />
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-[0.3em] bg-white/10 text-accent-light py-2 px-6 rounded-full border border-white/10">Yield Increase +12.5%</span>
+        <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Top Performer</p>
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-500">
+              <Star className="w-5 h-5 fill-amber-500" />
             </div>
-            <p className="text-white/60 text-[10px] font-bold uppercase tracking-[0.4em] mb-4">Total Sales Value</p>
-            <h3 className="text-7xl font-bold tracking-tighter mb-4 font-serif italic">₱{totalSales.toLocaleString()}</h3>
-            <p className="text-accent-light/80 text-xs font-bold uppercase tracking-widest">Excellent progress for your farm.</p>
+            <div className="overflow-hidden">
+              <h3 className="text-lg font-bold text-slate-800 tracking-tight truncate">
+                {products.sort((a,b) => (b.rating || 0) - (a.rating || 0))[0]?.name || '---'}
+              </h3>
+              <p className="text-[10px] font-medium text-slate-400">Winning Item</p>
+            </div>
           </div>
         </div>
 
-        {/* Pending Orders */}
-        <div className="bg-white p-12 rounded-[4rem] border-2 border-border shadow-xl clay-shadow flex flex-col justify-between group hover:border-primary transition-all duration-500">
-          <div>
-            <div className="p-5 bg-accent-light rounded-3xl w-fit mb-10 group-hover:bg-primary/5 transition-colors border border-primary/5">
-              <ShoppingBag className="text-primary w-8 h-8" />
+        <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Performance</p>
+          <div className="flex items-center gap-4">
+            <div className="relative w-12 h-12 flex items-center justify-center">
+              <svg className="w-full h-full rotate-[-90deg] absolute">
+                <circle cx="24" cy="24" r="20" fill="none" stroke="#f8fafc" strokeWidth="4" />
+                <circle cx="24" cy="24" r="20" fill="none" stroke="#10b981" strokeWidth="4" strokeDasharray="125" strokeDashoffset="30" strokeLinecap="round" />
+              </svg>
+              <span className="text-[9px] font-bold text-emerald-600 relative z-10">82%</span>
             </div>
-            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.4em] mb-2">Orders to Ship</p>
-            <h3 className="text-6xl font-bold text-slate-800 tracking-tighter font-serif italic">{pendingOrders.length}</h3>
+            <div>
+              <h3 className="text-lg font-bold text-slate-800 tracking-tight leading-none mb-1">Good!</h3>
+              <p className="text-[10px] font-medium text-slate-400">Quality Score</p>
+            </div>
           </div>
-          <p className="text-secondary text-[10px] font-bold uppercase tracking-[0.3em] mt-6">Ready to Process</p>
         </div>
 
-        {/* Operational Health */}
-        <div className="bg-background p-12 rounded-[4rem] border-2 border-border flex flex-col justify-between hover:bg-white transition-all cursor-pointer group hover:shadow-2xl hover:shadow-primary/5">
-          <div className="space-y-10">
-            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.4em] mb-2">Farm Status</p>
-            <div className="space-y-6">
-              <div className="flex justify-between items-end">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Active Products</span>
-                <span className="text-2xl font-bold text-primary font-serif italic">{products.length}</span>
-              </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-primary w-[75%] shadow-[0_0_10px_rgba(45,66,45,0.4)]" />
-              </div>
-            </div>
-          </div>
-          <div className="mt-10">
-            <div className="flex items-center gap-3">
-              <div className="w-2.5 h-2.5 bg-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(45,66,45,0.6)]" />
-              <span className="text-[10px] font-bold text-primary uppercase tracking-[0.3em]">Inventory Updated</span>
-            </div>
+        <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Sales Value</p>
+          <div className="flex items-end gap-3">
+            <h3 className="text-4xl font-black text-primary tracking-tighter">₱{totalSales.toLocaleString()}</h3>
+            <span className="text-[10px] font-bold text-emerald-500 mb-1.5">+12.4%</span>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-10">
+      <div className="space-y-16">
         {/* Main Panel with Tabs */}
-        <div className="lg:col-span-3 space-y-8">
-          <div className="flex items-center gap-6 px-4">
-            <button 
-              onClick={() => setActiveTab('inventory')}
-              className={`text-xl font-bold tracking-tight transition-all ${activeTab === 'inventory' ? 'text-slate-800' : 'text-slate-300 hover:text-slate-400'}`}
-            >
-              Product Inventory
-            </button>
-            <button 
-              onClick={() => setActiveTab('feedback')}
-              className={`text-xl font-bold tracking-tight transition-all ${activeTab === 'feedback' ? 'text-slate-800' : 'text-slate-300 hover:text-slate-400'}`}
-            >
-              Customer Reviews
-              {reviews.length > 0 && <span className="ml-2 text-[10px] bg-emerald-500 text-white px-2 py-0.5 rounded-full">{reviews.length}</span>}
-            </button>
-            <button 
-              onClick={() => setActiveTab('messages')}
-              className={`text-xl font-bold tracking-tight transition-all ${activeTab === 'messages' ? 'text-slate-800' : 'text-slate-300 hover:text-slate-400'}`}
-            >
-              Messages
-              {conversations.length > 0 && <span className="ml-2 text-[10px] bg-primary text-white px-2 py-0.5 rounded-full">{conversations.length}</span>}
-            </button>
+        <div className="space-y-10">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 px-4">
+            <div className="flex items-center gap-10">
+              <button 
+                onClick={() => setActiveTab('inventory')}
+                className={`text-xl font-bold tracking-tight transition-all pb-4 border-b-2 ${activeTab === 'inventory' ? 'text-slate-800 border-primary' : 'text-slate-300 border-transparent hover:text-slate-400'}`}
+              >
+                Product Inventory
+              </button>
+              <button 
+                onClick={() => setActiveTab('feedback')}
+                className={`text-xl font-bold tracking-tight transition-all pb-4 border-b-2 ${activeTab === 'feedback' ? 'text-slate-800 border-primary' : 'text-slate-300 border-transparent hover:text-slate-400'}`}
+              >
+                Feedback
+              </button>
+              <button 
+                onClick={() => setActiveTab('messages')}
+                className={`text-xl font-bold tracking-tight transition-all pb-4 border-b-2 ${activeTab === 'messages' ? 'text-slate-800 border-primary' : 'text-slate-300 border-transparent hover:text-slate-400'}`}
+              >
+                Support Hub
+              </button>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <input 
+                  type="text" 
+                  placeholder="Search produce..." 
+                  className="pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-[2rem] text-xs focus:ring-2 focus:ring-primary/10 outline-none w-72 transition-all shadow-sm"
+                />
+                <Package className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              </div>
+              <button 
+                onClick={() => { setEditingProduct(null); setShowAddModal(true); }}
+                className="px-8 py-4 bg-primary text-white rounded-[2rem] text-xs font-bold uppercase tracking-widest hover:bg-primary-dark transition-all shadow-xl shadow-primary/20 flex items-center gap-3"
+              >
+                <Plus className="w-4 h-4" /> Add Item
+              </button>
+            </div>
           </div>
           
           <AnimatePresence mode="wait">
@@ -273,47 +274,125 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile 
                     <p className="text-slate-400 font-bold uppercase tracking-[0.4em] text-[10px]">No products in inventory</p>
                   </div>
                 ) : (
-                  products.map(product => (
-                    <div key={product.id} className="p-10 group flex items-center justify-between hover:bg-background transition-all first:rounded-t-[3.5rem] last:rounded-b-[3.5rem]">
-                      <div className="flex items-center gap-10">
-                        <div className="relative">
-                          <img 
-                            src={product.images?.[0] || 'https://images.unsplash.com/photo-1615485290382-441e4d0c9cb5?auto=format&fit=crop&q=80&w=200'} 
-                            className="w-24 h-24 rounded-[2.5rem] object-cover shadow-2xl group-hover:scale-110 transition-transform duration-1000" 
-                          />
-                          {product.stock <= 5 && (
-                            <div className="absolute -top-3 -right-3 px-3 py-1.5 bg-secondary text-white text-[9px] font-bold uppercase rounded-xl shadow-xl tracking-widest">Low Stock</div>
-                          )}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-4 mb-2">
-                            <p className="font-bold text-2xl text-slate-800 tracking-tighter font-serif italic">{product.name}</p>
-                            <span className="px-3 py-1 bg-accent-light text-primary rounded-full text-[9px] font-bold uppercase tracking-widest border border-primary/5">{product.category}</span>
-                          </div>
-                          <div className="flex items-center gap-6">
-                            <p className="text-sm font-bold text-primary tracking-tight">₱{product.price} <span className="text-[10px] text-slate-300 uppercase italic">per {product.unit}</span></p>
-                            <div className="w-1.5 h-1.5 bg-slate-100 rounded-full" />
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{product.stock} In Stock</p>
-                          </div>
-                        </div>
+                  <>
+                    <div className="bg-white/50 border border-slate-100 rounded-[3.5rem] overflow-hidden">
+                      <div className="grid grid-cols-12 gap-4 px-10 py-6 border-b border-slate-100 bg-slate-50/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        <div className="col-span-4">Product Info</div>
+                        <div className="col-span-2">Performance</div>
+                        <div className="col-span-3">Inventory Status</div>
+                        <div className="col-span-2 text-right">Unit Price</div>
+                        <div className="col-span-1"></div>
                       </div>
-                      
-                      <div className="flex items-center gap-4 opacity-0 group-hover:opacity-100 translate-x-4 group-hover:translate-x-0 transition-all duration-500">
-                        <button 
-                          onClick={() => { setEditingProduct(product); setShowAddModal(true); }}
-                          className="p-4 bg-white text-slate-400 hover:text-primary transition-all rounded-2xl border border-border shadow-sm hover:shadow-xl hover:scale-110 active:scale-90 group/btn"
-                        >
-                          <Edit className="w-5 h-5 group-hover/btn:rotate-12 transition-transform" />
-                        </button>
-                        <button 
-                          onClick={() => deleteProduct(product.id)}
-                          className="p-4 bg-white text-slate-400 hover:text-secondary transition-all rounded-2xl border border-border shadow-sm hover:shadow-xl hover:scale-110 active:scale-90 group/btn"
-                        >
-                          <Trash2 className="w-5 h-5 group-hover/btn:scale-110 transition-transform" />
-                        </button>
+
+                      <div className="divide-y divide-slate-100">
+                        {paginatedProducts.map(product => (
+                          <div key={product.id} className="grid grid-cols-12 gap-4 px-10 py-8 items-center bg-white hover:bg-slate-50/50 transition-colors group">
+                            <div className="col-span-4 flex items-center gap-6">
+                              <div className="relative flex-shrink-0">
+                                <img 
+                                  src={product.images?.[0] || 'https://images.unsplash.com/photo-1615485290382-441e4d0c9cb5?auto=format&fit=crop&q=80&w=200'} 
+                                  className="w-16 h-16 rounded-2xl object-cover shadow-lg border border-white" 
+                                  alt={product.name}
+                                />
+                              </div>
+                              <div>
+                                <h4 className="font-bold text-slate-800 text-lg tracking-tight mb-1">{product.name}</h4>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full uppercase tracking-tighter">Verified</span>
+                                  <span className="text-[10px] font-medium text-slate-400 italic">ID: {product.id.slice(0, 8)}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="col-span-2">
+                              <div className="flex flex-col gap-1.5">
+                                <span className={`text-[10px] font-bold uppercase tracking-tighter ${
+                                  (product.rating || 0) >= 4.5 ? 'text-emerald-500' : 
+                                  (product.rating || 0) >= 3.5 ? 'text-amber-500' : 'text-slate-400'
+                                }`}>
+                                  {(product.rating || 0) >= 4.5 ? 'Excellent' : 
+                                   (product.rating || 0) >= 3.5 ? 'Good' : 'Needs Review'}
+                                </span>
+                                <div className="flex items-center gap-1 text-slate-400">
+                                  <TrendingUp className="w-3 h-3" />
+                                  <span className="text-[10px] font-bold">{(product.reviewCount || 0) * 12} Views</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="col-span-3">
+                              <div className="flex items-center gap-4">
+                                <div className="flex-grow h-2 bg-slate-100 rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full rounded-full transition-all duration-1000 ${
+                                      product.stock > 50 ? 'bg-emerald-500' : 
+                                      product.stock > 10 ? 'bg-amber-500' : 'bg-rose-500'
+                                    }`}
+                                    style={{ width: `${Math.min(100, (product.stock / 200) * 100)}%` }}
+                                  />
+                                </div>
+                                <span className={`text-xs font-bold w-20 ${product.stock <= 10 ? 'text-rose-500' : 'text-slate-600'}`}>
+                                  {product.stock} {product.unit}s
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="col-span-2 text-right">
+                              <p className="text-lg font-black text-slate-800 tracking-tighter">₱{product.price.toLocaleString()}</p>
+                              <p className="text-[9px] font-bold text-slate-400 uppercase">per {product.unit}</p>
+                            </div>
+
+                            <div className="col-span-1 flex justify-end gap-2 pr-4">
+                              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button 
+                                  onClick={() => { setEditingProduct(product); setShowAddModal(true); }}
+                                  className="p-2.5 text-slate-400 hover:text-primary transition-all hover:bg-primary/5 rounded-xl border border-slate-100"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button 
+                                  onClick={() => deleteProduct(product.id)}
+                                  className="p-2.5 text-slate-400 hover:text-rose-500 transition-all hover:bg-rose-50 rounded-xl border border-slate-100"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  ))
+
+                    {totalProductPages > 1 && (
+                      <div className="flex items-center justify-center gap-4 p-8 bg-slate-50/50 rounded-b-[4rem]">
+                        <button 
+                          disabled={currentProductPage === 1}
+                          onClick={() => setCurrentProductPage(prev => Math.max(1, prev - 1))}
+                          className="p-3 bg-white text-slate-400 hover:text-primary disabled:opacity-30 rounded-2xl border border-border transition-all shadow-sm"
+                        >
+                          <ArrowLeft className="w-5 h-5" />
+                        </button>
+                        <div className="flex gap-2">
+                          {[...Array(totalProductPages)].map((_, i) => (
+                            <button 
+                              key={i}
+                              onClick={() => setCurrentProductPage(i + 1)}
+                              className={`w-10 h-10 rounded-xl font-bold text-xs transition-all ${currentProductPage === i + 1 ? 'bg-primary text-white shadow-xl' : 'bg-white text-slate-400 hover:bg-slate-50'}`}
+                            >
+                              {i + 1}
+                            </button>
+                          ))}
+                        </div>
+                        <button 
+                          disabled={currentProductPage === totalProductPages}
+                          onClick={() => setCurrentProductPage(prev => Math.min(totalProductPages, prev + 1))}
+                          className="p-3 bg-white text-slate-400 hover:text-primary disabled:opacity-30 rounded-2xl border border-border transition-all shadow-sm"
+                        >
+                          <ChevronRight className="w-5 h-5" />
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </motion.div>
             ) : activeTab === 'feedback' ? (
@@ -412,97 +491,121 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile 
           </AnimatePresence>
         </div>
 
-        {/* Recent Orders - Right Panel */}
-        <div className="lg:col-span-2 space-y-10">
-          <div className="px-6">
-            <h2 className="text-2xl font-bold text-slate-800 tracking-tighter font-serif italic">Recent Activity</h2>
+        {/* Recent Orders - Bottom Business Panel */}
+        <div className="space-y-12">
+          <div className="px-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-3xl font-bold text-slate-800 tracking-tighter font-serif italic">Operational Log</h2>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Transaction History & Fulfillment</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 py-2 bg-slate-100 rounded-full border border-slate-200">
+                Page {currentPage} of {totalPages || 1}
+              </span>
+            </div>
           </div>
           
-          <div className="bg-primary rounded-[4rem] p-12 shadow-2xl shadow-primary/20 text-white min-h-[600px] relative overflow-hidden">
-             <div className="absolute top-0 right-0 w-[40vw] h-[40vw] bg-secondary/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/4" />
-             
+          <div className="bg-slate-50 border border-slate-200 rounded-[4rem] p-16 shadow-inner min-h-[400px] relative overflow-hidden">
              {orders.length === 0 ? (
-               <div className="h-full flex flex-col items-center justify-center opacity-30 relative z-10">
-                 <ShoppingBag className="w-16 h-16 mb-6" />
-                 <p className="text-[10px] font-bold uppercase tracking-[0.4em]">Waiting for new orders...</p>
+               <div className="h-full flex flex-col items-center justify-center opacity-30 relative z-10 py-20">
+                 <ShoppingBag className="w-16 h-16 mb-6 text-slate-400" />
+                 <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-slate-400">Inventory is standby...</p>
                </div>
              ) : (
-               <div className="space-y-8 relative z-10">
-                 {orders.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, expandAllActivity ? orders.length : 5).map(order => (
-                  <div key={order.id} className="p-8 bg-white/5 border border-white/10 rounded-[3rem] hover:bg-white/10 transition-all border-l-8 border-l-secondary shadow-inner">
-                    <div className="flex justify-between items-center mb-6">
-                      <div>
-                        <p className="text-[9px] font-bold text-secondary uppercase tracking-[0.3em] mb-2">Order ID</p>
-                        <p className="font-mono text-xs opacity-60">#{order.id.slice(0, 12)}</p>
-                      </div>
-                      <div className="flex flex-col items-end gap-3">
-                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-[0.4em] border ${
-                          order.status === 'pending' ? 'bg-secondary/10 text-secondary border-secondary/20' :
-                          order.status === 'delivered' ? 'bg-accent-light/10 text-accent-light border-accent-light/20' : 
-                          order.status === 'cancelled' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
-                          'bg-accent-light/10 text-accent-light border-accent-light/20'
+               <div className="relative z-10">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                   {paginatedOrders.map(order => (
+                    <div key={order.id} className="p-10 bg-white border border-slate-200 rounded-[3.5rem] hover:shadow-xl hover:shadow-slate-200/50 transition-all border-l-8 border-l-primary flex flex-col h-full group">
+                      <div className="flex justify-between items-start mb-8 gap-4">
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mb-1">Receipt ID</p>
+                          <p className="font-mono text-sm text-slate-800 font-bold opacity-80">#{order.id.slice(0, 10).toUpperCase()}</p>
+                        </div>
+                        <span className={`px-5 py-2 rounded-full text-[9px] font-bold uppercase tracking-[0.3em] border flex-shrink-0 ${
+                          order.status === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                          order.status === 'delivered' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 
+                          order.status === 'cancelled' ? 'bg-rose-50 text-rose-600 border-rose-200' :
+                          'bg-blue-50 text-blue-600 border-blue-200'
                         }`}>
                           {order.status}
                         </span>
-                        
-                        <div className="flex gap-2">
-                          {order.status === 'pending' && (
-                            <button 
-                              onClick={() => updateOrderStatus(order.id, 'preparing')}
-                              className="px-4 py-2 bg-secondary text-white text-[9px] font-bold uppercase rounded-xl transition-all shadow-lg shadow-secondary/20 tracking-widest hover:scale-110 hover:-rotate-2 active:scale-95"
-                            >
-                              Process
-                            </button>
-                          )}
-                          {order.status === 'preparing' && (
-                            <button 
-                              onClick={() => updateOrderStatus(order.id, 'shipped')}
-                              className="px-4 py-2 bg-accent-light text-primary text-[9px] font-bold uppercase rounded-xl transition-all shadow-lg shadow-accent-light/20 tracking-widest hover:scale-110 hover:rotate-2 active:scale-95"
-                            >
-                              Ship
-                            </button>
-                          )}
-                          {order.status === 'shipped' && (
-                            <button 
-                              onClick={() => updateOrderStatus(order.id, 'delivered')}
-                              className="px-4 py-2 bg-secondary text-white text-[9px] font-bold uppercase rounded-xl transition-all shadow-lg shadow-secondary/20 tracking-widest hover:scale-110 hover:-rotate-2 active:scale-95"
-                            >
-                              Complete
-                            </button>
-                          )}
+                      </div>
+                      
+                      <div className="space-y-4 mb-8 opacity-90 border-y border-slate-100 py-8 flex-grow">
+                        {order.items.map((item, idx) => (
+                          <div key={idx} className="flex justify-between items-center text-sm">
+                            <span className="font-bold text-slate-700 tracking-tight">{item.name} <span className="text-[10px] text-slate-400 font-medium italic ml-2">x {item.quantity}</span></span>
+                            <span className="font-mono text-[11px] font-bold text-slate-800">₱{(item.price * item.quantity).toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <div className="flex items-end justify-between">
+                        <div>
+                          <p className="text-[10px] opacity-40 font-bold uppercase mb-2 tracking-[0.2em]">Settled Amount</p>
+                          <p className="text-4xl font-black tracking-tighter text-slate-800 italic font-serif">₱{order.total.toLocaleString()}</p>
+                        </div>
+                        <div className="flex flex-col items-end gap-6">
+                          <div className="flex gap-2">
+                            {order.status === 'pending' && (
+                              <button 
+                                onClick={() => updateOrderStatus(order.id, 'preparing')}
+                                className="px-6 py-3 bg-primary text-white text-[9px] font-bold uppercase rounded-xl transition-all shadow-lg shadow-primary/20 tracking-widest hover:scale-105 active:scale-95"
+                              >
+                                Accept
+                              </button>
+                            )}
+                            {order.status === 'preparing' && (
+                              <button 
+                                onClick={() => updateOrderStatus(order.id, 'shipped')}
+                                className="px-6 py-3 bg-primary text-white text-[9px] font-bold uppercase rounded-xl transition-all shadow-lg shadow-primary/20 tracking-widest hover:scale-105 active:scale-95"
+                              >
+                                Ship Order
+                              </button>
+                            )}
+                            {order.status === 'shipped' && (
+                              <button 
+                                onClick={() => updateOrderStatus(order.id, 'delivered')}
+                                className="px-6 py-3 bg-secondary text-white text-[9px] font-bold uppercase rounded-xl transition-all shadow-lg shadow-secondary/20 tracking-widest hover:scale-105 active:scale-95"
+                              >
+                                Complete
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
-                    
-                    <div className="space-y-3 mb-6 opacity-80 border-y border-white/5 py-6">
-                      {order.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-center text-xs">
-                          <span className="font-bold tracking-tight">{item.name} <span className="opacity-40 italic">x {item.quantity}</span></span>
-                          <span className="font-mono text-[10px]">₱{(item.price * item.quantity).toLocaleString()}</span>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    <div className="flex items-end justify-between">
-                      <div>
-                        <p className="text-3xl font-bold tracking-tighter font-serif italic text-accent-light">₱{order.total.toLocaleString()}</p>
-                        <p className="text-[9px] opacity-40 font-bold uppercase mt-2 tracking-[0.2em]">Order Total</p>
-                      </div>
-                      <div className="flex flex-col items-end">
-                        <p className="text-xs font-bold text-white/60 tracking-tight">{new Date(order.createdAt).toLocaleDateString()}</p>
-                        <p className="text-[9px] opacity-40 font-bold uppercase mt-2 tracking-[0.2em]">Order Date</p>
-                      </div>
-                    </div>
-                  </div>
-                 ))}
+                   ))}
+                 </div>
                  
-                 {orders.length > 5 && (
-                   <button 
-                    onClick={() => setExpandAllActivity(!expandAllActivity)}
-                    className="w-full py-6 text-center text-[10px] font-bold uppercase tracking-[0.5em] text-white/40 hover:text-white transition-all border-t border-white/5 mt-10"
-                   >
-                     {expandAllActivity ? 'Show Less' : 'Show More'}
-                   </button>
+                 {totalPages > 1 && (
+                   <div className="flex items-center justify-center gap-8 mt-16 border-t border-slate-200 pt-10">
+                     <button 
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      className="p-4 bg-white hover:bg-slate-50 disabled:opacity-30 border border-slate-200 rounded-2xl transition-all shadow-sm"
+                     >
+                       <ArrowLeft className="w-5 h-5 text-slate-400" />
+                     </button>
+                     <div className="flex items-center gap-3">
+                       {[...Array(totalPages)].map((_, i) => (
+                         <button 
+                           key={i}
+                           onClick={() => setCurrentPage(i + 1)}
+                           className={`w-12 h-12 rounded-2xl font-bold text-xs transition-all ${currentPage === i + 1 ? 'bg-primary text-white shadow-xl' : 'bg-white text-slate-400 hover:bg-slate-100 border border-slate-100'}`}
+                         >
+                           {i + 1}
+                         </button>
+                       ))}
+                     </div>
+                     <button 
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      className="p-4 bg-white hover:bg-slate-50 disabled:opacity-30 border border-slate-200 rounded-2xl transition-all shadow-sm"
+                     >
+                       <ChevronRight className="w-5 h-5 text-slate-400" />
+                     </button>
+                   </div>
                  )}
                </div>
              )}
@@ -552,6 +655,7 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
     category: initialData?.category || 'Vegetables',
     unit: initialData?.unit || 'kg',
     stock: initialData?.stock || 0,
+    harvestDate: initialData?.harvestDate ? initialData.harvestDate.slice(0, 16) : new Date().toISOString().slice(0, 16),
     images: initialData?.images || []
   });
   const [loading, setLoading] = useState(false);
@@ -601,6 +705,7 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
         }
         await updateDoc(doc(db, 'products', initialData.id), { 
           ...formData,
+          harvestDate: new Date(formData.harvestDate).toISOString(),
           updatedAt: new Date().toISOString(),
           coordinates: profile?.coordinates || null,
           isPublished: (profile?.status as string) !== 'banned'
@@ -613,13 +718,15 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
         const productRef = doc(collection(db, 'products'));
         await setDoc(productRef, {
           ...formData,
+          harvestDate: new Date(formData.harvestDate).toISOString(),
           id: productRef.id,
           farmerId: auth.currentUser?.uid,
           rating: 0,
           reviewCount: 0,
           coordinates: profile?.coordinates || null,
           isPublished: (profile?.status as string) !== 'banned',
-          harvestDate: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
         });
       }
       onClose();
@@ -725,6 +832,18 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
                   <option value="tray">tray</option>
                   <option value="sack">sack</option>
                 </select>
+              </div>
+
+              <div className="col-span-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-2 px-1">Harvest Date & Time</label>
+                <input 
+                  type="datetime-local" 
+                  value={formData.harvestDate} 
+                  onChange={e => setFormData({...formData, harvestDate: e.target.value})}
+                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all font-medium" 
+                  required
+                />
+                <p className="mt-2 text-[10px] text-slate-400 italic px-1">Transparency is key. Let buyers know exactly when this was harvested.</p>
               </div>
 
               <div className="col-span-2">

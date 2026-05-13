@@ -22,7 +22,7 @@ export const Messages: React.FC = () => {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const convs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      const convs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as any));
       // Sort by last message date
       convs.sort((a, b) => {
         const dateA = a.lastMessageAt?.toDate?.() || new Date(a.lastMessageAt || 0);
@@ -54,23 +54,25 @@ export const Messages: React.FC = () => {
   });
 
   return (
-    <div className="max-w-[1600px] mx-auto px-8 py-10 h-[calc(100vh-140px)] flex flex-col">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-slate-800 tracking-tighter font-serif italic">Messages</h1>
-        <p className="text-slate-400 font-bold uppercase tracking-widest text-[9px] mt-1">Direct community communication</p>
+    <div className="w-full h-[calc(100vh-73px)] flex flex-col bg-slate-50/30">
+      <div className="px-8 py-6 bg-white border-b border-slate-100">
+        <h1 className="text-3xl font-bold text-slate-800 tracking-tighter font-serif italic">Messages</h1>
+        <p className="text-slate-400 font-bold uppercase tracking-widest text-[8px] mt-1">Real-time Trading Communication</p>
       </div>
 
-      <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-2xl flex flex-grow overflow-hidden relative">
+      <div className="flex flex-grow overflow-hidden">
         {/* Sidebar */}
-        <div className="w-full md:w-80 lg:w-96 border-r border-slate-100 flex flex-col bg-slate-50/20">
-          <div className="p-6 border-b border-slate-100 bg-white">
-            <input 
-              type="text" 
-              placeholder="Search conversations..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs focus:outline-none focus:border-primary/20 transition-all font-medium"
-            />
+        <div className="w-full md:w-96 lg:w-[450px] border-r border-slate-100 flex flex-col bg-white">
+          <div className="p-6 border-b border-slate-50">
+            <div className="relative">
+              <input 
+                type="text" 
+                placeholder="Search conversations..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+              />
+            </div>
           </div>
 
           <div className="flex-grow overflow-y-auto p-4 space-y-2 custom-scrollbar">

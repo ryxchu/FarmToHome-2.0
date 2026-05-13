@@ -20,6 +20,8 @@ export const FarmerProfile: React.FC<FarmerProfileProps> = ({ farmerId, onBack, 
   const [loading, setLoading] = useState(true);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
 
+  const [chatLoading, setChatLoading] = useState(false);
+
   useEffect(() => {
     const fetchFarmer = async () => {
       try {
@@ -42,8 +44,13 @@ export const FarmerProfile: React.FC<FarmerProfileProps> = ({ farmerId, onBack, 
   }, [farmerId]);
 
   const handleOpenChat = async () => {
-    if (!profile || !farmer) return;
+    if (!profile) {
+      alert('Please sign in to message this farmer.');
+      return;
+    }
+    if (!farmer) return;
 
+    setChatLoading(true);
     try {
       // Check for existing conversation
       const conversationId = [profile.uid, farmer.uid].sort().join('_');
@@ -54,10 +61,10 @@ export const FarmerProfile: React.FC<FarmerProfileProps> = ({ farmerId, onBack, 
         await setDoc(convRef, {
           id: conversationId,
           participants: [profile.uid, farmer.uid],
-          buyerId: profile.uid,
-          farmerId: farmer.uid,
-          buyerName: profile.fullName,
-          farmerName: farmer.farmName || farmer.fullName,
+          buyerId: profile.role === 'buyer' ? profile.uid : farmer.uid,
+          farmerId: profile.role === 'farmer' ? profile.uid : farmer.uid,
+          buyerName: profile.role === 'buyer' ? profile.fullName : farmer.fullName,
+          farmerName: profile.role === 'farmer' ? (profile.farmName || profile.fullName) : (farmer.farmName || farmer.fullName),
           lastMessage: '',
           lastMessageAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
@@ -66,7 +73,10 @@ export const FarmerProfile: React.FC<FarmerProfileProps> = ({ farmerId, onBack, 
 
       setActiveChatId(conversationId);
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'conversations');
+      console.error("Error opening chat:", err);
+      alert('Could not start conversation. Please try again.');
+    } finally {
+      setChatLoading(false);
     }
   };
 
@@ -86,10 +96,15 @@ export const FarmerProfile: React.FC<FarmerProfileProps> = ({ farmerId, onBack, 
         {profile?.uid !== farmerId && (
           <button 
             onClick={handleOpenChat}
-            className="flex items-center gap-3 px-8 py-4 bg-primary text-white rounded-full font-bold shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all text-sm uppercase tracking-widest"
+            disabled={chatLoading}
+            className="flex items-center gap-3 px-8 py-4 bg-primary text-white rounded-full font-bold shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all text-sm uppercase tracking-widest disabled:opacity-50"
           >
-            <MessageSquare className="w-5 h-5" />
-            Message Farmer
+            {chatLoading ? (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <MessageSquare className="w-5 h-5" />
+            )}
+            {chatLoading ? 'Starting Chat...' : 'Message Farmer'}
           </button>
         )}
       </div>

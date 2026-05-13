@@ -267,6 +267,11 @@ const ProductCard: React.FC<{ product: Product; onClick: () => void; distance?: 
                   {distance < 1 ? '< 1 km' : `${distance.toFixed(1)} km`}
                 </span>
               )}
+              {product.harvestDate && (
+                <span className="px-5 py-2 bg-emerald-500 text-white text-[9px] font-bold uppercase tracking-[0.2em] rounded-full shadow-lg border border-emerald-400/20">
+                  {Math.floor((new Date().getTime() - new Date(product.harvestDate).getTime()) / (1000 * 60 * 60 * 24)) === 0 ? 'Today' : 'Fresh'}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2 px-3 py-2 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20">
               <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />

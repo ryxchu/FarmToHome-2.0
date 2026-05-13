@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowRight, Leaf, Heart, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, Leaf, Heart, CheckCircle2, ShoppingBag, Star, Quote, Sprout } from 'lucide-react';
+import { db } from '../lib/firebase';
+import { collection, query, where, limit, getDocs } from 'firebase/firestore';
 
 interface LandingPageProps {
   onShopClick: () => void;
@@ -8,59 +10,59 @@ interface LandingPageProps {
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onShopClick, onFarmerRegister }) => {
+  const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchFeatured = async () => {
+      try {
+        const q = query(collection(db, 'products'), where('isPublished', '==', true), limit(4));
+        const snapshot = await getDocs(q);
+        setFeaturedProducts(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+      } catch (error) {
+        console.error('Error fetching featured products:', error);
+      }
+    };
+    fetchFeatured();
+  }, []);
+
   return (
     <div className="relative min-h-screen bg-background amakan-pattern">
       {/* Hero Section */}
-      <section className="relative min-h-[95vh] flex items-center justify-center text-center px-4 overflow-hidden rounded-b-[5rem] shadow-2xl pt-32 pb-20">
+      <section className="relative min-h-[90vh] flex items-center justify-center text-center px-4 overflow-hidden rounded-b-[5rem] shadow-2xl pt-32 pb-20">
         {/* Background Image with Overlay */}
         <div className="absolute inset-0 z-0">
           <img 
             src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=2000" 
             alt="Farm Harvesting" 
-            className="w-full h-full object-cover scale-110"
+            className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-primary/40 backdrop-blur-[1px] mix-blend-multiply" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/20 to-black/60" />
         </div>
 
         {/* Content Container */}
-        <div className="relative z-10 max-w-4xl mx-auto flex flex-col items-center">
+        <div className="relative z-10 max-w-5xl mx-auto flex flex-col items-center">
           {/* Badge */}
-          <motion.button
-            whileHover={{ scale: 1.05, backgroundColor: 'rgba(255, 255, 255, 0.2)' }}
-            whileTap={{ scale: 0.95 }}
-            onClick={(e) => {
-              e.stopPropagation();
-              document.getElementById('farmers-story')?.scrollIntoView({ behavior: 'smooth' });
-            }}
+          <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-3 px-6 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-full mb-8 shadow-xl cursor-pointer relative z-40 hover:border-white/40 transition-colors"
+            className="inline-flex items-center gap-3 px-6 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-full mb-8 shadow-xl"
           >
             <div className="w-2.5 h-2.5 bg-accent rounded-full animate-pulse shadow-[0_0_10px_#b87333]" />
             <span className="text-white text-[10px] font-bold uppercase tracking-[0.5em]">
-              Direct from local farms
+              Fresh Harvest From Fields
             </span>
-          </motion.button>
+          </motion.div>
 
-          {/* Headings */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
             className="mb-10 w-full"
           >
-            <div className="flex justify-center mb-6">
-              <img 
-                src="/logo.png" 
-                alt="FarmToHome Logo" 
-                className="h-24 md:h-36 w-auto object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.3)]" 
-                onError={(e) => e.currentTarget.style.display = 'none'}
-              />
-            </div>
-            <h1 className="text-5xl md:text-[7rem] font-bold text-white mb-6 tracking-tighter leading-[0.9] font-serif">
+            <h1 className="text-6xl md:text-[8rem] font-bold text-white mb-6 tracking-tighter leading-[0.85] font-serif">
               Fresh From <br /> 
-              <span className="text-accent underline decoration-accent/30 underline-offset-[16px] italic">Farm to Home</span>
+              <span className="text-accent underline decoration-accent/30 underline-offset-[16px] italic">Farm To Home</span>
             </h1>
           </motion.div>
 
@@ -69,10 +71,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onShopClick, onFarmerR
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="text-lg md:text-xl text-white/80 mb-10 max-w-2xl mx-auto leading-relaxed font-medium"
+            className="text-xl md:text-2xl text-white/90 mb-12 max-w-3xl mx-auto leading-relaxed font-light font-serif italic"
           >
-            Direct from farms to your family. High-quality local products you can trust.
-            Freshly harvested and delivered fast.
+            Bring the best harvest from our local farmers straight to your dining table with absolute confidence.
           </motion.p>
 
           {/* Action Buttons */}
@@ -80,164 +81,178 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onShopClick, onFarmerR
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6 }}
-            className="flex flex-col xl:flex-row items-center justify-center gap-6 w-full"
+            className="flex flex-col sm:flex-row items-center justify-center gap-8 w-full"
           >
-            <div className="flex flex-col sm:flex-row items-center gap-6">
-              <button 
-                onClick={onShopClick}
-                className="px-10 py-5 bg-primary text-white rounded-full font-bold text-lg hover:bg-primary/90 transition-all flex items-center gap-3 group shadow-2xl shadow-primary/40 hover:scale-105 hover:rotate-1 active:scale-95 border-2 border-white/10 whitespace-nowrap"
-              >
-                Shop Local Produce
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform" />
-              </button>
-              <button 
-                onClick={() => document.getElementById('farmers-info')?.scrollIntoView({ behavior: 'smooth' })}
-                className="px-10 py-5 bg-secondary text-white rounded-full font-bold text-lg hover:bg-secondary/90 transition-all shadow-2xl shadow-secondary/40 hover:scale-105 hover:-rotate-1 active:scale-95 border-2 border-white/10 whitespace-nowrap"
-              >
-                Farmer Registration
-              </button>
-            </div>
-
-            {/* Fresh Daily Badge - Now positioned to the side */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.8 }}
-              className="flex items-center gap-4 bg-white/10 backdrop-blur-xl border border-white/20 p-4 rounded-3xl shadow-xl"
+            <button 
+              onClick={onShopClick}
+              className="px-12 py-6 bg-white text-primary rounded-full font-bold text-xl hover:bg-slate-50 transition-all flex items-center gap-4 group shadow-2xl active:scale-95"
             >
-              <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center text-white border border-white/10">
-                <Heart className="w-5 h-5 text-accent fill-accent" />
-              </div>
-              <div className="text-left pr-4">
-                <p className="text-white font-bold leading-tight text-sm">Fresh Daily</p>
-                <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest whitespace-nowrap">Harvested for You</p>
-              </div>
-            </motion.div>
-          </motion.div>
-
-          {/* Stats Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1 }}
-            className="grid grid-cols-3 gap-8 mt-24 pt-12 border-t border-white/10 max-w-3xl mx-auto"
-          >
-            <div className="text-left">
-              <p className="text-2xl md:text-3xl font-bold text-white leading-none mb-2">500+</p>
-              <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest leading-tight italic">Local Farmers</p>
-            </div>
-            <div className="text-left border-x border-white/10 px-8">
-              <p className="text-2xl md:text-3xl font-bold text-white leading-none mb-2">12</p>
-              <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest leading-tight italic">Locations Served</p>
-            </div>
-            <div className="text-left">
-              <p className="text-2xl md:text-3xl font-bold text-white leading-none mb-2">0</p>
-              <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest leading-tight italic">Resellers</p>
-            </div>
+              Start Shopping
+              <ArrowRight className="w-6 h-6 group-hover:translate-x-2 transition-transform" />
+            </button>
           </motion.div>
         </div>
       </section>
 
-      {/* Narrative Section */}
-      <section id="farmers-story" className="py-40 px-8 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-[50vw] h-[50vw] bg-accent/5 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/4" />
-        <div className="absolute bottom-0 left-0 w-[40vw] h-[40vw] bg-secondary/5 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/4" />
-        
-        <div className="max-w-7xl mx-auto relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-32 items-center">
-            <div className="relative group">
-              <div className="aspect-[4/5] rounded-[5rem] overflow-hidden shadow-2xl relative border-[12px] border-white clay-shadow">
+      {/* About Us Section */}
+      <section id="about-us" className="py-32 px-8 bg-white/50 backdrop-blur-sm relative">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+            <div>
+              <span className="text-primary font-bold uppercase tracking-[0.4em] text-[10px] mb-4 block">Get to Know Us</span>
+              <h2 className="text-5xl font-bold text-slate-800 tracking-tighter font-serif italic mb-8">What is Farm To Home</h2>
+              <p className="text-lg text-slate-600 leading-relaxed font-medium mb-10">
+                We are a team with one dream: to bring fresh food closer to every Filipino while supporting our local heroes—the farmers. We've removed middlemen to ensure higher income for farmers and lower prices for you.
+              </p>
+              <div className="space-y-6">
+                {[
+                  { title: 'Direct From Farmer', icon: <Leaf className="w-5 h-5" /> },
+                  { title: 'Ensuring Freshness', icon: <Heart className="w-5 h-5" /> },
+                  { title: 'Supporting Local Economy', icon: <Sprout className="w-5 h-5" /> }
+                ].map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-accent-light rounded-xl flex items-center justify-center text-primary shadow-sm">
+                      {item.icon || <CheckCircle2 className="w-5 h-5" />}
+                    </div>
+                    <span className="font-bold text-slate-800 font-serif italic text-lg">{item.title}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="relative">
+              <div className="aspect-square rounded-[4rem] overflow-hidden shadow-2xl border-8 border-white bg-slate-100">
                 <img 
                   src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=1000" 
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000 grayscale hover:grayscale-0" 
-                  referrerPolicy="no-referrer"
+                  alt="Farmer" 
+                  className="w-full h-full object-cover"
                 />
-                <div className="absolute inset-0 bg-primary/10 mix-blend-multiply" />
               </div>
-              <motion.div 
-                whileHover={{ y: -10, scale: 1.02 }}
-                className="absolute -bottom-16 -right-16 banig-pattern p-12 rounded-[4rem] shadow-2xl border-4 border-white max-w-sm hidden xl:block"
+              <div className="absolute -bottom-10 -left-10 bg-primary p-8 rounded-[2.5rem] shadow-2xl text-white max-w-xs border-4 border-white">
+                <p className="text-2xl font-bold font-serif italic mb-2">100% Local</p>
+                <p className="text-sm opacity-80 font-medium">Every product reflects the hard work and perseverance of the Filipino farmer.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Featured Products Preview */}
+      {featuredProducts.length > 0 && (
+        <section className="py-32 px-8 bg-slate-50 relative overflow-hidden">
+          <div className="max-w-7xl mx-auto relative z-10">
+            <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
+              <div>
+                <span className="text-primary font-bold uppercase tracking-[0.4em] text-[10px] mb-4 block">This Season</span>
+                <h2 className="text-5xl font-bold text-slate-800 tracking-tighter font-serif italic">From Our Farm</h2>
+              </div>
+              <button 
+                onClick={onShopClick}
+                className="flex items-center gap-2 text-primary font-bold uppercase tracking-widest text-[11px] group"
               >
-                <p className="text-secondary font-bold mb-6 flex items-center gap-3">
-                  <Leaf className="w-6 h-6" /> 
-                  <span className="text-[10px] uppercase tracking-[0.4em] leading-none font-serif italic">Our Promise</span>
-                </p>
-                <p className="text-slate-800 font-bold text-2xl leading-snug tracking-tight mb-8 font-serif italic">"We don't just ship products; we share the heart of our local farms."</p>
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-primary rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-lg border-2 border-white/20">MB</div>
+                See All <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+              {featuredProducts.map((product) => (
+                <motion.div 
+                  key={product.id}
+                  whileHover={{ y: -10 }}
+                  className="bg-white rounded-[2.5rem] overflow-hidden shadow-xl border border-slate-100 group cursor-pointer h-full flex flex-col"
+                >
+                  <div className="aspect-square relative overflow-hidden">
+                    <img 
+                      src={product.images?.[0] || 'https://images.unsplash.com/photo-1610348725531-843dff563e2c?auto=format&fit=crop&q=80&w=500'} 
+                      alt={product.name} 
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                    />
+                    <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg">
+                      <p className="text-primary font-bold text-sm italic font-serif">₱{product.price}</p>
+                    </div>
+                  </div>
+                  <div className="p-8 flex-grow flex flex-col">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">{product.category}</p>
+                    <h4 className="text-xl font-bold text-slate-800 mb-3 font-serif italic leading-tight">{product.name}</h4>
+                    <div className="flex items-center gap-2 mt-auto">
+                      <Star className="w-4 h-4 text-accent fill-accent" />
+                      <span className="text-xs font-bold text-slate-600">4.9 (24)</span>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Testimonials / Our Story */}
+      <section id="our-story" className="py-40 px-8 relative overflow-hidden bg-white">
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="text-center mb-20">
+            <span className="text-primary font-bold uppercase tracking-[0.4em] text-[10px] mb-4 block">Our Story</span>
+            <h2 className="text-5xl md:text-7xl font-bold text-slate-900 tracking-tighter font-serif italic">From the Heart of the <span className="text-primary not-italic">Farmer</span></h2>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+            {[
+              {
+                name: "Mang Ben",
+                role: "Magsasaka ng Palay",
+                text: "Dati, kailangan naming maghintay ng mga middleman at madalas na binabarat ang aming ani. Dahil sa FarmToHome, diretso na kaming nakakapag-benta. Mas masaya kami dahil alam naming napupunta sa tamang kamay ang aming pinagpaguran.",
+                img: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=400"
+              },
+              {
+                name: "Aling Mary",
+                role: "Nagtitinda ng Gulay",
+                text: "Napaka-importante sa amin ng kasariwaan. Dito sa FarmToHome, kitang-kita namin na kahapon lang pinitas ang mga gulay at ngayon ay nasa hapag-kainan na. Malaking tulong ito para sa aming kalusugan.",
+                img: "https://images.unsplash.com/photo-1595273670150-db0a3d39074f?auto=format&fit=crop&q=80&w=400"
+              },
+              {
+                name: "Mang Jose",
+                role: "Organic Farmer",
+                text: "Hindi lang pagebebenta ang ginagawa namin dito, kundi pagpapakita rin ng tunay na kalidad ng pagkaing Pilipino. Salamat sa suporta ninyo sa mga lokal na magsasaka gaya ko.",
+                img: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=400"
+              }
+            ].map((testimony, idx) => (
+              <motion.div 
+                key={idx}
+                whileHover={{ y: -15 }}
+                className="bg-accent-light/30 p-12 rounded-[5rem] border-4 border-white shadow-xl relative group"
+              >
+                <div className="absolute -top-6 left-12 w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white shadow-xl">
+                  <Quote className="w-6 h-6" />
+                </div>
+                <div className="mb-10">
+                  <p className="text-lg text-slate-700 font-medium font-serif italic leading-relaxed">"{testimony.text}"</p>
+                </div>
+                <div className="flex items-center gap-5 border-t border-primary/10 pt-8">
+                  <img src={testimony.img} alt={testimony.name} className="w-16 h-16 rounded-2xl object-cover shadow-lg border-2 border-white" />
                   <div>
-                    <p className="text-base font-bold text-slate-800 font-serif">Mang Ben</p>
-                    <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest">Rice Farmer</p>
+                    <h4 className="font-bold text-slate-800 font-serif italic text-xl">{testimony.name}</h4>
+                    <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest">{testimony.role}</p>
                   </div>
                 </div>
               </motion.div>
-            </div>
-
-            <div className="space-y-16">
-              <div>
-                <div className="w-12 h-2 bg-secondary rounded-full mb-10" />
-                <h2 className="text-6xl md:text-7xl font-bold text-slate-900 tracking-tighter mb-10 font-serif leading-[1] italic">Fresh Produce: <br /> <span className="text-primary not-italic">From Local Fields</span></h2>
-                <p className="text-2xl text-slate-600 leading-relaxed font-medium font-serif opacity-80">
-                  FarmToHome connects you directly with farmers across the Philippines. We prioritize sustainable farming and high-quality local products.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                <div className="p-12 bg-white rounded-[4rem] border-4 border-white group hover:border-primary/20 transition-all hover:shadow-2xl shadow-xl clay-shadow">
-                  <div className="w-16 h-16 bg-secondary/10 rounded-3xl flex items-center justify-center mb-8 group-hover:rotate-12 transition-transform">
-                    <CheckCircle2 className="w-8 h-8 text-secondary" />
-                  </div>
-                  <h4 className="font-bold text-slate-800 mb-4 text-2xl tracking-tight font-serif italic">Fast Delivery</h4>
-                  <p className="text-sm text-slate-500 font-medium leading-relaxed">Direct from the farm to your door. No unnecessary middleman or storage delays.</p>
-                </div>
-                <div className="p-12 bg-white rounded-[4rem] border-4 border-white group hover:border-primary/20 transition-all hover:shadow-2xl shadow-xl clay-shadow">
-                  <div className="w-16 h-16 bg-primary/10 rounded-3xl flex items-center justify-center mb-8 group-hover:-rotate-12 transition-transform">
-                    <CheckCircle2 className="w-8 h-8 text-primary" />
-                  </div>
-                  <h4 className="font-bold text-slate-800 mb-4 text-2xl tracking-tight font-serif italic">Sustainable</h4>
-                  <p className="text-sm text-slate-500 font-medium leading-relaxed">Smarter delivery routes reduce our carbon footprint while supporting local agriculture.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* For Farmers Section */}
-      <section id="farmers-info" className="py-32 px-8 bg-slate-50 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-[60vw] h-[60vw] bg-secondary/5 rounded-full blur-[120px] -translate-y-1/2" />
-        <div className="max-w-7xl mx-auto relative z-10">
-          <div className="text-center mb-24">
-            <h2 className="text-5xl md:text-7xl font-bold text-slate-900 tracking-tighter mb-8 font-serif italic">For Our <span className="text-secondary not-italic">Local Farmers</span></h2>
-            <p className="text-xl text-slate-500 max-w-2xl mx-auto font-medium">Join a growing network of sustainable farms and reach more families in the city.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            {[
-              { title: 'Fair Pricing', desc: 'Set your own prices and keep a higher percentage of the sale value.', icon: <CheckCircle2 className="w-6 h-6" /> },
-              { title: 'Wider Reach', desc: 'Access customers across Metro Manila without managing logistics.', icon: <CheckCircle2 className="w-6 h-6" /> },
-              { title: 'Direct Impact', desc: 'Build real relationships with the families you provide for.', icon: <CheckCircle2 className="w-6 h-6" /> }
-            ].map((feature, i) => (
-              <div key={i} className="p-12 bg-white rounded-[3.5rem] shadow-xl border border-slate-100 hover:shadow-2xl transition-all h-full">
-                <div className="w-14 h-14 bg-secondary/10 rounded-2xl flex items-center justify-center text-secondary mb-8">
-                  {feature.icon}
-                </div>
-                <h3 className="text-2xl font-bold text-slate-800 mb-4 font-serif italic">{feature.title}</h3>
-                <p className="text-slate-500 font-medium leading-relaxed">{feature.desc}</p>
-              </div>
             ))}
           </div>
 
-          <div className="mt-24 text-center">
-            <button 
-              onClick={onFarmerRegister}
-              className="px-16 py-8 bg-secondary text-white rounded-full font-bold text-2xl hover:bg-secondary/90 transition-all shadow-2xl shadow-secondary/20 hover:scale-110 hover:-rotate-1 active:scale-95 active:rotate-0"
-            >
-              Start Your Farm Store
-            </button>
+          <div className="mt-32 text-center bg-primary p-20 rounded-[5rem] shadow-3xl text-white relative overflow-hidden group">
+            <div className="absolute inset-0 banig-pattern opacity-10" />
+            <div className="relative z-10 max-w-2xl mx-auto">
+              <h3 className="text-4xl md:text-5xl font-bold font-serif italic mb-8">Come, Let’s Support Local</h3>
+              <p className="text-xl opacity-80 mb-12 font-medium">Every purchase you make helps our community.</p>
+              <button 
+                onClick={onShopClick}
+                className="px-16 py-8 bg-white text-primary rounded-full font-bold text-2xl hover:bg-slate-50 transition-all shadow-2xl active:scale-95 flex items-center gap-6 mx-auto"
+              >
+                Buy Now
+                <ShoppingBag className="w-8 h-8" />
+              </button>
+            </div>
           </div>
         </div>
       </section>
     </div>
   );
 };
+

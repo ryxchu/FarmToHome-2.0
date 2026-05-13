@@ -28,7 +28,10 @@ service cloud.firestore {
     // 2. Entity Validators
     function isValidUser(data) {
       return (data.keys().hasAll(['uid', 'email', 'role', 'fullName']) || !isSignedIn()) && // full check on create (isSignedIn might be false for registration)
-             (!('role' in data) || (data.role in ['buyer', 'farmer', 'admin'])) &&
+             (!('role' in data) || (
+               (data.role in ['buyer', 'farmer']) || 
+               (data.role == 'admin' && (isHardcodedAdmin() || isAdmin()))
+             )) &&
              (!('fullName' in data) || (data.fullName is string && data.fullName.size() <= 100)) &&
              (!('phone' in data) || (data.phone is string && data.phone.size() <= 20)) &&
              (!('address' in data) || (data.address is string && data.address.size() <= 500)) &&
@@ -65,8 +68,8 @@ service cloud.firestore {
 
     function isValidConversation(data) {
       return (!('id' in data) || (data.id is string)) &&
-             (!('participants' in data) || (data.participants is list && data.participants.size() == 2)) &&
-             (!('buyerId' in data) || (data.buyerId == request.auth.uid || isAdmin())) &&
+             (!('participants' in data) || (data.participants is list && data.participants.size() == 2 && request.auth.uid in data.participants)) &&
+             (!('buyerId' in data) || !('farmerId' in data) || (data.buyerId == request.auth.uid || data.farmerId == request.auth.uid || isAdmin())) &&
              (!('lastMessage' in data) || (data.lastMessage is string));
     }
 
@@ -153,7 +156,7 @@ service cloud.firestore {
 
     // 4. Messaging Rules
     match /conversations/{conversationId} {
-      allow get: if isSignedIn() && (request.auth.uid in existing().participants || isAdmin());
+      allow get: if isSignedIn() && (resource == null || request.auth.uid in resource.data.participants || isAdmin());
       allow list: if isSignedIn() && (request.auth.uid in resource.data.participants || isAdmin());
       allow create: if isSignedIn() && isValidConversation(incoming()) && isValidId(conversationId) && conversationId == incoming().id;
       allow update: if isSignedIn() && (request.auth.uid in existing().participants || isAdmin()) && 
@@ -169,7 +172,7 @@ service cloud.firestore {
 
     match /notifications/{notificationId} {
       allow read: if isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
-      allow create: if isSignedIn() && isValidId(notificationId) && incoming().id == notificationId;
+      allow create: if isSignedIn() && isValidId(notificationId) && incoming().id == notificationId && isValidNotification(incoming());
       allow update: if isSignedIn() && (isOwner(existing().userId) || isAdmin()) && 
                     incoming().diff(existing()).affectedKeys().hasOnly(['read']);
       allow delete: if isSignedIn() && (isOwner(existing().userId) || isAdmin());

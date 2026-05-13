@@ -20,6 +20,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
   const [showNotifications, setShowNotifications] = React.useState(false);
   const [unreadCount, setUnreadCount] = React.useState(0);
   const [notifications, setNotifications] = React.useState<any[]>([]);
+  const [scrolled, setScrolled] = React.useState(false);
+
+  React.useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 50);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   React.useEffect(() => {
     if (!user || !profile) return;
@@ -54,7 +63,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
 
   return (
     <>
-      <nav className={`z-50 transition-all ${!user ? 'h-24 bg-transparent border-none fixed w-full' : 'h-24 sticky top-0 bg-background/80 backdrop-blur-xl border-b border-white/40'} px-8 flex items-center`}>
+      <nav className={`z-50 transition-all duration-500 ${
+        !user 
+          ? `h-24 fixed w-full ${scrolled ? 'bg-primary/95 backdrop-blur-2xl shadow-2xl h-20' : 'bg-transparent border-none'}` 
+          : 'h-24 sticky top-0 bg-background/80 backdrop-blur-xl border-b border-white/40 shadow-sm'
+      } px-8 flex items-center`}>
       <div className="max-w-[1600px] mx-auto w-full flex items-center justify-between">
         <div 
           className="flex items-center gap-3 cursor-pointer group"
@@ -95,9 +108,29 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
 
         {!user ? (
           <div className="hidden lg:flex items-center gap-10">
-            <button onClick={() => setView('landing')} className="text-[10px] font-black text-white hover:text-accent-light uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px] active:scale-95">Our Story</button>
+            <button 
+              onClick={() => {
+                setView('landing');
+                setTimeout(() => {
+                  document.getElementById('our-story')?.scrollIntoView({ behavior: 'smooth' });
+                }, 100);
+              }} 
+              className="text-[10px] font-black text-white hover:text-accent-light uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px] active:scale-95"
+            >
+              Our Story
+            </button>
             <button onClick={() => setView('home')} className="text-[10px] font-black text-white hover:text-accent-light uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px] active:scale-95">Marketplace</button>
-            <button onClick={() => setView('landing')} className="text-[10px] font-black text-white hover:text-accent-light uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px] active:scale-95">About Us</button>
+            <button 
+              onClick={() => {
+                setView('landing');
+                setTimeout(() => {
+                  document.getElementById('about-us')?.scrollIntoView({ behavior: 'smooth' });
+                }, 100);
+              }} 
+              className="text-[10px] font-black text-white hover:text-accent-light uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px] active:scale-95"
+            >
+              About Us
+            </button>
             <div className="h-4 w-px bg-white/20 mx-2" />
             <button onClick={onAuthClick} className="text-[10px] font-black text-white uppercase tracking-[0.4em] hover:text-accent-light transition-all hover:translate-y-[-2px] active:scale-95">Sign In</button>
             <button 

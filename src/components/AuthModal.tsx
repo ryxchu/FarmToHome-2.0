@@ -152,255 +152,106 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         initial={{ opacity: 0, scale: 0.95, y: 40 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 40 }}
-        className="bg-white w-full max-w-xl rounded-[2.5rem] md:rounded-[4rem] shadow-2xl relative border-4 border-white forest-shadow my-auto"
+        className="bg-white w-full max-w-5xl rounded-[3rem] md:rounded-[4rem] shadow-2xl relative border-4 border-white forest-shadow my-auto overflow-hidden flex flex-col md:flex-row"
       >
-        <button onClick={onClose} className="absolute top-6 right-6 md:top-10 md:right-10 p-3 md:p-4 bg-accent-light hover:bg-white hover:scale-110 active:scale-90 transition-all z-10 border border-primary/5 shadow-inner group rounded-2xl">
-          <X className="w-5 h-5 md:w-6 md:h-6 text-primary group-hover:rotate-90 transition-transform duration-300" />
+        <button onClick={onClose} className="absolute top-6 right-6 p-4 bg-white/10 backdrop-blur-md hover:bg-white hover:scale-110 active:scale-90 transition-all z-20 border border-white/20 shadow-xl group rounded-2xl">
+          <X className="w-5 h-5 text-white md:text-slate-400 group-hover:rotate-90 transition-transform duration-300" />
         </button>
 
-        <div className="p-8 md:p-16">
-          <div className="text-center mb-8 md:mb-14 flex flex-col items-center">
-            <div className="h-24 mb-6">
-              <img 
-                src="/logo.png" 
-                alt="FarmToHome Logo" 
-                className="h-full w-auto object-contain" 
-                onError={(e) => e.currentTarget.style.display = 'none'}
-              />
-            </div>
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-800 tracking-tighter font-serif italic mb-4">
-              {mode === 'login' ? 'Welcome Back' : mode === 'register' ? 'Create Account' : 'Security Verification'}
+        {/* Left Side: Toggle Panel */}
+        <div className={`w-full md:w-[40%] p-12 md:p-20 flex flex-col items-center justify-center text-center transition-all duration-700 relative overflow-hidden ${mode === 'register' ? 'bg-primary text-white' : 'bg-secondary text-white md:order-last'}`}>
+          <div className="absolute inset-0 amakan-pattern opacity-10" />
+          <div className="relative z-10">
+            <h2 className="text-4xl md:text-5xl font-bold font-serif italic mb-6 tracking-tighter">
+              {mode === 'register' ? 'Welcome Back!' : 'Create an Account'}
             </h2>
-            <p className="text-slate-400 text-[9px] md:text-[10px] font-bold uppercase tracking-[0.4em] max-w-xs mx-auto leading-relaxed">
-              {mode === 'login' 
-                ? 'Sign in to your account' 
-                : mode === 'register' 
-                  ? 'Join our community of farmers and buyers' 
-                  : `We've sent a 6-digit confirmation code to ${email || phone}. Please check your inbox or messages.`}
+            <p className="text-white/70 text-[10px] font-bold uppercase tracking-[0.4em] mb-12 max-w-[200px] mx-auto leading-relaxed">
+              {mode === 'register' ? 'Sign in to access your farm dashboard' : 'Join our community of local farmers and buyers'}
             </p>
+            <button 
+              onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
+              className="px-10 py-4 bg-transparent border-2 border-white/40 rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-white hover:text-primary transition-all active:scale-95"
+            >
+              {mode === 'login' ? 'Sign Up' : 'Sign In'}
+            </button>
           </div>
+        </div>
 
-          {mode !== 'otp' ? (
-            <div className="space-y-6 md:space-y-8">
-              <div className="grid grid-cols-3 gap-2 p-1.5 bg-accent-light rounded-[2rem] md:rounded-[2.5rem] md:mb-10 border border-primary/5 shadow-inner">
-                <button 
-                  type="button"
-                  onClick={() => setRole('buyer')}
-                  className={`py-3.5 rounded-[2rem] text-[10px] font-bold transition-all uppercase tracking-widest active:scale-95 ${role === 'buyer' ? 'bg-white shadow-xl text-primary border border-primary/5 scale-105' : 'text-slate-400 hover:text-primary hover:bg-white/50'}`}
-                >
-                  Buyer
+        {/* Right Side: Form Panel */}
+        <div className="w-full md:w-[60%] p-12 md:p-20 bg-white">
+          <div className="max-w-md mx-auto">
+            <h2 className="text-4xl font-bold text-slate-800 tracking-tighter font-serif italic mb-8">
+              {mode === 'register' ? 'Create an Account' : 'Welcome Back!'}
+            </h2>
+
+            {mode === 'register' && (
+              <div className="flex gap-4 mb-10">
+                <button className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 hover:bg-white hover:shadow-lg transition-all group">
+                  <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center text-white font-black text-sm">f</div>
                 </button>
-                <button 
-                  type="button"
-                  onClick={() => setRole('farmer')}
-                  className={`py-3.5 rounded-[2rem] text-[10px] font-bold transition-all uppercase tracking-widest active:scale-95 ${role === 'farmer' ? 'bg-white shadow-xl text-primary border border-primary/5 scale-105' : 'text-slate-400 hover:text-primary hover:bg-white/50'}`}
-                >
-                  Farmer
+                <button className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 hover:bg-white hover:shadow-lg transition-all group">
+                  <div className="w-6 h-6 bg-blue-400 rounded flex items-center justify-center text-white font-black text-sm italic">in</div>
                 </button>
-                <button 
-                  type="button"
-                  onClick={() => setRole('admin')}
-                  className={`py-3.5 rounded-[2rem] text-[10px] font-bold transition-all uppercase tracking-widest active:scale-95 ${role === 'admin' ? 'bg-white shadow-xl text-primary border border-primary/5 scale-105' : 'text-slate-400 hover:text-primary hover:bg-white/50'}`}
-                >
-                  Admin
+                <button className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 hover:bg-white hover:shadow-lg transition-all group">
+                  <div className="w-6 h-6 bg-slate-900 rounded flex items-center justify-center text-white font-black text-sm">𝕏</div>
                 </button>
               </div>
+            )}
 
-              <form onSubmit={handleAuth} className="space-y-6">
-                {mode === 'register' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="relative group">
-                      <User className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-primary transition-colors" />
-                      <input 
-                        type="text" placeholder="Full Name" value={fullName} onChange={(e) => setFullName(e.target.value)}
-                        className="w-full pl-14 pr-6 py-5 bg-accent-light border border-transparent rounded-3xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
-                      />
-                    </div>
-                    <div className="relative group">
-                      <Phone className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-primary transition-colors" />
-                      <input 
-                        type="tel" placeholder="Phone Number" value={phone} onChange={(e) => setPhone(e.target.value)}
-                        className="w-full pl-14 pr-6 py-5 bg-accent-light border border-transparent rounded-3xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
-                      />
-                    </div>
-                  </div>
-                )}
+            {mode === 'register' && (
+              <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mb-8">or use your email for registration</p>
+            )}
 
-              <div className="relative group">
-                <Mail className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-primary transition-colors" />
-                <input 
-                  type="email" placeholder="Email Address" value={email} onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-14 pr-6 py-5 bg-accent-light border border-transparent rounded-3xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
-                  required
-                />
-              </div>
-
-              <div className="relative group">
-                <Lock className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-primary transition-colors" />
-                <input 
-                  type={showPassword ? "text" : "password"} placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-14 pr-16 py-5 bg-accent-light border border-transparent rounded-3xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
-                  required
-                />
-                <button 
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-6 top-1/2 -translate-y-1/2 p-2 text-slate-300 hover:text-primary transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-
+            <form onSubmit={handleAuth} className="space-y-6">
               {mode === 'register' && (
-                <>
-                  <div className="relative group">
-                    <Check className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-primary transition-colors" />
-                    <input 
-                      type={showConfirmPassword ? "text" : "password"} placeholder="Confirm Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full pl-14 pr-16 py-5 bg-accent-light border border-transparent rounded-3xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
-                    />
-                    <button 
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-6 top-1/2 -translate-y-1/2 p-2 text-slate-300 hover:text-primary transition-colors"
-                    >
-                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
+                <div className="relative group">
+                  <input 
+                    type="text" placeholder="Name" value={fullName} onChange={(e) => setFullName(e.target.value)}
+                    className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
+                  />
+                  <div className="absolute right-6 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg bg-emerald-50 text-emerald-500 flex items-center justify-center opacity-40 group-focus-within:opacity-100 transition-opacity">
+                    <Check className="w-3.5 h-3.5" />
                   </div>
-
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-3 py-4 px-2">
-                    <div className={`flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest ${passChecks.length ? 'text-primary' : 'text-slate-200'}`}>
-                      <Check className="w-3.5 h-3.5" /> 8 Characters Min
-                    </div>
-                    <div className={`flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest ${passChecks.upper ? 'text-primary' : 'text-slate-200'}`}>
-                      <Check className="w-3.5 h-3.5" /> Uppercase Letter
-                    </div>
-                    <div className={`flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest ${passChecks.number ? 'text-primary' : 'text-slate-200'}`}>
-                      <Check className="w-3.5 h-3.5" /> One Number
-                    </div>
-                    <div className={`flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest ${passChecks.special ? 'text-primary' : 'text-slate-200'}`}>
-                      <Check className="w-3.5 h-3.5" /> Special Character
-                    </div>
-                  </div>
-                </>
+                </div>
               )}
 
+              <div className="relative group">
+                <input 
+                  type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
+                  required
+                />
+                <div className="absolute right-6 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg bg-emerald-50 text-emerald-500 flex items-center justify-center opacity-40 group-focus-within:opacity-100 transition-opacity">
+                  <Check className="w-3.5 h-3.5" />
+                </div>
+              </div>
+
+              <div className="relative group">
+                <input 
+                  type={showPassword ? "text" : "password"} placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
+                  required
+                />
+                <div className="absolute right-6 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg bg-emerald-50 text-emerald-500 flex items-center justify-center opacity-40 group-focus-within:opacity-100 transition-opacity">
+                  <Check className="w-3.5 h-3.5" />
+                </div>
+              </div>
+
               {error && (
-                <div className="p-6 bg-secondary/5 border-2 border-secondary/10 rounded-[2rem] flex items-start gap-4 text-secondary text-[11px] font-bold uppercase tracking-tight">
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  <p>{error}</p>
+                <div className="p-4 bg-secondary/5 border border-secondary/10 rounded-2xl text-secondary text-[11px] font-bold uppercase tracking-tight">
+                  {error}
                 </div>
               )}
 
               <button 
                 type="submit"
                 disabled={loading || !isFormValid}
-                className="w-full py-6 bg-primary text-white rounded-[2.5rem] font-bold font-serif text-xl shadow-2xl shadow-primary/20 hover:scale-[1.01] active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed group relative overflow-hidden"
+                className="px-14 py-5 bg-slate-800 text-white rounded-full font-bold text-[11px] uppercase tracking-[0.3em] hover:bg-primary transition-all active:scale-95 disabled:opacity-40"
               >
-                <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                <span className="relative z-10">{loading ? 'Processing...' : mode === 'login' ? 'Sign In' : 'Sign Up'}</span>
+                {loading ? 'Processing...' : mode === 'login' ? 'Sign In' : 'Sign Up'}
               </button>
-
-              <div className="relative py-6">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border"></div>
-                </div>
-                <div className="relative flex justify-center text-[10px] uppercase">
-                  <span className="bg-white px-4 text-slate-300 font-bold tracking-[0.4em]">Or continue with</span>
-                </div>
-              </div>
-
-              <button 
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={loading}
-                className="w-full py-5 bg-white border-2 border-border rounded-[2.5rem] font-bold text-slate-600 flex items-center justify-center gap-4 hover:border-primary/20 transition-all active:scale-[0.98] disabled:opacity-50 text-[11px] uppercase tracking-widest"
-              >
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-6 h-6" alt="Google" />
-                Google Login
-              </button>
-
-              <p className="text-center text-[11px] text-slate-400 font-bold uppercase tracking-widest pt-6">
-                {mode === 'login' ? "No account?" : "Already have an account?"}{' '}
-                <button 
-                  type="button"
-                  onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
-                  className="text-primary hover:text-secondary transition-colors underline decoration-2 underline-offset-4"
-                >
-                  {mode === 'login' ? 'Sign Up' : 'Sign In'}
-                </button>
-              </p>
             </form>
           </div>
-          ) : (
-            <div className="space-y-12">
-              <div className="flex justify-between gap-3">
-                {otp.map((digit, idx) => (
-                  <input
-                    key={idx}
-                    type="text"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => {
-                      const newOtp = [...otp];
-                      newOtp[idx] = e.target.value;
-                      setOtp(newOtp);
-                      if (e.target.value && idx < 5) {
-                        const next = e.target.nextElementSibling as HTMLInputElement;
-                        next?.focus();
-                      }
-                    }}
-                    className="w-14 h-16 bg-accent-light border-2 border-transparent rounded-[1.5rem] text-center text-2xl font-bold font-serif text-primary focus:border-primary focus:bg-white focus:outline-none transition-all shadow-inner"
-                  />
-                ))}
-              </div>
-
-              {error && (
-                <div className="p-6 bg-secondary/5 border-2 border-secondary/10 rounded-[2rem] flex items-start gap-4 text-secondary text-[11px] font-bold uppercase tracking-tight">
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  <p>{error}</p>
-                </div>
-              )}
-
-              <button 
-                onClick={handleVerify}
-                disabled={loading}
-                className="w-full py-6 bg-primary text-white rounded-[2.5rem] font-bold font-serif text-xl shadow-2xl shadow-primary/20 disabled:opacity-40 animate-pulse-slow"
-              >
-                {loading ? 'Confirming...' : 'Verify Code'}
-              </button>
-              <div className="text-center space-y-6">
-                <button 
-                  onClick={() => setMode('login')}
-                  className="text-[10px] font-bold text-slate-300 hover:text-primary transition-colors tracking-[0.5em] uppercase hover:underline"
-                >
-                  Back to Login
-                </button>
-                <div className="flex flex-col gap-3">
-                  <button 
-                    onClick={() => {
-                      setError('');
-                      alert(`A new code has been sent to ${email}`);
-                    }}
-                    className="text-[10px] font-bold text-slate-400 hover:text-primary transition-colors tracking-[0.4em] uppercase"
-                  >
-                    Resend to Email
-                  </button>
-                  {phone && (
-                    <button 
-                      onClick={() => {
-                        setError('');
-                        alert(`A new code has been sent to ${phone}`);
-                      }}
-                      className="text-[10px] font-bold text-slate-400 hover:text-primary transition-colors tracking-[0.4em] uppercase"
-                    >
-                      Resend to Phone SMS
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </motion.div>
     </div>

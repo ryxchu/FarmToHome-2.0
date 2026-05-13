@@ -46,6 +46,8 @@ export interface Product {
   reviewCount: number;
   isPublished: boolean;
   isFeatured?: boolean;
+  createdAt: string;
+  updatedAt?: string;
   coordinates?: {
     lat: number;
     lng: number;

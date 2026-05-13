@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, onSnapshot, collection, query, where, getDocs, addDoc, serverTimestamp, updateDoc, increment, getDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { Product, UserProfile, Order, Review } from '../types';
-import { Star, Clock, MapPin, ShieldCheck, ChevronLeft, Minus, Plus, ShoppingBag, Share2, Heart, Check, MessageSquare } from 'lucide-react';
+import { Star, Clock, MapPin, ShieldCheck, ChevronLeft, Minus, Plus, ShoppingBag, Share2, Heart, Check, MessageSquare, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useCart } from '../context/CartContext';
 import { QRCodeSVG } from 'qrcode.react';
@@ -15,7 +15,7 @@ interface ProductDetailProps {
 }
 
 export const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onBack, onFarmerClick }) => {
-  const { addToCart } = useCart();
+  const { addToCart, setIsOpen } = useCart();
   const { profile } = useAuth();
   const [product, setProduct] = useState<Product | null>(null);
   const [farmer, setFarmer] = useState<UserProfile | null>(null);
@@ -133,6 +133,13 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onBack,
     }
   };
 
+  const handleCheckout = () => {
+    if (product) {
+      addToCart(product, quantity);
+      setIsOpen(true);
+    }
+  };
+
   const harvestDate = product.harvestDate ? new Date(product.harvestDate) : new Date();
   const harvestDiff = Math.floor((new Date().getTime() - harvestDate.getTime()) / (1000 * 60 * 60 * 24));
   const freshnessStatus = harvestDiff === 0 ? 'Freshly Harvested' : harvestDiff === 1 ? 'Yesterday\'s Harvest' : `Harvested ${harvestDiff} days ago`;
@@ -143,31 +150,31 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onBack,
       animate={{ opacity: 1, scale: 1 }}
       className="pb-20 max-w-6xl mx-auto"
     >
-      <button onClick={onBack} className="flex items-center gap-4 text-slate-400 hover:text-primary mb-12 font-bold transition-all text-[10px] uppercase tracking-[0.4em] group">
-        <div className="p-2 rounded-full border border-slate-100 group-hover:border-primary/20 transition-colors">
+      <div className="flex justify-between items-center mb-12">
+        <button onClick={onBack} className="flex items-center gap-4 text-slate-400 hover:text-primary font-bold transition-all text-[10px] uppercase tracking-[0.4em] group">
           <ChevronLeft className="w-5 h-5" /> 
+          Back to Market
+        </button>
+        <div className="flex items-center gap-4">
+           <div className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center text-slate-300">
+             <Heart className="w-5 h-5 fill-current" />
+           </div>
         </div>
-        Back to Market
-      </button>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-16 lg:gap-24">
         {/* Gallery */}
         <div className="space-y-8">
-          <div className="aspect-square rounded-[4rem] overflow-hidden border-4 border-white shadow-2xl relative forest-shadow">
+          <div className="aspect-square rounded-[3rem] overflow-hidden bg-slate-50 border border-slate-100 shadow-xl relative">
             <img 
               src={product.images?.[0] || 'https://images.unsplash.com/photo-1615485290382-441e4d0c9cb5?auto=format&fit=crop&q=80&w=1200'} 
               className="w-full h-full object-cover" 
             />
-            <div className="absolute top-8 right-8">
-               <button className="p-5 bg-white/90 backdrop-blur-2xl rounded-[1.5rem] shadow-2xl hover:scale-110 transition-all text-secondary border border-primary/5 active:scale-95">
-                 <Heart className="w-6 h-6" />
-               </button>
-            </div>
           </div>
-          <div className="flex gap-6 justify-center">
+          <div className="flex gap-6">
             {[1,2,3].map(i => (
-              <div key={i} className="w-24 h-24 rounded-[2rem] bg-accent-light overflow-hidden cursor-pointer hover:ring-2 ring-primary transition-all border border-primary/5 shadow-inner">
-                <img src={product.images?.[0]} className="w-full h-full object-cover opacity-40 hover:opacity-100 grayscale hover:grayscale-0 transition-all duration-700" />
+              <div key={i} className="w-20 h-20 rounded-2xl bg-slate-50 overflow-hidden cursor-pointer hover:ring-2 ring-primary transition-all border border-slate-100">
+                <img src={product.images?.[0]} className="w-full h-full object-cover opacity-60 hover:opacity-100 transition-all" />
               </div>
             ))}
           </div>
@@ -175,124 +182,121 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onBack,
 
         {/* Info */}
         <div className="flex flex-col py-4">
-          <div className="flex justify-between items-start mb-8">
-            <div>
-              <span className="inline-block py-2 px-6 bg-accent-light text-primary text-[10px] font-bold rounded-full mb-6 uppercase tracking-[0.3em] border border-primary/5 shadow-sm">{product.category}</span>
-              <h1 className="text-6xl font-bold text-slate-800 tracking-tighter leading-none font-serif italic">{product.name}</h1>
-            </div>
-            <div className="flex gap-4">
-              <button className="p-4 bg-accent-light rounded-2xl hover:bg-white transition-all text-primary border border-primary/5 shadow-inner active:scale-95"><Share2 className="w-5 h-5" /></button>
+          <div className="mb-8">
+            <span className="inline-block py-1 px-3 bg-emerald-50 text-emerald-600 text-[9px] font-bold rounded-md mb-4 uppercase tracking-widest border border-emerald-100">{product.category}</span>
+            <h1 className="text-5xl font-bold text-slate-800 tracking-tighter leading-none mb-4">{product.name}</h1>
+            <div className="flex items-center gap-2">
+              {[...Array(5)].map((_ , i) => (
+                <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating || 0) ? 'text-amber-400 fill-amber-400' : 'text-slate-100'}`} />
+              ))}
+              <span className="font-bold text-slate-400 text-sm ml-2">({product.reviewCount || 0} reviews)</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-10 mb-12">
-            <div>
-              <p className="text-6xl font-bold text-primary font-serif tracking-tighter">₱{product.price}</p>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.4em] mt-2 italic">per {product.unit}</p>
-            </div>
-            <div className="h-20 w-[1px] bg-slate-100" />
-            <div className="flex flex-col">
+          <div className="mb-10">
+            <p className="text-4xl font-bold text-slate-800 tracking-tighter">₱{product.price}</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">per {product.unit}</p>
+          </div>
+
+          <div className="space-y-6 mb-12">
+            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Description</h4>
+            <p className="text-slate-500 text-base leading-relaxed opacity-80">
+              {product.description || "Freshly harvested produce directly from the heart of our community farms. Grown with generational love and sustainable practices to ensure you get the most nutrient-dense food for your collective."}
+            </p>
+          </div>
+
+          {/* Provenance Card */}
+          <div className="bg-emerald-50/50 rounded-3xl p-8 border border-emerald-100 mb-12 flex flex-col sm:flex-row items-center gap-8 group">
+            <div className="flex-grow">
               <div className="flex items-center gap-2 mb-2">
-                {[...Array(5)].map((_ , i) => (
-                  <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating || 0) ? 'text-secondary fill-secondary' : 'text-slate-100'}`} />
-                ))}
-                <span className="font-bold text-slate-800 text-lg ml-2 font-serif italic">{product.rating || 'No Rating'}</span>
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Provenance Verified</span>
               </div>
-              <span className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.4em]">{product.reviewCount || 0} Customer Reviews</span>
+              <h3 className="text-2xl font-bold text-slate-800 font-serif italic mb-4">{freshnessStatus}</h3>
+              <div className="space-y-2">
+                <div className="flex items-center gap-3 text-slate-500 text-sm">
+                  <Clock className="w-4 h-4 text-emerald-500" />
+                  <span>Harvested: {new Date(product.harvestDate).toLocaleString()}</span>
+                </div>
+                <div className="flex items-center gap-3 text-slate-500 text-sm">
+                  <MapPin className="w-4 h-4 text-emerald-500" />
+                  <span>Origin: {farmer?.farmName || 'Local Community Farm'}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-4 bg-white rounded-2xl shadow-xl shadow-emerald-900/5 group-hover:scale-110 transition-transform duration-500">
+              <QRCodeSVG 
+                value={JSON.stringify({
+                  product: product.name,
+                  harvest: product.harvestDate,
+                  farm: farmer?.farmName,
+                  id: product.id
+                })} 
+                size={80}
+                level="M"
+                includeMargin={false}
+              />
+              <p className="text-[8px] font-bold text-slate-300 uppercase tracking-widest text-center mt-3">Scan to Trace</p>
             </div>
           </div>
-
-          <div className="grid grid-cols-2 gap-6 mb-12">
-            <div className="p-8 bg-background rounded-[2.5rem] border border-border shadow-inner relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full -mr-12 -mt-12 transition-transform duration-1000 group-hover:scale-150" />
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-primary/10 rounded-xl">
-                  <Clock className="w-4 h-4 text-primary" />
-                </div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Freshness</span>
-              </div>
-              <p className="font-bold text-slate-800 text-base mb-4 font-serif italic">{freshnessStatus}</p>
-              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ width: harvestDiff === 0 ? '100%' : harvestDiff === 1 ? '75%' : '50%' }}
-                  className="h-full bg-primary shadow-[0_0_10px_rgba(45,66,45,0.3)]"
-                />
-              </div>
-            </div>
-            <div className="p-8 bg-background rounded-[2.5rem] border border-border shadow-inner flex items-center justify-between group">
-              <div>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-secondary/10 rounded-xl">
-                    <ShieldCheck className="w-4 h-4 text-secondary" />
-                  </div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Verify Product</span>
-                </div>
-                <p className="font-bold text-slate-800 text-base italic font-serif">Farm Origin</p>
-              </div>
-              <div className="p-3 bg-white rounded-2xl border border-border shadow-2xl group-hover:scale-105 transition-transform duration-500">
-                <QRCodeSVG value={`https://farmtohome.run/product/${product.id}`} size={48} fgColor="#2d422d" />
-              </div>
-            </div>
-          </div>
-
-          <p className="text-slate-500 text-xl leading-relaxed mb-12 font-medium font-serif italic text-justify opacity-80 decoration-primary/10 underline underline-offset-8 decoration-dotted">
-            {product.description || "Freshly harvested produce directly from the heart of our community farms. Grown with generational love and sustainable practices to ensure you get the most nutrient-dense food for your collective."}
-          </p>
 
           <div className="mt-auto space-y-10">
-            <div className="flex flex-col sm:flex-row items-center gap-8">
-              <div className="flex items-center p-3 bg-accent-light rounded-3xl border border-primary/5 shadow-inner w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+              <div className="flex items-center p-2 bg-slate-50 rounded-2xl border border-slate-100 w-full sm:w-auto">
                 <button 
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="w-14 h-14 bg-white rounded-2xl shadow-xl hover:bg-slate-50 transition-all flex items-center justify-center text-primary active:scale-95 border border-primary/5"><Minus className="w-5 h-5" /></button>
-                <span className="px-10 font-bold text-2xl text-slate-800 font-serif italic uppercase tracking-widest">{quantity}</span>
+                  className="w-12 h-12 bg-white rounded-xl shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center text-slate-500 active:scale-95"><Minus className="w-4 h-4" /></button>
+                <span className="px-8 font-bold text-xl text-slate-800 w-16 text-center">{quantity}</span>
                 <button 
                   onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
-                  className="w-14 h-14 bg-white rounded-2xl shadow-xl hover:bg-slate-50 transition-all flex items-center justify-center text-primary active:scale-95 border border-primary/5"><Plus className="w-5 h-5" /></button>
+                  className="w-12 h-12 bg-white rounded-xl shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center text-slate-500 active:scale-95"><Plus className="w-4 h-4" /></button>
               </div>
-              <button 
-                onClick={handleAddToCart}
-                disabled={product.stock <= 0}
-                className={`flex-grow w-full sm:w-auto py-7 rounded-[2.5rem] font-bold font-serif text-xl flex items-center justify-center gap-4 shadow-2xl transition-all active:scale-[0.98] relative overflow-hidden group ${added ? 'bg-secondary text-white shadow-secondary/40' : 'bg-primary text-white shadow-primary/30 hover:scale-[1.02]'}`}
-              >
-                <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                {added ? (
-                  <>
-                    <Check className="w-7 h-7" />
-                    Added to Cart
-                  </>
-                ) : (
-                  <>
-                    <ShoppingBag className="w-7 h-7" />
-                    {product.stock <= 0 ? 'Sold Out' : 'Add to Cart'}
-                  </>
-                )}
-              </button>
+              <div className="flex flex-grow w-full sm:w-auto gap-4">
+                <button 
+                  onClick={handleAddToCart}
+                  disabled={product.stock <= 0}
+                  className={`flex-1 py-5 rounded-2xl font-bold text-sm uppercase tracking-[0.2em] flex items-center justify-center gap-4 transition-all active:scale-[0.98] ${added ? 'bg-emerald-500 text-white' : 'bg-slate-50 border border-slate-200 text-slate-800 hover:bg-slate-100 shadow-sm'}`}
+                >
+                  {added ? (
+                    <>
+                      <Check className="w-5 h-5" />
+                      Added
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingBag className="w-5 h-5" />
+                      {product.stock <= 0 ? 'Sold' : 'Cart'}
+                    </>
+                  )}
+                </button>
+                <button 
+                  onClick={handleCheckout}
+                  disabled={product.stock <= 0}
+                  className="flex-1 py-5 bg-slate-800 text-white rounded-2xl font-bold text-sm uppercase tracking-[0.2em] flex items-center justify-center gap-4 transition-all active:scale-[0.98] hover:bg-slate-900 shadow-xl disabled:opacity-50"
+                >
+                  Checkout
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            {/* Farmer Card */}
-            <div className="p-10 bg-accent-light rounded-[3.5rem] border border-primary/10 flex flex-col sm:flex-row items-center justify-between shadow-2xl shadow-primary/5 border-l-8 border-l-primary group">
-              <div className="flex items-center gap-8 mb-6 sm:mb-0">
-                <div className="w-24 h-24 bg-white rounded-[2rem] border border-primary/10 flex items-center justify-center shadow-2xl group-hover:rotate-6 transition-transform duration-700">
-                   <div className="w-16 h-16 bg-primary text-white rounded-2xl flex items-center justify-center font-bold font-serif italic text-3xl shadow-inner">
-                    {farmer?.farmName?.[0] || 'F'}
-                   </div>
+            {/* Farmer Card Minimal */}
+            <div className="pt-8 border-t border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center font-black text-xl italic">
+                  {farmer?.farmName?.[0] || 'F'}
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-primary uppercase tracking-[0.4em] leading-none mb-3 opacity-60">Produced by</p>
-                  <p className="text-3xl font-bold text-slate-800 tracking-tighter font-serif italic">{farmer?.farmName || "Local Farm"}</p>
-                  <div className="flex items-center gap-3 text-[11px] font-bold text-slate-400 mt-2 uppercase tracking-widest">
-                    <MapPin className="w-4 h-4 text-primary opacity-60" />
-                    <span>{farmer?.farmAddress || "Local Farm Location"}</span>
-                  </div>
+                   <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest leading-none mb-1">Local Farm</p>
+                   <p className="font-bold text-slate-700 tracking-tight">{farmer?.farmName || "The Organic Homestead"}</p>
                 </div>
               </div>
               <button 
                 onClick={() => farmer && onFarmerClick(farmer.uid)}
-                className="w-full sm:w-auto px-10 py-5 bg-white text-primary text-[10px] font-bold rounded-2xl border-2 border-primary/5 shadow-xl hover:bg-primary hover:text-white transition-all uppercase tracking-[0.3em] active:scale-95"
+                className="text-[10px] font-bold text-primary uppercase tracking-widest hover:underline decoration-2 underline-offset-4"
               >
-                View Farm
+                View Profile
               </button>
             </div>
           </div>

@@ -21,6 +21,7 @@ import { OrderTracking } from './pages/OrderTracking';
 import { AIChatbot } from './components/AIChatbot';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sprout, Search, ShoppingBag, Radio, Lock } from 'lucide-react';
+import { useCart } from './context/CartContext';
 
 const SideNavLink: React.FC<{ icon: string; label: string; active?: boolean; onClick?: () => void }> = ({ icon, label, active, onClick }) => (
   <button 
@@ -42,6 +43,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 
 function AppContent() {
   const { user, profile, loading, logout } = useAuth();
+  const { isOpen: showCart, setIsOpen: setShowCart } = useCart();
   const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
   
   useEffect(() => {
@@ -56,7 +58,6 @@ function AppContent() {
   const [currentView, setCurrentView] = useState<'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages'>('landing');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedFarmerId, setSelectedFarmerId] = useState<string | null>(null);
-  const [showCart, setShowCart] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [nearMeEnabled, setNearMeEnabled] = useState(false);

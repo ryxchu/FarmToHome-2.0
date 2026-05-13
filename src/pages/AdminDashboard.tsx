@@ -314,7 +314,13 @@ export const AdminDashboard: React.FC = () => {
                       <tr key={u.uid} className="group hover:bg-slate-50/30 transition-all">
                         <td className="px-10 py-8">
                           <div className="flex items-center gap-6">
-                            <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-xl font-bold font-serif italic shadow-inner">{u.fullName.charAt(0)}</div>
+                            <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-xl font-bold font-serif italic shadow-inner overflow-hidden border border-slate-100">
+                              {u.photoURL ? (
+                                <img src={u.photoURL} alt={u.fullName} className="w-full h-full object-contain bg-slate-50" />
+                              ) : (
+                                u.fullName.charAt(0)
+                              )}
+                            </div>
                             <div>
                               <p className="font-bold text-slate-800 text-lg group-hover:text-primary transition-colors">{u.fullName}</p>
                               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{u.email}</p>

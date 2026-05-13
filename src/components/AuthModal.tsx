@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Mail, Lock, User, Phone, Check, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from '../lib/firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, browserPopupRedirectResolver } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 interface AuthModalProps {
@@ -90,7 +90,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     setError('');
     try {
       const provider = new GoogleAuthProvider();
-      const userCred = await signInWithPopup(auth, provider);
+      const userCred = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
       
       // Check if user profile exists
       const userDoc = await getDoc(doc(db, 'users', userCred.user.uid));
@@ -107,7 +107,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       }
       onClose();
     } catch (err: any) {
-      setError(err.message);
+      console.error("Google Sign-in Error:", err);
+      if (err.code === 'auth/popup-closed-by-user') {
+        setError('The login window was closed before completion. Please try again and complete the sign-in. If this persists, try opening the app in a new tab.');
+      } else if (err.code === 'auth/cancelled-popup-request') {
+        setError('A previous login request is still pending. Please wait or refresh the page.');
+      } else if (err.code === 'auth/popup-blocked') {
+        setError('The login popup was blocked by your browser. Please allow popups for this site or try opening the app in a new tab.');
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }

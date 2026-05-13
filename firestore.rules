@@ -27,37 +27,61 @@ service cloud.firestore {
 
     // 2. Entity Validators
     function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email', 'role', 'fullName']) &&
-             data.role in ['buyer', 'farmer', 'admin'] &&
-             data.fullName is string && data.fullName.size() <= 100 &&
+      return (data.keys().hasAll(['uid', 'email', 'role', 'fullName']) || !isSignedIn()) && // full check on create (isSignedIn might be false for registration)
+             (!('role' in data) || (data.role in ['buyer', 'farmer', 'admin'])) &&
+             (!('fullName' in data) || (data.fullName is string && data.fullName.size() <= 100)) &&
              (!('phone' in data) || (data.phone is string && data.phone.size() <= 20)) &&
              (!('address' in data) || (data.address is string && data.address.size() <= 500)) &&
              (!('status' in data) || (data.status in ['verified', 'unverified', 'pending', 'banned'])) &&
-             (!('createdAt' in data) || (data.createdAt is string));
+             (!('coordinates' in data) || (data.coordinates is map || data.coordinates == null)) &&
+             (!('photoURL' in data) || (data.photoURL is string)) &&
+             (!('uid' in data) || (data.uid == request.auth.uid || isAdmin()));
     }
 
     function isValidProduct(data) {
-      return data.keys().hasAll(['id', 'name', 'price', 'farmerId', 'stock']) &&
-             data.id is string && data.id.size() <= 128 &&
-             data.name is string && data.name.size() <= 200 &&
-             data.price is number && data.price >= 0 &&
-             data.stock is number && data.stock >= 0 &&
-             (isAdmin() || data.farmerId == request.auth.uid);
+      return (!('id' in data) || (data.id is string && data.id.size() <= 128)) &&
+             (!('name' in data) || (data.name is string && data.name.size() <= 200)) &&
+             (!('price' in data) || (data.price is number && data.price >= 0)) &&
+             (!('stock' in data) || (data.stock is number && data.stock >= 0)) &&
+             (!('coordinates' in data) || (data.coordinates is map || data.coordinates == null)) &&
+             (!('farmerId' in data) || (data.farmerId == request.auth.uid || isAdmin()));
     }
 
     function isValidOrder(data) {
-      return data.keys().hasAll(['id', 'buyerId', 'farmerId', 'items', 'total', 'status']) &&
-             data.id is string &&
-             (isAdmin() || data.buyerId == request.auth.uid) &&
-             data.status in ['pending', 'accepted', 'preparing', 'shipped', 'delivered', 'cancelled'] &&
-             data.total is number && data.total >= 0 &&
-             data.items is list && data.items.size() > 0;
+      return (!('id' in data) || (data.id is string)) &&
+             (!('buyerId' in data) || (data.buyerId == request.auth.uid || isAdmin())) &&
+             (!('status' in data) || (data.status in ['pending', 'accepted', 'preparing', 'shipped', 'delivered', 'cancelled'])) &&
+             (!('total' in data) || (data.total is number && data.total >= 0)) &&
+             (!('discount' in data) || (data.discount is number)) &&
+             (!('discountType' in data) || (data.discountType is string || data.discountType == null)) &&
+             (!('items' in data) || (data.items is list && data.items.size() > 0));
     }
 
     function isValidReview(data) {
-      return data.keys().hasAll(['productId', 'buyerId', 'rating', 'orderId']) &&
-             data.buyerId == request.auth.uid &&
-             data.rating is number && data.rating >= 1 && data.rating <= 5;
+      return (!('productId' in data) || (data.productId is string)) &&
+             (!('buyerId' in data) || (data.buyerId == request.auth.uid)) &&
+             (!('rating' in data) || (data.rating is number && data.rating >= 1 && data.rating <= 5));
+    }
+
+    function isValidConversation(data) {
+      return (!('id' in data) || (data.id is string)) &&
+             (!('participants' in data) || (data.participants is list && data.participants.size() == 2)) &&
+             (!('buyerId' in data) || (data.buyerId == request.auth.uid || isAdmin())) &&
+             (!('lastMessage' in data) || (data.lastMessage is string));
+    }
+
+    function isValidMessage(data) {
+      return (!('id' in data) || (data.id is string)) &&
+             (!('senderId' in data) || (data.senderId == request.auth.uid)) &&
+             (!('content' in data) || (data.content is string && data.content.size() <= 2000));
+    }
+
+    function isValidNotification(data) {
+      return (!('id' in data) || (data.id is string)) &&
+             (!('userId' in data) || (data.userId is string)) &&
+             (!('title' in data) || (data.title is string && data.title.size() <= 200)) &&
+             (!('message' in data) || (data.message is string && data.message.size() <= 1000)) &&
+             (!('type' in data) || (data.type in ['order', 'message', 'system']));
     }
 
     // 3. Collection Rules
@@ -72,7 +96,7 @@ service cloud.firestore {
       allow list: if isHardcodedAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
       allow create: if isOwner(userId) && isValidUser(incoming()) && incoming().uid == request.auth.uid;
       allow update: if (isOwner(userId) || isAdmin()) && isValidUser(incoming()) && 
-                    (isAdmin() || (incoming().uid == existing().uid && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'phone', 'address', 'photoURL', 'status', 'farmName', 'farmAddress', 'farmStory', 'farmingMethods', 'certifications', 'rewardsPoints', 'ecoMetrics', 'isApproved'])));
+                    (isAdmin() || (incoming().uid == existing().uid && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'phone', 'address', 'photoURL', 'status', 'farmName', 'farmAddress', 'farmStory', 'farmingMethods', 'certifications', 'rewardsPoints', 'ecoMetrics', 'isApproved', 'coordinates'])));
     }
 
     match /products/{productId} {
@@ -81,7 +105,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && !isBanned() && (
         isAdmin() ||
         (isOwner(existing().farmerId) && isValidProduct(incoming()) && incoming().farmerId == existing().farmerId && (
-          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'price', 'category', 'unit', 'stock', 'images', 'harvestDate', 'isPublished', 'rating', 'reviewCount', 'approvalStatus', 'isFeatured', 'updatedAt'])
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'price', 'category', 'unit', 'stock', 'images', 'harvestDate', 'isPublished', 'rating', 'reviewCount', 'approvalStatus', 'isFeatured', 'updatedAt', 'coordinates'])
         )) ||
         (incoming().diff(existing()).affectedKeys().hasOnly(['stock', 'rating', 'reviewCount']))
       );
@@ -125,6 +149,30 @@ service cloud.firestore {
     match /audit_logs/{logId} {
       allow read: if isAdmin();
       allow create: if isAdmin();
+    }
+
+    // 4. Messaging Rules
+    match /conversations/{conversationId} {
+      allow get: if isSignedIn() && (request.auth.uid in existing().participants || isAdmin());
+      allow list: if isSignedIn() && (request.auth.uid in resource.data.participants || isAdmin());
+      allow create: if isSignedIn() && isValidConversation(incoming()) && isValidId(conversationId) && conversationId == incoming().id;
+      allow update: if isSignedIn() && (request.auth.uid in existing().participants || isAdmin()) && 
+                    incoming().participants == existing().participants &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'lastMessageAt', 'updatedAt']);
+    }
+
+    match /conversations/{conversationId}/messages/{messageId} {
+      allow read: if isSignedIn() && (request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants || isAdmin());
+      allow create: if isSignedIn() && isValidMessage(incoming()) && isValidId(messageId) && messageId == incoming().id &&
+                    request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
+      allow create: if isSignedIn() && isValidId(notificationId) && incoming().id == notificationId;
+      allow update: if isSignedIn() && (isOwner(existing().userId) || isAdmin()) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+      allow delete: if isSignedIn() && (isOwner(existing().userId) || isAdmin());
     }
   }
 }

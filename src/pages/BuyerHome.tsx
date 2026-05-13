@@ -12,13 +12,32 @@ interface BuyerHomeProps {
   category?: string;
   onCategoryChange?: (category: string) => void;
   searchQuery?: string;
+  userCoords?: { lat: number; lng: number } | null;
 }
 
-export const BuyerHome: React.FC<BuyerHomeProps> = ({ onProductClick, category = 'All', onCategoryChange, searchQuery = '' }) => {
+export const BuyerHome: React.FC<BuyerHomeProps> = ({ 
+  onProductClick, 
+  category = 'All', 
+  onCategoryChange, 
+  searchQuery = '',
+  userCoords = null
+}) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [activeCategory, setActiveCategory] = useState(category);
   const [viewMode, setViewMode] = useState<'shop' | 'community'>('shop');
   const [loading, setLoading] = useState(true);
+
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
 
   const categories = [
     { name: 'All', icon: '🌳' },
@@ -58,7 +77,7 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({ onProductClick, category =
       const prods = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product));
       
       // Filter by search query client side for faster feedback
-      const filteredProds = searchQuery 
+      let filteredProds = searchQuery 
         ? prods.filter(p => 
             p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
             p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -66,12 +85,31 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({ onProductClick, category =
           )
         : prods;
 
+      // Add distance property if userCoords is available
+      if (userCoords) {
+        filteredProds = filteredProds.map(p => {
+          if (p.coordinates) {
+            const dist = calculateDistance(userCoords.lat, userCoords.lng, p.coordinates.lat, p.coordinates.lng);
+            return { ...p, distance: dist };
+          }
+          return p;
+        });
+
+        // Sort by distance (those with coordinates first)
+        filteredProds.sort((a: any, b: any) => {
+          if (a.distance !== undefined && b.distance !== undefined) return a.distance - b.distance;
+          if (a.distance !== undefined) return -1;
+          if (b.distance !== undefined) return 1;
+          return 0;
+        });
+      }
+
       setProducts(filteredProds);
       setLoading(false);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'products'));
 
     return () => unsubscribe();
-  }, [activeCategory, viewMode, searchQuery]);
+  }, [activeCategory, viewMode, searchQuery, userCoords]);
 
   return (
     <div className="space-y-12">
@@ -174,7 +212,12 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({ onProductClick, category =
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12">
                 {products.length > 0 ? (
                   products.map((product) => (
-                    <ProductCard key={product.id} product={product} onClick={() => onProductClick(product.id)} />
+                    <ProductCard 
+                      key={product.id} 
+                      product={product} 
+                      onClick={() => onProductClick(product.id)}
+                      distance={(product as any).distance}
+                    />
                   ))
                 ) : (
                   <div className="col-span-full py-48 text-center flex flex-col items-center">
@@ -195,7 +238,7 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({ onProductClick, category =
   );
 };
 
-const ProductCard: React.FC<{ product: Product; onClick: () => void }> = ({ product, onClick }) => {
+const ProductCard: React.FC<{ product: Product; onClick: () => void; distance?: number }> = ({ product, onClick, distance }) => {
   return (
     <motion.div 
       layout
@@ -215,12 +258,20 @@ const ProductCard: React.FC<{ product: Product; onClick: () => void }> = ({ prod
         {/* Overlay Badges */}
         <div className="absolute inset-x-0 bottom-0 p-8 bg-gradient-to-t from-black/60 via-black/20 to-transparent">
           <div className="flex items-center justify-between">
-            <span className="px-5 py-2 bg-white/10 backdrop-blur-md rounded-full text-[9px] font-bold text-white uppercase tracking-[0.2em] border border-white/20">
-              {product.category}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="px-5 py-2 bg-white/10 backdrop-blur-md rounded-full text-[9px] font-bold text-white uppercase tracking-[0.2em] border border-white/20">
+                {product.category}
+              </span>
+              {distance !== undefined && (
+                <span className="px-5 py-2 bg-primary text-white text-[9px] font-bold uppercase tracking-[0.2em] rounded-full shadow-lg border border-primary/20">
+                  {distance < 1 ? '< 1 km' : `${distance.toFixed(1)} km`}
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-2 px-3 py-2 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20">
               <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-              <span className="text-[10px] font-bold text-white">4.9</span>
+              <span className="text-[10px] font-bold text-white">{product.rating ? product.rating.toFixed(1) : 'New'}</span>
+              {product.reviewCount > 0 && <span className="text-[8px] text-white/60 font-bold ml-1">({product.reviewCount})</span>}
             </div>
           </div>
         </div>

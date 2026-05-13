@@ -58,9 +58,34 @@ export const Profile: React.FC = () => {
     farmingMethods: profile?.farmingMethods || '',
     certifications: profile?.certifications?.join(', ') || '',
     photoURL: profile?.photoURL || '',
+    coordinates: profile?.coordinates || null,
   });
 
   if (!profile) return null;
+
+  const detectLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported');
+      return;
+    }
+    setLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setEditForm(prev => ({
+          ...prev,
+          coordinates: {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          }
+        }));
+        setLoading(false);
+      },
+      (error) => {
+        alert('Could not detect location. Please enable permissions.');
+        setLoading(false);
+      }
+    );
+  };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,6 +99,7 @@ export const Profile: React.FC = () => {
         phone: editForm.phone,
         address: editForm.address,
         photoURL: editForm.photoURL,
+        coordinates: editForm.coordinates,
       };
       
       if (profile.role === 'farmer') {
@@ -109,6 +135,7 @@ export const Profile: React.FC = () => {
       farmingMethods: profile.farmingMethods || '',
       certifications: profile.certifications ? profile.certifications.join(', ') : '',
       photoURL: profile.photoURL || '',
+      coordinates: profile.coordinates || null,
     });
     setIsEditing(true);
   };
@@ -363,12 +390,24 @@ export const Profile: React.FC = () => {
 
                     {profile.role !== 'farmer' && (
                       <div className="group sm:col-span-2">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-2 px-1">Delivery Address</label>
+                        <div className="flex justify-between items-center mb-2 px-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block">Delivery Address</label>
+                          <button 
+                            type="button" 
+                            onClick={detectLocation}
+                            className="text-[9px] font-bold text-primary uppercase tracking-widest hover:underline flex items-center gap-1"
+                          >
+                            <MapPin className="w-3 h-3" /> Detect Location
+                          </button>
+                        </div>
                         <input 
                           type="text" value={editForm.address} 
                           onChange={e => setEditForm({ ...editForm, address: e.target.value })}
                           className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:bg-white focus:outline-none transition-all" 
                         />
+                        {editForm.coordinates && (
+                          <p className="mt-2 text-[9px] font-bold text-primary uppercase tracking-widest px-1">Location Coordinates Saved ✨</p>
+                        )}
                       </div>
                     )}
 
@@ -383,12 +422,24 @@ export const Profile: React.FC = () => {
                           />
                         </div>
                         <div className="group sm:col-span-2">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-2 px-1">Farm Address</label>
+                          <div className="flex justify-between items-center mb-2 px-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block">Farm Address</label>
+                            <button 
+                              type="button" 
+                              onClick={detectLocation}
+                              className="text-[9px] font-bold text-primary uppercase tracking-widest hover:underline flex items-center gap-1"
+                            >
+                              <MapPin className="w-3 h-3" /> Detect Farm Location
+                            </button>
+                          </div>
                           <input 
                             type="text" value={editForm.farmAddress} 
                             onChange={e => setEditForm({ ...editForm, farmAddress: e.target.value })}
                             className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:bg-white focus:outline-none transition-all" 
                           />
+                          {editForm.coordinates && (
+                            <p className="mt-2 text-[9px] font-bold text-primary uppercase tracking-widest px-1">Farm Coordinates Saved ✨</p>
+                          )}
                         </div>
                         <div className="group sm:col-span-2">
                           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-2 px-1">Farm Story</label>

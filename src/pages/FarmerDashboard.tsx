@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, setDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, setDoc, updateDoc, doc, deleteDoc, getDoc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Product, Order } from '../types';
-import { Plus, Package, ShoppingBag, TrendingUp, Edit, Trash2, X, Check, Image as ImageIcon, Star, User, Settings } from 'lucide-react';
+import { Plus, Package, ShoppingBag, TrendingUp, Edit, Trash2, X, Check, Image as ImageIcon, Star, User, Settings, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Chat } from '../components/Chat';
 
 interface FarmerDashboardProps {
   onEditProfile?: () => void;
@@ -15,8 +16,37 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile 
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'inventory' | 'feedback'>('inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'feedback' | 'messages'>('inventory');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    const qConv = query(collection(db, 'conversations'), where('participants', 'array-contains', auth.currentUser.uid));
+    const unsubscribeConv = onSnapshot(qConv, (snapshot) => {
+      setConversations(snapshot.docs.map(doc => ({ ...doc.data() })));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'conversations'));
+
+    return () => unsubscribeConv();
+  }, []);
+
+  const fetchRecipientProfile = async (conv: any) => {
+    const recipientId = conv.participants.find((id: string) => id !== profile?.uid);
+    const docSnap = await getDoc(doc(db, 'users', recipientId));
+    if (docSnap.exists()) {
+      return { ...docSnap.data(), uid: docSnap.id } as any;
+    }
+    return null;
+  };
+
+  const handleOpenConversation = async (conv: any) => {
+    const recipient = await fetchRecipientProfile(conv);
+    if (recipient) {
+      setSelectedConversation({ conv, recipient });
+    }
+  };
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [expandAllActivity, setExpandAllActivity] = useState(false);
   const [weatherAlert, setWeatherAlert] = useState<{ type: 'warning' | 'info'; message: string } | null>({
@@ -58,6 +88,23 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile 
         status: newStatus,
         updatedAt: new Date().toISOString()
       });
+
+      // Send notification to buyer
+      const orderSnap = await getDoc(doc(db, 'orders', orderId));
+      if (orderSnap.exists()) {
+        const orderData = orderSnap.data();
+        const notificationRef = doc(collection(db, 'notifications'));
+        await setDoc(notificationRef, {
+          id: notificationRef.id,
+          userId: orderData.buyerId,
+          title: `Order ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}`,
+          message: `Your order #${orderId.slice(0, 8)} status has been updated to ${newStatus}.`,
+          type: 'order',
+          relatedId: orderId,
+          read: false,
+          createdAt: new Date().toISOString()
+        });
+      }
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `orders/${orderId}`);
     }
@@ -202,6 +249,13 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile 
               Customer Reviews
               {reviews.length > 0 && <span className="ml-2 text-[10px] bg-emerald-500 text-white px-2 py-0.5 rounded-full">{reviews.length}</span>}
             </button>
+            <button 
+              onClick={() => setActiveTab('messages')}
+              className={`text-xl font-bold tracking-tight transition-all ${activeTab === 'messages' ? 'text-slate-800' : 'text-slate-300 hover:text-slate-400'}`}
+            >
+              Messages
+              {conversations.length > 0 && <span className="ml-2 text-[10px] bg-primary text-white px-2 py-0.5 rounded-full">{conversations.length}</span>}
+            </button>
           </div>
           
           <AnimatePresence mode="wait">
@@ -262,7 +316,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile 
                   ))
                 )}
               </motion.div>
-            ) : (
+            ) : activeTab === 'feedback' ? (
               <motion.div 
                 key="feedback"
                 initial={{ opacity: 0, x: -20 }}
@@ -311,6 +365,44 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile 
                            </div>
                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Product: <span className="text-slate-800 italic">{products.find(p => p.id === review.productId)?.name || 'Local Product'}</span></p>
                          </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </motion.div>
+            ) : (
+              <motion.div 
+                key="messages"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                className="bg-white rounded-[4rem] p-6 shadow-2xl shadow-primary/5 border border-border divide-y divide-border/50"
+              >
+                {conversations.length === 0 ? (
+                  <div className="py-24 text-center">
+                    <MessageSquare className="w-16 h-16 text-slate-100 mx-auto mb-6" />
+                    <p className="text-slate-400 font-bold uppercase tracking-[0.4em] text-[10px]">No messages yet</p>
+                  </div>
+                ) : (
+                  conversations.map(conv => (
+                    <div 
+                      key={conv.id} 
+                      onClick={() => handleOpenConversation(conv)}
+                      className="p-10 group flex items-center justify-between hover:bg-background transition-all first:rounded-t-[3.5rem] last:rounded-b-[3.5rem] cursor-pointer"
+                    >
+                      <div className="flex items-center gap-10">
+                        <div className="w-16 h-16 rounded-[1.5rem] bg-accent-light flex items-center justify-center overflow-hidden border border-primary/5">
+                          <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${conv.participants.find((id: string) => id !== profile?.uid)}`} className="w-full h-full object-contain bg-accent-light" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-4 mb-2">
+                            <p className="font-bold text-xl text-slate-800 tracking-tighter">{conv.buyerName === profile?.fullName ? conv.farmerName : conv.buyerName}</p>
+                          </div>
+                          <p className="text-sm text-slate-500 line-clamp-1">{conv.lastMessage || 'No messages yet'}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">{conv.lastMessageAt ? new Date(conv.lastMessageAt?.toDate?.() || conv.lastMessageAt).toLocaleDateString() : ''}</p>
                       </div>
                     </div>
                   ))
@@ -419,6 +511,16 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile 
       </div>
 
       <AnimatePresence>
+        {selectedConversation && (
+          <Chat 
+            conversationId={selectedConversation.conv.id} 
+            recipientProfile={selectedConversation.recipient} 
+            onClose={() => setSelectedConversation(null)} 
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {showAddModal && (
           <ProductFormModal 
             initialData={editingProduct} 
@@ -500,6 +602,7 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
         await updateDoc(doc(db, 'products', initialData.id), { 
           ...formData,
           updatedAt: new Date().toISOString(),
+          coordinates: profile?.coordinates || null,
           isPublished: (profile?.status as string) !== 'banned'
         });
       } else {
@@ -514,6 +617,7 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
           farmerId: auth.currentUser?.uid,
           rating: 0,
           reviewCount: 0,
+          coordinates: profile?.coordinates || null,
           isPublished: (profile?.status as string) !== 'banned',
           harvestDate: new Date().toISOString()
         });

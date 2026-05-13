@@ -1,21 +1,50 @@
 import React from 'react';
-import { ShoppingCart, User, Sprout, Search, MapPin, Home, History, LayoutDashboard } from 'lucide-react';
+import { ShoppingCart, User, Sprout, Search, MapPin, Home, History, LayoutDashboard, MessageSquare, Bell } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { auth } from '../lib/firebase';
-import { motion } from 'motion/react';
+import { auth, db } from '../lib/firebase';
+import { collection, query, where, onSnapshot, orderBy, limit, updateDoc, doc } from 'firebase/firestore';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface NavbarProps {
   onAuthClick: () => void;
   onCartClick: () => void;
-  setView: (view: 'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile') => void;
+  setView: (view: 'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages') => void;
   onSearch?: (query: string) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setView, onSearch }) => {
-  const { user, profile } = useAuth();
+  const { user, profile, logout } = useAuth();
   const { items } = useCart();
   const [searchValue, setSearchValue] = React.useState('');
+  const [showNotifications, setShowNotifications] = React.useState(false);
+  const [unreadCount, setUnreadCount] = React.useState(0);
+  const [notifications, setNotifications] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    if (!user || !profile) return;
+
+    // Listen for new messages or orders that might trigger notifications
+    // For now, we'll simulate notifications by listening to recent context-specific events
+    // In a real app, you'd have a 'notifications' collection
+    const q = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc'),
+      limit(5)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      setNotifications(docs);
+      setUnreadCount(docs.filter((n: any) => !n.read).length);
+    }, (err) => {
+      // If collection doesn't exist yet, it's fine
+      console.log('Notifications not available yet');
+    });
+
+    return () => unsubscribe();
+  }, [user, profile]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchValue(e.target.value);
@@ -111,6 +140,68 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
                 
                 <div className="h-8 w-px bg-border hidden sm:block" />
 
+                {(profile?.role === 'buyer' || profile?.role === 'farmer') && (
+                  <div className="relative">
+                    <button 
+                      onClick={() => setShowNotifications(!showNotifications)}
+                      className="p-2.5 text-slate-400 hover:text-primary transition-all hover:scale-110 relative"
+                    >
+                      <Bell className="w-6 h-6" />
+                      {unreadCount > 0 && (
+                        <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 border-2 border-white rounded-full" />
+                      )}
+                    </button>
+                    
+                    <AnimatePresence>
+                      {showNotifications && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                          className="absolute right-0 mt-4 w-80 bg-white rounded-[2.5rem] shadow-2xl border border-border p-6 z-[70] overflow-hidden"
+                        >
+                          <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-800">Notifications</h3>
+                            <button 
+                              onClick={async () => {
+                                const unread = notifications.filter(n => !n.read);
+                                for (const n of unread) {
+                                  await updateDoc(doc(db, 'notifications', n.id), { read: true });
+                                }
+                              }}
+                              className="text-[9px] font-bold text-primary uppercase tracking-widest hover:underline"
+                            >
+                              Mark all as read
+                            </button>
+                          </div>
+                          
+                          <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                            {notifications.length === 0 ? (
+                              <div className="py-12 text-center">
+                                <Bell className="w-10 h-10 text-slate-100 mx-auto mb-4" />
+                                <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">No new notifications</p>
+                                <p className="text-[9px] text-slate-400 mt-2 font-medium">We'll alert you here when something happens.</p>
+                              </div>
+                            ) : (
+                              notifications.map((notif) => (
+                                <div key={notif.id} className={`p-4 rounded-2xl border ${notif.read ? 'bg-slate-50 border-slate-100' : 'bg-accent-light border-primary/10'} transition-all`}>
+                                  <p className="text-xs font-bold text-slate-800 mb-1">{notif.title}</p>
+                                  <p className="text-[10px] text-slate-500 leading-relaxed font-medium mb-2">{notif.message}</p>
+                                  <span className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">
+                                    {new Date(notif.createdAt?.toDate?.() || notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
+                
+                <div className="h-8 w-px bg-border hidden sm:block" />
+
                 <div className="relative group/profile">
                   <button className="flex items-center gap-4 group/btn">
                     <div className="text-right hidden sm:block">
@@ -120,7 +211,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
                     <div className="w-12 h-12 rounded-[1.25rem] bg-accent-light p-1 group-hover/btn:scale-110 transition-all duration-500 shadow-sm border border-primary/5">
                       <div className="w-full h-full rounded-[1rem] bg-primary/20 flex items-center justify-center overflow-hidden">
                         {user.photoURL ? (
-                          <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" />
+                          <img src={user.photoURL} alt="Avatar" className="w-full h-full object-contain bg-accent-light" />
                         ) : (
                           <User className="w-5 h-5 text-primary" />
                         )}
@@ -137,6 +228,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
                       >
                         <User className="w-4 h-4 text-primary group-hover/item:scale-110 group-hover/item:rotate-12 transition-transform" />
                         My Profile
+                      </button>
+                      
+                      <button 
+                        onClick={() => setView('messages')}
+                        className="w-full px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-slate-600 hover:bg-accent-light hover:text-primary flex items-center gap-4 rounded-2xl transition-all group/item hover:translate-x-2"
+                      >
+                        <MessageSquare className="w-4 h-4 text-primary group-hover/item:scale-110 group-hover/item:rotate-12 transition-transform" />
+                        My Messages
                       </button>
                       
                       {profile?.role === 'buyer' && (
@@ -160,7 +259,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
                       )}
 
                       <button 
-                        onClick={() => auth.signOut()}
+                        onClick={() => {
+                          logout();
+                          setView('landing');
+                        }}
                         className="w-full px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-secondary hover:bg-secondary/5 flex items-center gap-4 rounded-2xl transition-all group/item hover:translate-x-2"
                       >
                         <Sprout className="w-4 h-4 group-hover/item:rotate-12 group-hover/item:scale-110 transition-transform" />
@@ -210,6 +312,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
                 <span className="text-[8px] font-bold uppercase tracking-widest text-slate-400 group-hover:text-accent transition-colors">Orders</span>
               </button>
             )}
+
+            <button 
+              onClick={() => setView('messages')}
+              className="flex flex-col items-center gap-1.5 p-3 group transition-transform active:scale-90"
+            >
+              <div className="w-10 h-10 rounded-2xl bg-primary/5 flex items-center justify-center group-hover:bg-primary/20 transition-all group-hover:-translate-y-1">
+                <MessageSquare className="w-5 h-5 text-primary group-hover:scale-110 transition-transform" />
+              </div>
+              <span className="text-[8px] font-bold uppercase tracking-widest text-slate-400 group-hover:text-primary transition-colors">Chat</span>
+            </button>
 
             <button 
               onClick={() => setView('profile')}

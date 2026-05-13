@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { doc, getDoc, collection, query, where, getDocs, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { UserProfile, Product } from '../types';
-import { MapPin, ShieldCheck, ChevronLeft, Calendar, Leaf, Award, Star, Plus, Sun, BadgeCheck } from 'lucide-react';
-import { motion } from 'motion/react';
+import { MapPin, ShieldCheck, ChevronLeft, Calendar, Leaf, Award, Star, Plus, Sun, BadgeCheck, MessageSquare } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Chat } from '../components/Chat';
+import { useAuth } from '../context/AuthContext';
 
 interface FarmerProfileProps {
   farmerId: string;
@@ -12,9 +14,11 @@ interface FarmerProfileProps {
 }
 
 export const FarmerProfile: React.FC<FarmerProfileProps> = ({ farmerId, onBack, onProductClick }) => {
+  const { profile } = useAuth();
   const [farmer, setFarmer] = useState<UserProfile | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchFarmer = async () => {
@@ -37,17 +41,68 @@ export const FarmerProfile: React.FC<FarmerProfileProps> = ({ farmerId, onBack, 
     fetchFarmer();
   }, [farmerId]);
 
+  const handleOpenChat = async () => {
+    if (!profile || !farmer) return;
+
+    try {
+      // Check for existing conversation
+      const conversationId = [profile.uid, farmer.uid].sort().join('_');
+      const convRef = doc(db, 'conversations', conversationId);
+      const convSnap = await getDoc(convRef);
+
+      if (!convSnap.exists()) {
+        await setDoc(convRef, {
+          id: conversationId,
+          participants: [profile.uid, farmer.uid],
+          buyerId: profile.uid,
+          farmerId: farmer.uid,
+          buyerName: profile.fullName,
+          farmerName: farmer.farmName || farmer.fullName,
+          lastMessage: '',
+          lastMessageAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      setActiveChatId(conversationId);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'conversations');
+    }
+  };
+
   if (loading) return <div className="h-screen flex items-center justify-center"><p className="animate-pulse">Loading Farm Profile...</p></div>;
   if (!farmer) return <div className="h-screen flex items-center justify-center">Farm Profile Not Found</div>;
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-12">
-      <button 
-        onClick={onBack} 
-        className="flex items-center gap-2 text-slate-500 hover:text-primary mb-12 font-bold transition-all text-xs uppercase tracking-[0.2em]"
-      >
-        <ChevronLeft className="w-5 h-5" /> Back
-      </button>
+      <div className="flex justify-between items-center mb-12">
+        <button 
+          onClick={onBack} 
+          className="flex items-center gap-2 text-slate-500 hover:text-primary font-bold transition-all text-xs uppercase tracking-[0.2em]"
+        >
+          <ChevronLeft className="w-5 h-5" /> Back
+        </button>
+
+        {profile?.uid !== farmerId && (
+          <button 
+            onClick={handleOpenChat}
+            className="flex items-center gap-3 px-8 py-4 bg-primary text-white rounded-full font-bold shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all text-sm uppercase tracking-widest"
+          >
+            <MessageSquare className="w-5 h-5" />
+            Message Farmer
+          </button>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {activeChatId && farmer && (
+          <Chat 
+            conversationId={activeChatId} 
+            recipientProfile={farmer} 
+            onClose={() => setActiveChatId(null)} 
+          />
+        )}
+      </AnimatePresence>
 
       {/* Hero Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 mb-20">
@@ -61,11 +116,19 @@ export const FarmerProfile: React.FC<FarmerProfileProps> = ({ farmerId, onBack, 
              </div>
 
              <div className="w-48 h-48 bg-white rounded-[3.5rem] flex items-center justify-center overflow-hidden shadow-2xl border-4 border-white relative group shrink-0">
-               <img 
-                 src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${farmer.uid}`} 
-                 alt={farmer.fullName} 
-                 className="w-full h-full object-cover bg-accent-light"
-               />
+               {farmer.photoURL ? (
+                 <img 
+                   src={farmer.photoURL} 
+                   alt={farmer.fullName} 
+                   className="w-full h-full object-contain bg-slate-50"
+                 />
+               ) : (
+                 <img 
+                   src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${farmer.uid}`} 
+                   alt={farmer.fullName} 
+                   className="w-full h-full object-cover bg-accent-light"
+                 />
+               )}
                <div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity" />
              </div>
              <div>

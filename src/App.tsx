@@ -15,6 +15,7 @@ import { AuthModal } from './components/AuthModal';
 import { ProductDetail } from './pages/ProductDetail';
 import { Profile } from './pages/Profile';
 import { FarmerProfile } from './pages/FarmerProfile';
+import { Messages } from './pages/Messages';
 import { Cart } from './components/Cart';
 import { OrderTracking } from './pages/OrderTracking';
 import { AIChatbot } from './components/AIChatbot';
@@ -47,33 +48,71 @@ function AppContent() {
     if (profile?.status === 'banned') {
       alert('Your account has been banned from the FarmToHome ecosystem.');
       logout();
+      setCurrentView('landing');
     }
   }, [profile, logout]);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authVariant, setAuthVariant] = useState<{ mode: 'login' | 'register'; role: 'buyer' | 'farmer' | 'admin' }>({ mode: 'login', role: 'buyer' });
-  const [currentView, setCurrentView] = useState<'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages'>('landing');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedFarmerId, setSelectedFarmerId] = useState<string | null>(null);
   const [showCart, setShowCart] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [nearMeEnabled, setNearMeEnabled] = useState(false);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+  const handleNearMeClick = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserCoords({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        });
+        setNearMeEnabled(true);
+        setSelectedCategory('All');
+        setCurrentView('home');
+      },
+      (error) => {
+        alert('Please enable location access to see harvests near you.');
+        console.error(error);
+      }
+    );
+  };
 
   const handleCategorySelect = (category: string) => {
     setSelectedCategory(category);
     setCurrentView('home');
   };
 
+  const [wasLoggedIn, setWasLoggedIn] = useState(false);
+  
   useEffect(() => {
-    if (user && profile && currentView === 'landing') {
-      if (profile.role === 'admin') {
-        setCurrentView('admin-dashboard');
-      } else if (profile.role === 'farmer') {
-        setCurrentView('dashboard');
-      } else {
-        setCurrentView('home');
+    if (user && profile) {
+      setWasLoggedIn(true);
+      if (profile.coordinates) {
+        setUserCoords(profile.coordinates);
       }
+      if (currentView === 'landing') {
+        if (profile.role === 'admin') {
+          setCurrentView('admin-dashboard');
+        } else if (profile.role === 'farmer') {
+          setCurrentView('dashboard');
+        } else {
+          setCurrentView('home');
+        }
+      }
+    } else if (!user && wasLoggedIn) {
+      // User just logged out
+      setCurrentView('landing');
+      setWasLoggedIn(false);
     }
-  }, [user, profile, currentView]);
+  }, [user, profile, currentView, wasLoggedIn]);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'system', 'config'), (doc) => {
@@ -183,18 +222,25 @@ function AppContent() {
                     </div>
 
                     <div className="mt-auto">
-                      <div className="bg-white rounded-[2rem] p-8 border border-border flex items-center gap-6 shadow-sm group hover:shadow-md transition-all">
+                      <button 
+                        onClick={handleNearMeClick}
+                        className={`w-full bg-white rounded-[2rem] p-8 border-2 flex items-center gap-6 shadow-sm group hover:shadow-xl hover:scale-[1.02] transition-all text-left ${nearMeEnabled ? 'border-primary ring-4 ring-primary/10' : 'border-border'}`}
+                      >
                         <div className="relative">
-                          <div className="w-14 h-14 bg-accent-light rounded-2xl flex items-center justify-center shadow-inner border border-primary/5">
-                            <ShoppingBag className="w-6 h-6 text-primary" />
+                          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner border border-primary/5 transition-colors ${nearMeEnabled ? 'bg-primary text-white' : 'bg-accent-light text-primary'}`}>
+                            <ShoppingBag className="w-6 h-6" />
                           </div>
-                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-secondary rounded-full border-4 border-white animate-pulse" />
+                          {nearMeEnabled && (
+                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-secondary rounded-full border-4 border-white animate-pulse" />
+                          )}
                         </div>
                         <div>
                           <p className="text-[10px] font-bold text-slate-800 uppercase tracking-[0.3em] mb-1">Active Harvest</p>
-                          <p className="text-[10px] text-primary font-bold uppercase tracking-widest opacity-60">Near Your Location</p>
+                          <p className={`text-[10px] font-bold uppercase tracking-widest transition-colors ${nearMeEnabled ? 'text-primary' : 'text-slate-400 opacity-60'}`}>
+                            {nearMeEnabled ? 'Filtering by Near You' : 'Near Your Location'}
+                          </p>
                         </div>
-                      </div>
+                      </button>
                     </div>
                   </div>
                 </aside>
@@ -212,6 +258,7 @@ function AppContent() {
                         category={selectedCategory}
                         onCategoryChange={setSelectedCategory}
                         searchQuery={searchQuery}
+                        userCoords={userCoords}
                         onProductClick={(id) => {
                           setSelectedProductId(id);
                           setCurrentView('product');
@@ -252,6 +299,9 @@ function AppContent() {
                 )}
                 {currentView === 'profile' && (
                   <Profile />
+                )}
+                {currentView === 'messages' && (
+                  <Messages />
                 )}
               </main>
             </div>

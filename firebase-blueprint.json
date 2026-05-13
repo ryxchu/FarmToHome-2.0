@@ -17,6 +17,14 @@
         "farmStory": { "type": "string" },
         "farmingMethods": { "type": "string" },
         "certifications": { "type": "array", "items": { "type": "string" } },
+        "photoURL": { "type": "string" },
+        "coordinates": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        },
         "isApproved": { "type": "boolean" },
         "rewardsPoints": { "type": "integer" },
         "ecoMetrics": {
@@ -48,6 +56,15 @@
         "rating": { "type": "number" },
         "reviewCount": { "type": "integer" },
         "isPublished": { "type": "boolean" },
+        "isFeatured": { "type": "boolean" },
+        "approvalStatus": { "type": "string", "enum": ["pending", "approved", "rejected", "flagged"] },
+        "coordinates": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        },
         "qrCodeUrl": { "type": "string" }
       },
       "required": ["id", "name", "price", "farmerId", "stock"]
@@ -77,6 +94,8 @@
         "deliveryAddress": { "type": "string" },
         "contactNumber": { "type": "string" },
         "paymentMethod": { "type": "string" },
+        "discount": { "type": "number" },
+        "discountType": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" },
         "riderLocation": {
@@ -118,6 +137,51 @@
         "likes": { "type": "array", "items": { "type": "string" } },
         "createdAt": { "type": "string", "format": "date-time" }
       }
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "A chat thread between a buyer and a farmer.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "participants": { "type": "array", "items": { "type": "string" } },
+        "buyerId": { "type": "string" },
+        "farmerId": { "type": "string" },
+        "buyerName": { "type": "string" },
+        "farmerName": { "type": "string" },
+        "lastMessage": { "type": "string" },
+        "lastMessageAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "participants", "buyerId", "farmerId"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A single message within a conversation.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "senderId", "content", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "A notification for a user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["order", "message", "system"] },
+        "relatedId": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "title", "message", "type", "read", "createdAt"]
     }
   },
   "firestore": {
@@ -126,6 +190,9 @@
     "/orders/{orderId}": { "schema": "Order", "description": "Customer orders" },
     "/reviews/{reviewId}": { "schema": "Review", "description": "Product reviews" },
     "/posts/{postId}": { "schema": "Post", "description": "Community marketplace posts" },
-    "/admins/{adminId}": { "schema": { "type": "object", "properties": { "uid": { "type": "string" } } }, "description": "Platform administrators" }
+    "/admins/{adminId}": { "schema": { "type": "object", "properties": { "uid": { "type": "string" } } }, "description": "Platform administrators" },
+    "/conversations/{conversationId}": { "schema": "Conversation", "description": "Chat threads" },
+    "/conversations/{conversationId}/messages/{messageId}": { "schema": "Message", "description": "Chat messages" },
+    "/notifications/{notificationId}": { "schema": "Notification", "description": "User notifications" }
   }
 }

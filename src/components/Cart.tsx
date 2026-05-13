@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { X, ShoppingBag, Trash2, Plus, Minus, ArrowRight, CreditCard, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, ShoppingBag, Trash2, Plus, Minus, ArrowRight, CreditCard, CheckCircle2, Ticket } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useCart } from '../context/CartContext';
 import { db, auth } from '../lib/firebase';
-import { collection, doc, setDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, query, where, getDocs, limit } from 'firebase/firestore';
 
 interface CartProps {
   isOpen: boolean;
@@ -14,6 +14,34 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
   const { items, removeFromCart, updateQuantity, subtotal, clearCart } = useCart();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isFirstBuyer, setIsFirstBuyer] = useState(false);
+  const [voucherApplied, setVoucherApplied] = useState(false);
+
+  useEffect(() => {
+    const checkFirstBuyer = async () => {
+      if (!auth.currentUser) return;
+      
+      const q = query(
+        collection(db, 'orders'),
+        where('buyerId', '==', auth.currentUser.uid),
+        limit(1)
+      );
+      
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) {
+        setIsFirstBuyer(true);
+        // Automatically apply for first time
+        setVoucherApplied(true);
+      }
+    };
+
+    if (isOpen) {
+      checkFirstBuyer();
+    }
+  }, [isOpen]);
+
+  const discount = voucherApplied ? Math.floor(subtotal * 0.2) : 0;
+  const finalTotal = subtotal + 50 - discount;
 
   const handleCheckout = async () => {
     if (!auth.currentUser) return;
@@ -33,7 +61,9 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
           quantity: i.quantity,
           price: i.price
         })),
-        total: subtotal + 50,
+        total: finalTotal,
+        discount: discount,
+        discountType: voucherApplied ? 'FIRST_BUYER_20' : null,
         status: 'pending',
         deliveryAddress: 'Home Address (Default)',
         contactNumber: '09123456789',
@@ -43,6 +73,20 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
       };
 
       await setDoc(orderRef, orderData);
+
+      // Create notification for farmer
+      const notificationRef = doc(collection(db, 'notifications'));
+      await setDoc(notificationRef, {
+        id: notificationRef.id,
+        userId: farmerId,
+        title: 'New Order Received',
+        message: `You have received a new order for ${items.length} items. Total: ₱${finalTotal}`,
+        type: 'order',
+        relatedId: orderRef.id,
+        read: false,
+        createdAt: new Date().toISOString()
+      });
+
       clearCart();
       setIsCheckingOut(true);
       setTimeout(() => {
@@ -137,6 +181,29 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
 
         {items.length > 0 && !isCheckingOut && (
           <div className="p-10 banig-pattern border-t-4 border-white space-y-8 shadow-2xl relative z-10">
+            {isFirstBuyer && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-emerald-50 border-2 border-emerald-100 p-6 rounded-[2rem] flex items-center justify-between group overflow-hidden relative"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-100/50 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-110" />
+                <div className="flex items-center gap-5 relative z-10">
+                  <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-lg text-emerald-500">
+                    <Ticket className="w-6 h-6 rotate-45" />
+                  </div>
+                  <div>
+                    <h4 className="text-[10px] font-bold text-emerald-600 uppercase tracking-[0.2em] mb-1">First Purchase Reward</h4>
+                    <p className="text-sm font-bold text-slate-800 font-serif italic">20% Discount Applied! ✨</p>
+                  </div>
+                </div>
+                <div className="text-right relative z-10">
+                  <p className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest mb-1">Saved</p>
+                  <p className="text-lg font-black text-emerald-600 tracking-tighter">-₱{discount}</p>
+                </div>
+              </motion.div>
+            )}
+
             <div className="space-y-4">
               <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-widest">
                 <span>Subtotal</span>
@@ -146,9 +213,15 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
                 <span>Delivery Fee</span>
                 <span className="text-slate-800">₱50</span>
               </div>
+              {voucherApplied && (
+                <div className="flex justify-between text-xs font-bold text-emerald-500 uppercase tracking-widest">
+                  <span>First Timer Discount (20%)</span>
+                  <span>-₱{discount}</span>
+                </div>
+              )}
               <div className="flex justify-between text-3xl font-bold text-slate-800 pt-6 border-t-2 border-white/50">
                 <span className="font-serif italic">Order Total</span>
-                <span className="text-primary tracking-tighter">₱{subtotal + 50}</span>
+                <span className="text-primary tracking-tighter">₱{finalTotal}</span>
               </div>
             </div>
             

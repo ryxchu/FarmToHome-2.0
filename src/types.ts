@@ -24,6 +24,10 @@ export interface UserProfile {
     localSupportImpact: number;
     foodTravelDistance: number;
   };
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
   createdAt: string;
 }
 
@@ -42,6 +46,10 @@ export interface Product {
   reviewCount: number;
   isPublished: boolean;
   isFeatured?: boolean;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
   approvalStatus?: 'pending' | 'approved' | 'rejected' | 'flagged';
   flagReason?: string;
   qrCodeUrl?: string;
@@ -69,6 +77,8 @@ export interface Order {
   disputeStatus?: 'none' | 'opened' | 'resolved' | 'refunded';
   disputeReason?: string;
   platformFee?: number;
+  discount?: number;
+  discountType?: string;
   createdAt: string;
   updatedAt: string;
   riderLocation?: {

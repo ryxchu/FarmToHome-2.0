@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, addDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Order, Review, Product } from '../types';
-import { Package, Truck, CheckCircle2, Clock, Map as MapIcon, Star, Camera, X, ShoppingBag, ArrowRight } from 'lucide-react';
+import { Package, Truck, CheckCircle2, Clock, Map as MapIcon, Star, Camera, X, ShoppingBag, ArrowRight, AlertCircle, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const OrderTracking: React.FC = () => {
@@ -10,19 +10,39 @@ export const OrderTracking: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const [reviewingItem, setReviewingItem] = useState<{ productId: string, name: string } | null>(null);
+  const [cancellingOrder, setCancellingOrder] = useState(false);
 
   useEffect(() => {
     if (!auth.currentUser) return;
     const q = query(collection(db, 'orders'), where('buyerId', '==', auth.currentUser.uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const ords = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order));
+      const ords = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order)).sort((a, b) => {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
       setOrders(ords);
       if (ords.length > 0 && !selectedOrder) setSelectedOrder(ords[0]);
       setLoading(false);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'orders'));
     return () => unsubscribe();
-  }, []);
+  }, [selectedOrder]);
+
+  const handleCancelOrder = async () => {
+    if (!selectedOrder) return;
+    setCancellingOrder(true);
+    try {
+      await updateDoc(doc(db, 'orders', selectedOrder.id), {
+        status: 'cancelled',
+        updatedAt: new Date().toISOString()
+      });
+      setShowCancelModal(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `orders/${selectedOrder.id}`);
+    } finally {
+      setCancellingOrder(false);
+    }
+  };
 
   const statuses: { id: Order['status']; label: string; icon: any }[] = [
     { id: 'pending', label: 'Order Received', icon: Clock },
@@ -68,7 +88,9 @@ export const OrderTracking: React.FC = () => {
                     <span className="font-bold text-slate-800 font-serif italic text-lg">#{order.id.slice(0, 8)}</span>
                   </div>
                   <span className={`text-[9px] px-4 py-1.5 rounded-full font-bold uppercase tracking-widest ${
-                    order.status === 'delivered' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-accent-light text-primary border border-primary/10'
+                    order.status === 'delivered' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 
+                    order.status === 'cancelled' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
+                    'bg-accent-light text-primary border border-primary/10'
                   }`}>
                     {order.status}
                   </span>
@@ -109,66 +131,98 @@ export const OrderTracking: React.FC = () => {
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-12"
               >
+                {/* Detail Header */}
+                <div className="flex items-center justify-between mb-10">
+                  <div className="flex items-center gap-6">
+                    <div className="w-16 h-16 bg-white rounded-3xl flex items-center justify-center shadow-xl border border-slate-100">
+                      <ShoppingBag className="w-8 h-8 text-primary shadow-sm" />
+                    </div>
+                    <div>
+                      <h2 className="text-4xl font-bold text-slate-800 tracking-tighter font-serif italic">Order Details</h2>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">Viewing progress for Order #{selectedOrder.id.slice(0, 8)}</p>
+                    </div>
+                  </div>
+                  <span className={`text-[10px] px-8 py-3 rounded-2xl font-bold uppercase tracking-[0.4em] border-2 shadow-sm ${
+                    selectedOrder.status === 'delivered' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 
+                    selectedOrder.status === 'cancelled' ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                    'bg-accent-light text-primary border-primary/10'
+                  }`}>
+                    {selectedOrder.status}
+                  </span>
+                </div>
+
                 {/* Timeline */}
                 <div className="bg-white p-12 rounded-[4rem] border-4 border-white shadow-2xl forest-shadow relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-64 h-64 bg-accent-light rounded-full -mr-32 -mt-32 opacity-50" />
-                  <div className="flex items-center justify-between mb-24 relative z-10 px-8">
-                    {statuses.map((status, idx) => {
-                      const Icon = status.icon;
-                      const isActive = idx <= currentStatusIndex;
-                      const isCompleted = idx < currentStatusIndex;
-                      const isCurrent = idx === currentStatusIndex;
-
-                      return (
-                        <div key={status.id} className="relative flex flex-col items-center flex-grow group">
-                          {/* Line */}
-                          {idx < statuses.length - 1 && (
-                            <div className={`absolute top-8 left-1/2 w-full h-[4px] rounded-full transition-all duration-1000 ${isActive && (idx < currentStatusIndex) ? 'bg-primary shadow-[0_0_10px_rgba(45,86,51,0.3)]' : 'bg-slate-100 shadow-inner'}`} />
-                          )}
-                          
-                          <div className={`relative z-10 w-16 h-16 rounded-[1.5rem] flex items-center justify-center transition-all duration-700 border-4 ${
-                            isCurrent ? 'bg-primary text-white border-white shadow-2xl scale-125 rotate-6' :
-                            isCompleted ? 'bg-white text-primary border-accent-light shadow-lg' : 'bg-slate-50 text-slate-300 border-slate-100'
-                          }`}>
-                            <Icon className="w-7 h-7" />
-                          </div>
-                          
-                          <div className="absolute top-24 w-max">
-                            <p className={`text-[9px] font-bold text-center uppercase tracking-[0.3em] font-serif transition-colors duration-500 ${
-                              isActive ? 'text-slate-800' : 'text-slate-300'
-                            }`}>
-                              {status.label}
-                            </p>
-                          </div>
-
-                          {isCurrent && (
-                            <motion.span 
-                              layoutId="current-glow"
-                              className="absolute -top-4 w-4 h-4 bg-secondary rounded-full border-4 border-white shadow-xl shadow-secondary/50 animate-pulse"
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {selectedOrder.status === 'shipped' && (
-                    <div className="p-10 bg-primary rounded-[3rem] border-4 border-white flex flex-col md:flex-row items-center justify-between shadow-2xl gap-8"
-                    >
-                      <div className="flex items-center gap-8">
-                        <div className="w-20 h-20 bg-white/10 backdrop-blur-xl rounded-[2rem] flex items-center justify-center shadow-inner border border-white/20">
-                          <Truck className="w-10 h-10 text-accent-light" />
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold text-accent-light uppercase tracking-[0.4em] mb-2 opacity-70">Estimated Arrival</p>
-                          <p className="text-4xl font-bold text-white tracking-tighter font-serif italic">~ 24 Minutes <span className="text-lg not-italic opacity-40">Estimate</span></p>
-                        </div>
+                  
+                  {selectedOrder.status === 'cancelled' ? (
+                    <div className="relative z-10 py-10 flex flex-col items-center text-center">
+                      <div className="w-24 h-24 bg-rose-50 rounded-[2rem] flex items-center justify-center mb-8 border-4 border-white shadow-xl">
+                        <X className="w-12 h-12 text-rose-500" />
                       </div>
-                      <button className="group flex items-center gap-3 px-10 py-5 bg-white text-primary rounded-2xl font-bold border border-primary/10 shadow-2xl text-[10px] uppercase tracking-widest hover:scale-105 transition-all active:scale-95">
-                        <MapIcon className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-                        View Live Map
-                      </button>
+                      <h3 className="text-4xl font-bold text-slate-800 tracking-tighter font-serif italic mb-4">Order Cancelled</h3>
+                      <p className="text-slate-400 font-medium max-w-md">This order has been cancelled and will not be processed further.</p>
                     </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between mb-24 relative z-10 px-8">
+                        {statuses.map((status, idx) => {
+                          const Icon = status.icon;
+                          const isActive = idx <= currentStatusIndex;
+                          const isCompleted = idx < currentStatusIndex;
+                          const isCurrent = idx === currentStatusIndex;
+
+                          return (
+                            <div key={status.id} className="relative flex flex-col items-center flex-grow group">
+                              {/* Line */}
+                              {idx < statuses.length - 1 && (
+                                <div className={`absolute top-8 left-1/2 w-full h-[4px] rounded-full transition-all duration-1000 ${isActive && (idx < currentStatusIndex) ? 'bg-primary shadow-[0_0_10px_rgba(45,86,51,0.3)]' : 'bg-slate-100 shadow-inner'}`} />
+                              )}
+                              
+                              <div className={`relative z-10 w-16 h-16 rounded-[1.5rem] flex items-center justify-center transition-all duration-700 border-4 ${
+                                isCurrent ? 'bg-primary text-white border-white shadow-2xl scale-125 rotate-6' :
+                                isCompleted ? 'bg-white text-primary border-accent-light shadow-lg' : 'bg-slate-50 text-slate-300 border-slate-100'
+                              }`}>
+                                <Icon className="w-7 h-7" />
+                              </div>
+                              
+                              <div className="absolute top-24 w-max">
+                                <p className={`text-[9px] font-bold text-center uppercase tracking-[0.3em] font-serif transition-colors duration-500 ${
+                                  isActive ? 'text-slate-800' : 'text-slate-300'
+                                }`}>
+                                  {status.label}
+                                </p>
+                              </div>
+
+                              {isCurrent && (
+                                <motion.span 
+                                  layoutId="current-glow"
+                                  className="absolute -top-4 w-4 h-4 bg-secondary rounded-full border-4 border-white shadow-xl shadow-secondary/50 animate-pulse"
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="flex justify-end gap-4 relative z-10">
+                        {(selectedOrder.status === 'pending' || selectedOrder.status === 'accepted') && (
+                          <button 
+                            onClick={() => setShowCancelModal(true)}
+                            className="flex items-center gap-3 px-8 py-4 bg-rose-50 text-rose-500 rounded-2xl font-bold border border-rose-100 shadow-xl text-[9px] uppercase tracking-widest hover:bg-rose-100 transition-all active:scale-95"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Cancel Order
+                          </button>
+                        )}
+                        {selectedOrder.status === 'shipped' && (
+                          <button className="group flex items-center gap-3 px-10 py-5 bg-primary text-white rounded-2xl font-bold border border-white/10 shadow-2xl text-[10px] uppercase tracking-widest hover:scale-105 transition-all active:scale-95">
+                            <MapIcon className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                            View Live Map
+                          </button>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
 
@@ -281,6 +335,42 @@ export const OrderTracking: React.FC = () => {
               setReviewingItem(null);
             }}
           />
+        )}
+        {showCancelModal && selectedOrder && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white w-full max-w-md rounded-[3.5rem] overflow-hidden shadow-2xl relative border-4 border-white p-12"
+            >
+              <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center mb-8 mx-auto border-4 border-white shadow-lg">
+                <AlertCircle className="w-10 h-10 text-rose-500" />
+              </div>
+              <h3 className="text-3xl font-bold text-slate-800 tracking-tighter font-serif italic text-center mb-4">Cancel Order?</h3>
+              <p className="text-slate-500 text-center mb-10 font-medium">Are you sure you want to cancel this order? This action cannot be undone.</p>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <button 
+                  onClick={() => setShowCancelModal(false)}
+                  className="py-5 bg-slate-50 text-slate-400 rounded-2xl font-bold uppercase tracking-widest text-[10px] hover:bg-slate-100 transition-all border-2 border-slate-100"
+                >
+                  Go Back
+                </button>
+                <button 
+                  onClick={handleCancelOrder}
+                  disabled={cancellingOrder}
+                  className="py-5 bg-rose-500 text-white rounded-2xl font-bold uppercase tracking-widest text-[10px] shadow-2xl shadow-rose-500/30 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center"
+                >
+                  {cancellingOrder ? (
+                    <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }} className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full" />
+                  ) : (
+                    'Confirm Cancel'
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

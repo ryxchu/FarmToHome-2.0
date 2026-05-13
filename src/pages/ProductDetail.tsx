@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Product, UserProfile } from '../types';
-import { Star, Clock, MapPin, ShieldCheck, ChevronLeft, Minus, Plus, ShoppingBag, Share2, Heart, Check } from 'lucide-react';
-import { motion } from 'motion/react';
+import { doc, onSnapshot, collection, query, where, getDocs, addDoc, serverTimestamp, updateDoc, increment, getDoc } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
+import { Product, UserProfile, Order, Review } from '../types';
+import { Star, Clock, MapPin, ShieldCheck, ChevronLeft, Minus, Plus, ShoppingBag, Share2, Heart, Check, MessageSquare } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useCart } from '../context/CartContext';
 import { QRCodeSVG } from 'qrcode.react';
+import { useAuth } from '../context/AuthContext';
 
 interface ProductDetailProps {
   productId: string;
@@ -15,11 +16,19 @@ interface ProductDetailProps {
 
 export const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onBack, onFarmerClick }) => {
   const { addToCart } = useCart();
+  const { profile } = useAuth();
   const [product, setProduct] = useState<Product | null>(null);
   const [farmer, setFarmer] = useState<UserProfile | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
   const [added, setAdded] = useState(false);
+  
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [isEligibleToReview, setIsEligibleToReview] = useState(false);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   useEffect(() => {
     const unsubscribeProduct = onSnapshot(doc(db, 'products', productId), (snapshot) => {
@@ -32,13 +41,76 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onBack,
           if (fSnap.exists()) {
             setFarmer({ ...fSnap.data(), uid: fSnap.id } as UserProfile);
           }
-          setLoading(false);
         }, (error) => handleFirestoreError(error, OperationType.GET, `users/${prodData.farmerId}`));
       }
     }, (error) => handleFirestoreError(error, OperationType.GET, `products/${productId}`));
 
-    return () => unsubscribeProduct();
+    // Fetch reviews
+    const qReviews = query(collection(db, 'reviews'), where('productId', '==', productId));
+    const unsubscribeReviews = onSnapshot(qReviews, (snapshot) => {
+      setReviews(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Review)));
+    });
+
+    // Check eligibility
+    const checkEligibility = async () => {
+      if (!auth.currentUser) return;
+      const qOrders = query(
+        collection(db, 'orders'), 
+        where('buyerId', '==', auth.currentUser.uid),
+        where('status', '==', 'delivered')
+      );
+      const orderDocs = await getDocs(qOrders);
+      const isEligible = orderDocs.docs.some(doc => {
+        const order = doc.data() as Order;
+        return order.items.some(item => item.productId === productId);
+      });
+      setIsEligibleToReview(isEligible);
+      setLoading(false);
+    };
+
+    checkEligibility();
+
+    return () => {
+      unsubscribeProduct();
+      unsubscribeReviews();
+    };
   }, [productId]);
+
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth.currentUser || !product || !comment.trim()) return;
+
+    setSubmittingReview(true);
+    try {
+      const reviewData = {
+        productId,
+        buyerId: auth.currentUser.uid,
+        farmerId: product.farmerId,
+        rating,
+        comment,
+        createdAt: new Date().toISOString(),
+      };
+
+      const reviewRef = doc(collection(db, 'reviews'));
+      await addDoc(collection(db, 'reviews'), { ...reviewData, id: reviewRef.id });
+
+      // Update product rating
+      const newReviewCount = (product.reviewCount || 0) + 1;
+      const newRating = ((product.rating || 0) * (product.reviewCount || 0) + rating) / newReviewCount;
+
+      await updateDoc(doc(db, 'products', productId), {
+        rating: newRating,
+        reviewCount: newReviewCount
+      });
+
+      setComment('');
+      setShowReviewForm(false);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, 'reviews');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   if (loading) return (
     <div className="h-96 flex flex-col items-center justify-center gap-6">
@@ -224,6 +296,113 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onBack,
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Reviews Section */}
+      <div className="mt-32 space-y-16">
+        <div className="flex items-end justify-between border-b border-border pb-10">
+          <div>
+            <h2 className="text-4xl font-bold text-slate-800 tracking-tighter mb-4 font-serif italic">Customer <span className="text-primary">Reviews</span></h2>
+            <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-[10px]">What fellow buyers are saying.</p>
+          </div>
+          {isEligibleToReview && !showReviewForm && (
+            <button 
+              onClick={() => setShowReviewForm(true)}
+              className="px-10 py-5 bg-accent-light text-primary rounded-2xl font-bold text-[10px] uppercase tracking-widest hover:bg-primary hover:text-white transition-all shadow-xl active:scale-95"
+            >
+              Write a Review
+            </button>
+          )}
+        </div>
+
+        <AnimatePresence>
+          {showReviewForm && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="bg-white p-12 rounded-[3.5rem] border-4 border-accent-light shadow-2xl"
+            >
+              <form onSubmit={handleSubmitReview} className="space-y-10">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-2xl font-bold text-slate-800 font-serif italic">Share your experience</h3>
+                  <div className="flex gap-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setRating(star)}
+                        className="p-1 hover:scale-110 transition-transform"
+                      >
+                        <Star className={`w-8 h-8 ${star <= rating ? 'text-secondary fill-secondary' : 'text-slate-100'}`} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <textarea 
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="Tell us about the freshness and quality..."
+                  className="w-full h-40 p-8 bg-background border-2 border-border rounded-[2rem] focus:outline-none focus:border-primary/20 transition-all font-medium italic text-lg"
+                  required
+                />
+                <div className="flex justify-end gap-6">
+                  <button 
+                    type="button"
+                    onClick={() => setShowReviewForm(false)}
+                    className="px-8 py-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    disabled={submittingReview}
+                    className="px-12 py-5 bg-primary text-white rounded-full font-bold shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all text-[10px] uppercase tracking-widest disabled:opacity-50"
+                  >
+                    {submittingReview ? 'Posting...' : 'Post Review'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+          {reviews.length === 0 ? (
+            <div className="col-span-full py-24 text-center bg-background rounded-[4rem] border-2 border-dashed border-slate-200">
+              <MessageSquare className="w-12 h-12 text-slate-100 mx-auto mb-6" />
+              <p className="text-slate-400 font-bold uppercase tracking-[0.4em] text-[10px]">No reviews yet</p>
+            </div>
+          ) : (
+            reviews.map(review => (
+              <motion.div 
+                key={review.id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm relative group overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-accent-light/50 rounded-full -mr-12 -mt-12 transition-transform duration-700 group-hover:scale-150" />
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex gap-1">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className={`w-3.5 h-3.5 ${i < review.rating ? 'text-secondary fill-secondary' : 'text-slate-100'}`} />
+                    ))}
+                  </div>
+                  <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">
+                    {new Date(review.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <p className="text-slate-600 font-medium italic text-lg leading-relaxed mb-6">"{review.comment}"</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-accent-light flex items-center justify-center overflow-hidden border border-primary/5">
+                    <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${review.buyerId}`} className="w-full h-full" />
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Verified Buyer</span>
+                </div>
+              </motion.div>
+            ))
+          )}
         </div>
       </div>
     </motion.div>

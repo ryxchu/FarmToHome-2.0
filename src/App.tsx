@@ -20,8 +20,9 @@ import { Cart } from './components/Cart';
 import { OrderTracking } from './pages/OrderTracking';
 import { AIChatbot } from './components/AIChatbot';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sprout, Search, ShoppingBag, Radio, Lock } from 'lucide-react';
+import { Sprout, Search, ShoppingBag, Radio, Lock, MapPin } from 'lucide-react';
 import { useCart } from './context/CartContext';
+import { seedProducts, cleanupDuplicates } from './lib/seed';
 
 const SideNavLink: React.FC<{ icon: string; label: string; active?: boolean; onClick?: () => void }> = ({ icon, label, active, onClick }) => (
   <button 
@@ -39,10 +40,20 @@ const SideNavLink: React.FC<{ icon: string; label: string; active?: boolean; onC
 
 import { SystemConfig } from './types';
 import { db, handleFirestoreError, OperationType } from './lib/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, collection, getDocs, query, limit } from 'firebase/firestore';
 
 function AppContent() {
-  const { user, profile, loading, logout } = useAuth();
+  const { 
+    user, 
+    profile, 
+    loading, 
+    logout, 
+    showAuthModal, 
+    setShowAuthModal, 
+    authVariant, 
+    setAuthVariant,
+    openAuth 
+  } = useAuth();
   const { isOpen: showCart, setIsOpen: setShowCart } = useCart();
   const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
   
@@ -53,9 +64,10 @@ function AppContent() {
       setCurrentView('landing');
     }
   }, [profile, logout]);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authVariant, setAuthVariant] = useState<{ mode: 'login' | 'register'; role: 'buyer' | 'farmer' | 'admin' }>({ mode: 'login', role: 'buyer' });
+  
   const [currentView, setCurrentView] = useState<'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages'>('landing');
+  const [marketViewMode, setMarketViewMode] = useState<'shop' | 'community'>('shop');
+  const [dashboardTab, setDashboardTab] = useState<'inventory' | 'feedback' | 'messages'>('inventory');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedFarmerId, setSelectedFarmerId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -64,6 +76,12 @@ function AppContent() {
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const handleNearMeClick = () => {
+    if (nearMeEnabled) {
+      setNearMeEnabled(false);
+      setUserCoords(profile?.coordinates || null);
+      return;
+    }
+
     if (!navigator.geolocation) {
       alert('Geolocation is not supported by your browser');
       return;
@@ -82,7 +100,8 @@ function AppContent() {
       (error) => {
         alert('Please enable location access to see harvests near you.');
         console.error(error);
-      }
+      },
+      { enableHighAccuracy: true }
     );
   };
 
@@ -94,8 +113,32 @@ function AppContent() {
   const [wasLoggedIn, setWasLoggedIn] = useState(false);
   
   useEffect(() => {
+    // Global check to seed at least once if marketplace is empty
+    const checkAndSeed = async () => {
+      if (!user || profile?.role !== 'admin') return;
+      try {
+        await cleanupDuplicates();
+        const q = query(collection(db, 'products'), limit(1));
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) {
+          seedProducts().catch(console.error);
+        }
+      } catch (err) {
+        console.error("Seed check failed:", err);
+      }
+    };
+    checkAndSeed();
+  }, [user, profile]);
+
+  useEffect(() => {
     if (user && profile) {
       setWasLoggedIn(true);
+
+      // Seed products if user is a farmer
+      if (profile.role === 'farmer') {
+        seedProducts(user.uid).catch(console.error);
+      }
+
       if (profile.coordinates) {
         setUserCoords(profile.coordinates);
       }
@@ -179,12 +222,10 @@ function AppContent() {
         )}
       </AnimatePresence>
       <Navbar 
-        onAuthClick={() => {
-          setAuthVariant({ mode: 'login', role: 'buyer' });
-          setShowAuthModal(true);
-        }} 
+        onAuthClick={() => openAuth('login', 'buyer')} 
         onCartClick={() => setShowCart(true)}
         setView={setCurrentView}
+        onDashboardTabChange={setDashboardTab}
         onSearch={setSearchQuery}
       />
 
@@ -193,63 +234,78 @@ function AppContent() {
           {currentView === 'landing' ? (
             <LandingPage 
               onShopClick={() => setCurrentView('home')} 
-              onFarmerRegister={() => {
-                setAuthVariant({ mode: 'register', role: 'farmer' });
-                setShowAuthModal(true);
-              }}
+              onFarmerRegister={() => openAuth('register', 'farmer')}
             />
           ) : (
             <>
             <div className="flex flex-1 overflow-hidden min-h-[calc(100vh-80px)]">
               {(profile?.role !== 'farmer' && profile?.role !== 'admin' || !user) && (
-                <aside className="hidden lg:flex w-72 bg-white border-r border-slate-100 flex-col p-8 shrink-0">
-                  <div className="mb-12">
-                    <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-6">Market Sectors</h3>
-                    <nav className="space-y-4">
-                      <SideNavLink icon="🌳" label="All Categories" active={selectedCategory === 'All'} onClick={() => handleCategorySelect('All')} />
-                      <SideNavLink icon="🥬" label="Fresh Vegetables" active={selectedCategory === 'Vegetables'} onClick={() => handleCategorySelect('Vegetables')} />
-                      <SideNavLink icon="🍎" label="Seasonal Fruits" active={selectedCategory === 'Fruits'} onClick={() => handleCategorySelect('Fruits')} />
-                      <SideNavLink icon="🌾" label="Rice & Grains" active={selectedCategory === 'Rice'} onClick={() => handleCategorySelect('Rice')} />
-                      <SideNavLink icon="🍗" label="Local Poultry" active={selectedCategory === 'Poultry'} onClick={() => handleCategorySelect('Poultry')} />
-                    </nav>
-                                 <div className="mt-12">
-                      <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-6">Our Impact</h3>
-                      <div className="bg-primary rounded-[3rem] p-10 text-white relative overflow-hidden group shadow-2xl shadow-primary/20">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/20 rounded-full -mr-16 -mt-16 group-hover:scale-125 transition-transform duration-1000" />
-                        <p className="text-[10px] uppercase font-bold text-secondary mb-4 tracking-[0.2em]">Carbon Saved</p>
-                        <p className="text-5xl font-bold mb-4 tracking-tighter font-serif italic text-accent-light">12.5 <span className="text-lg not-italic text-white/60">kg</span></p>
-                        <p className="text-[10px] leading-relaxed text-white/50 font-medium tracking-tight">Direct archipelago routes reduce emissions by 40% compared to traditional logistics.</p>
+                <aside className="hidden lg:flex w-64 bg-white border-r border-slate-100 flex-col p-6 shrink-0 h-full">
+                  <div className="flex-1 overflow-y-auto no-scrollbar">
+                    <div className="mb-10">
+                      <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Navigation</h3>
+                      <div className="bg-slate-50 p-1.5 rounded-[1.5rem] flex flex-col gap-1 mb-8">
+                        <button 
+                          onClick={() => { setMarketViewMode('shop'); setCurrentView('home'); }}
+                          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all ${marketViewMode === 'shop' && currentView === 'home' ? 'bg-primary text-white shadow-lg' : 'text-slate-400 hover:text-primary hover:bg-white'}`}
+                        >
+                          <ShoppingBag className="w-3.5 h-3.5" /> Market
+                        </button>
+                        <button 
+                          onClick={() => { setMarketViewMode('community'); setCurrentView('home'); }}
+                          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all ${marketViewMode === 'community' && currentView === 'home' ? 'bg-primary text-white shadow-lg' : 'text-slate-400 hover:text-primary hover:bg-white'}`}
+                        >
+                          <Radio className="w-3.5 h-3.5" /> Community
+                        </button>
                       </div>
                     </div>
 
-                    <div className="mt-auto">
-                      <button 
-                        onClick={handleNearMeClick}
-                        className={`w-full bg-white rounded-[2rem] p-8 border-2 flex items-center gap-6 shadow-sm group hover:shadow-xl hover:scale-[1.02] transition-all text-left ${nearMeEnabled ? 'border-primary ring-4 ring-primary/10' : 'border-border'}`}
-                      >
-                        <div className="relative">
-                          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner border border-primary/5 transition-colors ${nearMeEnabled ? 'bg-primary text-white' : 'bg-accent-light text-primary'}`}>
-                            <ShoppingBag className="w-6 h-6" />
-                          </div>
-                          {nearMeEnabled && (
-                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-secondary rounded-full border-4 border-white animate-pulse" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold text-slate-800 uppercase tracking-[0.3em] mb-1">Active Harvest</p>
-                          <p className={`text-[10px] font-bold uppercase tracking-widest transition-colors ${nearMeEnabled ? 'text-primary' : 'text-slate-400 opacity-60'}`}>
-                            {nearMeEnabled ? 'Filtering by Near You' : 'Near Your Location'}
-                          </p>
-                        </div>
-                      </button>
+                    <div className="mb-10">
+                      <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Sectors</h3>
+                      <nav className="space-y-1">
+                        <SideNavLink icon="🌳" label="All" active={selectedCategory === 'All'} onClick={() => handleCategorySelect('All')} />
+                        <SideNavLink icon="🥬" label="Vegetables" active={selectedCategory === 'Vegetables'} onClick={() => handleCategorySelect('Vegetables')} />
+                        <SideNavLink icon="🍎" label="Fruits" active={selectedCategory === 'Fruits'} onClick={() => handleCategorySelect('Fruits')} />
+                        <SideNavLink icon="🍠" label="Root Crops" active={selectedCategory === 'Root Crops'} onClick={() => handleCategorySelect('Root Crops')} />
+                        <SideNavLink icon="🌿" label="Herbs & Spices" active={selectedCategory === 'Herbs & Spices'} onClick={() => handleCategorySelect('Herbs & Spices')} />
+                        <SideNavLink icon="🌾" label="Grains" active={selectedCategory === 'Grains'} onClick={() => handleCategorySelect('Grains')} />
+                        <SideNavLink icon="🍗" label="Poultry" active={selectedCategory === 'Poultry'} onClick={() => handleCategorySelect('Poultry')} />
+                        <SideNavLink icon="🥚" label="Dairy" active={selectedCategory === 'Dairy'} onClick={() => handleCategorySelect('Dairy')} />
+                        <SideNavLink icon="✨" label="Others" active={selectedCategory === 'Others'} onClick={() => handleCategorySelect('Others')} />
+                      </nav>
                     </div>
+
+                    <div className="mt-8">
+                      <div className="bg-primary/5 rounded-[2rem] p-6 border border-primary/10 relative overflow-hidden group">
+                        <p className="text-[9px] uppercase font-bold text-primary/60 mb-2 tracking-[0.2em]">Carbon Saved</p>
+                        <p className="text-3xl font-bold mb-2 tracking-tighter font-serif italic text-primary">12.5 <span className="text-xs not-italic opacity-60">kg</span></p>
+                        <p className="text-[8px] leading-relaxed text-slate-400 font-medium tracking-tight">Eco-friendly logistics.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 pt-6 border-t border-slate-100">
+                    <button 
+                      onClick={handleNearMeClick}
+                      className={`w-full bg-white rounded-2xl p-4 border flex items-center gap-4 transition-all text-left ${nearMeEnabled ? 'border-primary bg-primary/5' : 'border-slate-100 hover:border-primary/20'}`}
+                    >
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${nearMeEnabled ? 'bg-primary text-white' : 'bg-slate-50 text-slate-400'}`}>
+                        <MapPin className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-slate-800 uppercase tracking-[0.2em]">Near Me</p>
+                        <p className={`text-[8px] font-bold uppercase tracking-widest ${nearMeEnabled ? 'text-primary' : 'text-slate-400'}`}>
+                          {nearMeEnabled ? 'Active' : 'Disabled'}
+                        </p>
+                      </div>
+                    </button>
                   </div>
                 </aside>
               )}
 
               <main className="flex-1 p-8 lg:p-12 overflow-y-auto flex flex-col no-scrollbar">
                 {user && profile?.role === 'farmer' && (currentView === 'home' || currentView === 'dashboard') ? (
-                  <FarmerDashboard onEditProfile={() => setCurrentView('profile')} />
+                  <FarmerDashboard onEditProfile={() => setCurrentView('profile')} activeTabProp={dashboardTab} onTabChange={setDashboardTab} />
                 ) : user && profile?.role === 'admin' && (currentView === 'home' || currentView === 'admin-dashboard') ? (
                   <AdminDashboard />
                 ) : (
@@ -259,7 +315,10 @@ function AppContent() {
                         category={selectedCategory}
                         onCategoryChange={setSelectedCategory}
                         searchQuery={searchQuery}
+                        viewMode={marketViewMode}
+                        onViewModeChange={setMarketViewMode}
                         userCoords={userCoords}
+                        nearMeOnly={nearMeEnabled}
                         onProductClick={(id) => {
                           setSelectedProductId(id);
                           setCurrentView('product');
@@ -268,9 +327,6 @@ function AppContent() {
                     )}
                     {currentView === 'admin-dashboard' && profile?.role === 'admin' && (
                       <AdminDashboard />
-                    )}
-                    {currentView === 'dashboard' && profile?.role === 'farmer' && (
-                      <FarmerDashboard onEditProfile={() => setCurrentView('profile')} />
                     )}
                   </>
                 )}
@@ -311,12 +367,16 @@ function AppContent() {
         </AnimatePresence>
       </main>
 
-      <AuthModal 
-        isOpen={showAuthModal} 
-        onClose={() => setShowAuthModal(false)} 
-        initialMode={authVariant.mode}
-        initialRole={authVariant.role}
-      />
+      <AnimatePresence>
+        {showAuthModal && (
+          <AuthModal 
+            isOpen={showAuthModal} 
+            onClose={() => setShowAuthModal(false)} 
+            initialMode={authVariant.mode}
+            initialRole={authVariant.role}
+          />
+        )}
+      </AnimatePresence>
       <Cart isOpen={showCart} onClose={() => setShowCart(false)} />
       <AIChatbot />
       

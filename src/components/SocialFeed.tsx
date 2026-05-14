@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, getDocs, doc, getDoc, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Post, UserProfile } from '../types';
 import { Heart, MessageCircle, Share2, MoreHorizontal } from 'lucide-react';
@@ -10,18 +10,28 @@ export const SocialFeed: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(10));
+    
+    // Simple cache to avoid redundant reads
+    const farmerCache: Record<string, UserProfile> = {};
+
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       const postsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Post));
       
       try {
         const enrichedPosts = await Promise.all(postsData.map(async (post) => {
+          if (farmerCache[post.farmerId]) {
+            return { ...post, farmer: farmerCache[post.farmerId] };
+          }
+          
           try {
             const farmerSnap = await getDoc(doc(db, 'users', post.farmerId));
-            return {
-              ...post,
-              farmer: farmerSnap.exists() ? (farmerSnap.data() as UserProfile) : undefined
-            };
+            if (farmerSnap.exists()) {
+              const farmerData = farmerSnap.data() as UserProfile;
+              farmerCache[post.farmerId] = farmerData;
+              return { ...post, farmer: farmerData };
+            }
+            return { ...post };
           } catch (err) {
             console.warn(`Could not load farmer profile for post ${post.id}:`, err);
             return { ...post };

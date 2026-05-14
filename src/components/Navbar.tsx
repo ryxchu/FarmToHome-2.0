@@ -10,10 +10,11 @@ interface NavbarProps {
   onAuthClick: () => void;
   onCartClick: () => void;
   setView: (view: 'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages') => void;
+  onDashboardTabChange?: (tab: 'inventory' | 'feedback' | 'messages') => void;
   onSearch?: (query: string) => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setView, onSearch }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setView, onDashboardTabChange, onSearch }) => {
   const { user, profile, logout } = useAuth();
   const { items } = useCart();
   const [searchValue, setSearchValue] = React.useState('');
@@ -208,7 +209,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
                             </button>
                           </div>
                           
-                          <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
                             {notifications.length === 0 ? (
                               <div className="py-12 text-center">
                                 <Bell className="w-10 h-10 text-slate-100 mx-auto mb-4" />
@@ -217,13 +218,58 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
                               </div>
                             ) : (
                               notifications.map((notif) => (
-                                <div key={notif.id} className={`p-4 rounded-2xl border ${notif.read ? 'bg-slate-50 border-slate-100' : 'bg-accent-light border-primary/10'} transition-all`}>
-                                  <p className="text-xs font-bold text-slate-800 mb-1">{notif.title}</p>
+                                  <button 
+                                    key={notif.id} 
+                                    onClick={async () => {
+                                      const nId = notif.id;
+                                      const nType = notif.type;
+                                      const wasUnread = !notif.read;
+                                      
+                                      // 1. Close menu immediately
+                                      setShowNotifications(false);
+                                      
+                                      // 2. Perform navigation
+                                      if (nType === 'message') {
+                                        if (profile?.role === 'farmer') {
+                                          onDashboardTabChange?.('messages');
+                                          setView('dashboard');
+                                        } else {
+                                          setView('messages');
+                                        }
+                                      } else if (nType === 'order') {
+                                        if (profile?.role === 'farmer') {
+                                          onDashboardTabChange?.('inventory');
+                                          setView('dashboard');
+                                        } else if (profile?.role === 'buyer') {
+                                          setView('tracking');
+                                        }
+                                      } else if (nType === 'system') {
+                                        if (profile?.role === 'farmer') {
+                                          onDashboardTabChange?.('feedback');
+                                          setView('dashboard');
+                                        }
+                                      }
+
+                                      // 3. Mark as read in background
+                                      if (wasUnread) {
+                                        try {
+                                          await updateDoc(doc(db, 'notifications', nId), { read: true });
+                                        } catch (err) {
+                                          console.error("Failed to mark notification as read", err);
+                                        }
+                                      }
+                                    }}
+                                    className={`w-full text-left p-4 rounded-2xl border ${notif.read ? 'bg-slate-50 border-slate-100' : 'bg-accent-light border-primary/10'} transition-all hover:scale-[1.02] active:scale-95 group`}
+                                  >
+                                  <p className="text-xs font-bold text-slate-800 mb-1 group-hover:text-primary transition-colors">{notif.title}</p>
                                   <p className="text-[10px] text-slate-500 leading-relaxed font-medium mb-2">{notif.message}</p>
-                                  <span className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">
-                                    {new Date(notif.createdAt?.toDate?.() || notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </span>
-                                </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">
+                                      {new Date(notif.createdAt?.toDate?.() || notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                    {!notif.read && <div className="w-1.5 h-1.5 bg-primary rounded-full" />}
+                                  </div>
+                                </button>
                               ))
                             )}
                           </div>

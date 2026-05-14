@@ -9,17 +9,30 @@ import { Chat } from '../components/Chat';
 
 interface FarmerDashboardProps {
   onEditProfile?: () => void;
+  activeTabProp?: 'inventory' | 'feedback' | 'messages';
+  onTabChange?: (tab: 'inventory' | 'feedback' | 'messages') => void;
 }
 
-export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile }) => {
+export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile, activeTabProp, onTabChange }) => {
   const { profile } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'inventory' | 'feedback' | 'messages'>('inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'feedback' | 'messages'>(activeTabProp || 'inventory');
   const [showAddModal, setShowAddModal] = useState(false);
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (activeTabProp) {
+      setActiveTab(activeTabProp);
+    }
+  }, [activeTabProp]);
+
+  const handleTabChange = (tab: 'inventory' | 'feedback' | 'messages') => {
+    setActiveTab(tab);
+    onTabChange?.(tab);
+  };
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -30,7 +43,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile 
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'conversations'));
 
     return () => unsubscribeConv();
-  }, []);
+  }, [auth.currentUser?.uid]);
 
   const fetchRecipientProfile = async (conv: any) => {
     const recipientId = conv.participants.find((id: string) => id !== profile?.uid);
@@ -77,7 +90,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile 
       unsubscribeOrders();
       unsubscribeReviews();
     };
-  }, []);
+  }, [auth.currentUser?.uid]);
 
   const totalSales = orders.reduce((sum, order) => order.status === 'delivered' ? sum + order.total : sum, 0);
   const pendingOrders = orders.filter(o => o.status === 'pending');
@@ -142,7 +155,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile 
         <div>
           <div className="flex items-center gap-4 mb-3">
             <div className="w-2 h-10 bg-primary rounded-full" />
-            <h1 className="text-4xl font-bold text-slate-800 tracking-tighter font-serif">Store <span className="italic text-primary">Management</span></h1>
+            <h1 className="text-4xl font-bold text-slate-800 tracking-tighter font-sans">Store <span className="italic text-primary font-serif">Management</span></h1>
           </div>
           <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-[10px]">Real-time operational overview for {profile?.farmName || "Your Farm"}.</p>
         </div>
@@ -155,10 +168,10 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile 
             <User className="w-4 h-4" /> Profile Settings
           </button>
           <button 
-            onClick={() => setActiveTab('messages')}
+            onClick={() => handleTabChange('messages')}
             className="px-6 py-3 bg-white text-slate-600 font-bold text-[10px] uppercase tracking-widest rounded-2xl transition-all border border-slate-100 shadow-sm hover:shadow-md active:scale-95 flex items-center gap-3 relative"
           >
-            <MessageSquare className="w-4 h-4" /> Support
+            <MessageSquare className="w-4 h-4" /> Messages
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white" />
           </button>
         </div>
@@ -170,7 +183,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile 
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Active Products</p>
           <div className="flex items-end gap-3">
             <h3 className="text-4xl font-black text-slate-800 tracking-tighter">{products.length}</h3>
-            <span className="text-[10px] font-bold text-slate-400 mb-1.5 italic font-serif">Listed Products</span>
+            <span className="text-[10px] font-bold text-slate-400 mb-1.5 italic font-sans tracking-widest">Listed Products</span>
           </div>
           <Package className="absolute right-6 bottom-6 w-12 h-12 text-slate-50 -mb-2 -mr-2" />
         </div>
@@ -201,7 +214,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile 
               <span className="text-[9px] font-bold text-emerald-600 relative z-10">82%</span>
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-800 tracking-tight leading-none mb-1">Good!</h3>
+              <h3 className="text-lg font-bold text-slate-800 tracking-tight font-sans leading-none mb-1">Good!</h3>
               <p className="text-[10px] font-medium text-slate-400">Quality Score</p>
             </div>
           </div>
@@ -222,22 +235,22 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile 
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 px-4">
             <div className="flex items-center gap-10">
               <button 
-                onClick={() => setActiveTab('inventory')}
+                onClick={() => handleTabChange('inventory')}
                 className={`text-xl font-bold tracking-tight transition-all pb-4 border-b-2 ${activeTab === 'inventory' ? 'text-slate-800 border-primary' : 'text-slate-300 border-transparent hover:text-slate-400'}`}
               >
                 Product Inventory
               </button>
               <button 
-                onClick={() => setActiveTab('feedback')}
+                onClick={() => handleTabChange('feedback')}
                 className={`text-xl font-bold tracking-tight transition-all pb-4 border-b-2 ${activeTab === 'feedback' ? 'text-slate-800 border-primary' : 'text-slate-300 border-transparent hover:text-slate-400'}`}
               >
                 Feedback
               </button>
               <button 
-                onClick={() => setActiveTab('messages')}
+                onClick={() => handleTabChange('messages')}
                 className={`text-xl font-bold tracking-tight transition-all pb-4 border-b-2 ${activeTab === 'messages' ? 'text-slate-800 border-primary' : 'text-slate-300 border-transparent hover:text-slate-400'}`}
               >
-                Support Hub
+                Messages
               </button>
             </div>
 
@@ -495,7 +508,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile 
         <div className="space-y-12">
           <div className="px-6 flex items-center justify-between">
             <div>
-              <h2 className="text-3xl font-bold text-slate-800 tracking-tighter font-serif italic">Operational Log</h2>
+              <h2 className="text-3xl font-bold text-slate-800 tracking-tighter font-sans italic">Operational Log</h2>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Transaction History & Fulfillment</p>
             </div>
             <div className="flex items-center gap-2">
@@ -543,7 +556,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile 
                       <div className="flex items-end justify-between">
                         <div>
                           <p className="text-[10px] opacity-40 font-bold uppercase mb-2 tracking-[0.2em]">Settled Amount</p>
-                          <p className="text-4xl font-black tracking-tighter text-slate-800 italic font-serif">₱{order.total.toLocaleString()}</p>
+                          <p className="text-4xl font-black tracking-tighter text-slate-800 italic font-sans">₱{order.total.toLocaleString()}</p>
                         </div>
                         <div className="flex flex-col items-end gap-6">
                           <div className="flex gap-2">
@@ -660,6 +673,20 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
   });
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleMultipleFiles = (files: FileList) => {
+    Array.from(files).forEach(file => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64String = reader.result as string;
+          setFormData(prev => ({ ...prev, images: [...prev.images, base64String] }));
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  };
 
   const getSmartPriceSuggestion = async () => {
     if (!formData.name) return;
@@ -814,9 +841,12 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
                 >
                   <option>Vegetables</option>
                   <option>Fruits</option>
-                  <option>Rice</option>
+                  <option>Root Crops</option>
+                  <option>Grains</option>
+                  <option>Herbs & Spices</option>
                   <option>Poultry</option>
                   <option>Dairy</option>
+                  <option>Others</option>
                 </select>
               </div>
               <div>
@@ -850,50 +880,66 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-2 px-1">Product Images</label>
                 
                 <div className="grid grid-cols-1 gap-4 mb-4">
-                  <div className="flex flex-col gap-2 p-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl hover:border-primary/40 transition-all group relative">
+                  <div 
+                    className={`flex flex-col gap-2 p-8 bg-slate-50 border-2 border-dashed rounded-3xl transition-all group relative ${
+                      isDragging ? 'border-primary bg-primary/5 scale-[1.02]' : 'border-slate-200 hover:border-primary/40'
+                    }`}
+                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDragging(false);
+                      const files = e.dataTransfer.files;
+                      if (files && files.length > 0) {
+                        handleMultipleFiles(files);
+                      }
+                    }}
+                  >
                     <input 
                       type="file" 
+                      multiple
                       accept="image/*" 
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            const base64String = reader.result as string;
-                            setFormData({ ...formData, images: [...formData.images, base64String] });
-                          };
-                          reader.readAsDataURL(file);
+                      onChange={(e) => {
+                        const files = e.target.files;
+                        if (files && files.length > 0) {
+                          handleMultipleFiles(files);
                         }
                       }}
                       className="absolute inset-0 opacity-0 cursor-pointer z-10"
                     />
-                    <div className="flex flex-col items-center justify-center gap-2 py-2">
-                      <div className="p-3 bg-white rounded-full shadow-sm text-slate-400 group-hover:text-primary transition-colors">
-                        <ImageIcon className="w-6 h-6" />
+                    <div className="flex flex-col items-center justify-center gap-3 py-4 text-center">
+                      <div className={`p-4 rounded-full shadow-lg transition-all ${isDragging ? 'bg-primary text-white scale-110' : 'bg-white text-slate-400 group-hover:text-primary group-hover:scale-110'}`}>
+                        <ImageIcon className="w-8 h-8" />
                       </div>
-                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Upload from Device</p>
-                      <p className="text-[10px] text-slate-400 uppercase tracking-tighter">Images only (PNG, JPG)</p>
+                      <div className="space-y-1">
+                        <p className="text-sm font-bold text-slate-600 uppercase tracking-widest">
+                          {isDragging ? 'Drop images now!' : 'Click or Drag to Upload'}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+                          High-quality photos found to increase sales by 40%
+                        </p>
+                      </div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3">
                     <div className="h-px bg-slate-100 flex-grow"></div>
-                    <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">or</span>
+                    <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest italic">Optional URL</span>
                     <div className="h-px bg-slate-100 flex-grow"></div>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-3">
                     <input 
                       type="url" 
                       value={imageInput} 
                       onChange={e => setImageInput(e.target.value)}
-                      placeholder="Paste image URL here"
-                      className="flex-grow px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+                      placeholder="https://image-url.com/photo.jpg"
+                      className="flex-grow px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
                     />
                     <button 
                       type="button"
                       onClick={addImage}
-                      className="px-4 bg-primary text-white rounded-xl font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/10"
+                      className="px-6 bg-primary text-white rounded-2xl font-bold hover:bg-primary-dark transition-all shadow-xl shadow-primary/20"
                     >
                       <Plus className="w-5 h-5" />
                     </button>
@@ -901,19 +947,40 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
                 </div>
                 
                 {formData.images.length > 0 && (
-                  <div className="flex gap-3 overflow-x-auto p-1 no-scrollbar">
-                    {formData.images.map((url, idx) => (
-                      <div key={idx} className="relative flex-shrink-0 group">
-                        <img src={url} className="w-20 h-20 rounded-2xl object-cover border-2 border-white shadow-md transition-all group-hover:scale-105" />
-                        <button 
-                          type="button"
-                          onClick={() => removeImage(idx)}
-                          className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-1.5 shadow-lg hover:bg-rose-600 transition-all transform scale-0 group-hover:scale-100"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center px-1">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Uploaded <span className="text-slate-800">{formData.images.length}</span> Assets</p>
+                      <button 
+                        type="button" 
+                        onClick={() => setFormData({...formData, images: []})}
+                        className="text-[10px] font-bold text-rose-500 uppercase tracking-widest hover:text-rose-600"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                    <div className="flex gap-4 overflow-x-auto p-2 no-scrollbar pb-4 bg-slate-50/50 rounded-3xl border border-slate-100">
+                      {formData.images.map((url, idx) => (
+                        <div key={idx} className="relative flex-shrink-0 group">
+                          <img 
+                            src={url} 
+                            className="w-24 h-24 rounded-2xl object-cover border-4 border-white shadow-xl transition-all group-hover:ring-4 group-hover:ring-primary/20 group-hover:scale-105" 
+                            alt={`Preview ${idx + 1}`}
+                          />
+                          <div className="absolute inset-0 bg-slate-900/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <button 
+                              type="button"
+                              onClick={() => removeImage(idx)}
+                              className="bg-white/20 backdrop-blur-md text-white p-2 rounded-xl hover:bg-rose-500 transition-colors shadow-lg"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                          {idx === 0 && (
+                            <span className="absolute bottom-2 left-2 bg-primary text-white text-[8px] font-black uppercase tracking-tighter px-2 py-0.5 rounded-md shadow-lg border border-white/20">Main Photo</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -922,7 +989,7 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
             <div className="pt-6">
               <button 
                 type="submit" disabled={loading}
-                className="w-full py-5 bg-primary text-white rounded-2xl font-bold font-serif text-lg shadow-xl shadow-primary/20 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50"
+                className="w-full py-5 bg-primary text-white rounded-2xl font-bold font-sans text-lg shadow-xl shadow-primary/20 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50"
               >
                 {loading ? 'Saving...' : initialData ? 'Update Product' : 'Add Product'}
               </button>

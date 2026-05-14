@@ -218,8 +218,8 @@ export const AdminDashboard: React.FC = () => {
         <div>
           <div className="flex items-center gap-4 mb-3">
             <div className="w-2 h-10 bg-secondary rounded-full" />
-            <h1 className="text-5xl font-bold text-slate-800 tracking-tighter font-serif uppercase">
-              Control <span className="italic text-secondary">Center</span>
+            <h1 className="text-5xl font-bold text-slate-800 tracking-tighter font-sans uppercase">
+              Control <span className="italic text-secondary font-serif">Center</span>
             </h1>
           </div>
           <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-[10px]">Command & Control Hub for the FarmToHome Ecosystem</p>
@@ -271,24 +271,24 @@ export const AdminDashboard: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="p-8 bg-white border border-slate-100 rounded-[3rem] shadow-xl clay-shadow">
                 <Users className="w-8 h-8 text-primary mb-6" />
-                <h4 className="text-3xl font-bold text-slate-800 font-serif italic">{users.length}</h4>
+                <h4 className="text-3xl font-bold text-slate-800 font-sans tracking-tight">{users.length}</h4>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Active Citizens</p>
               </div>
               <div className="p-8 bg-white border border-slate-100 rounded-[3rem] shadow-xl clay-shadow">
                 <Shield className="w-8 h-8 text-secondary mb-6" />
-                <h4 className="text-3xl font-bold text-slate-800 font-serif italic">{pendingFarmers.length}</h4>
+                <h4 className="text-3xl font-bold text-slate-800 font-sans tracking-tight">{pendingFarmers.length}</h4>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Farmer Regists</p>
               </div>
               <div className="p-8 bg-white border border-slate-100 rounded-[3rem] shadow-xl clay-shadow">
                 <Ban className="w-8 h-8 text-red-400 mb-6" />
-                <h4 className="text-3xl font-bold text-slate-800 font-serif italic">{users.filter(u => u.status === 'banned').length}</h4>
+                <h4 className="text-3xl font-bold text-slate-800 font-sans tracking-tight">{users.filter(u => u.status === 'banned').length}</h4>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Global Bans</p>
               </div>
             </div>
 
             <div className="bg-white rounded-[4rem] border border-slate-100 overflow-hidden shadow-2xl">
               <div className="p-10 border-b border-slate-50 flex flex-col md:flex-row justify-between items-center gap-6">
-                <h3 className="text-2xl font-bold text-slate-800 font-serif italic">Global Directory</h3>
+                <h3 className="text-2xl font-bold text-slate-800 font-sans tracking-tight">Global Directory</h3>
                 <div className="flex gap-4">
                   <div className="relative">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
@@ -377,29 +377,29 @@ export const AdminDashboard: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
               <div className="p-8 bg-white border border-slate-100 rounded-[3rem] shadow-xl clay-shadow">
                 <ShoppingBag className="w-8 h-8 text-primary mb-6" />
-                <h4 className="text-3xl font-bold text-slate-800 font-serif italic">{products.length}</h4>
+                <h4 className="text-3xl font-bold text-slate-800 font-sans tracking-tight">{products.length}</h4>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Active Harvests</p>
               </div>
               <div className="p-8 bg-white border border-slate-100 rounded-[3rem] shadow-xl clay-shadow">
                 <Flag className="w-8 h-8 text-red-400 mb-6" />
-                <h4 className="text-3xl font-bold text-slate-800 font-serif italic">{flaggedProducts.length}</h4>
+                <h4 className="text-3xl font-bold text-slate-800 font-sans tracking-tight">{flaggedProducts.length}</h4>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Flagged Items</p>
               </div>
               <div className="p-8 bg-white border border-slate-100 rounded-[3rem] shadow-xl clay-shadow">
                 <Star className="w-8 h-8 text-amber-400 mb-6" />
-                <h4 className="text-3xl font-bold text-slate-800 font-serif italic">{products.filter(p => p.isFeatured).length}</h4>
+                <h4 className="text-3xl font-bold text-slate-800 font-sans tracking-tight">{products.filter(p => p.isFeatured).length}</h4>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Spotlight Items</p>
               </div>
               <div className="p-8 bg-white border border-slate-100 rounded-[3rem] shadow-xl clay-shadow">
                 <RefreshCw className="w-8 h-8 text-secondary mb-6" />
-                <h4 className="text-3xl font-bold text-slate-800 font-serif italic">{products.filter(p => !p.approvalStatus || p.approvalStatus === 'pending').length}</h4>
+                <h4 className="text-3xl font-bold text-slate-800 font-sans tracking-tight">{products.filter(p => !p.approvalStatus || p.approvalStatus === 'pending').length}</h4>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Pending Vetting</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
               <div className="bg-white p-10 rounded-[4rem] border border-slate-100 shadow-2xl">
-                <h3 className="text-2xl font-bold text-slate-800 font-serif italic mb-10">Harvest Moderation</h3>
+                <h3 className="text-2xl font-bold text-slate-800 font-sans tracking-tight mb-10">Harvest Moderation</h3>
                 <div className="space-y-6">
                   {products.map(p => (
                     <div key={p.id} className={`p-6 rounded-3xl border border-slate-100 flex items-center justify-between group hover:shadow-lg transition-all ${p.approvalStatus === 'flagged' ? 'bg-red-50/50' : 'bg-slate-50/30'}`}>
@@ -443,7 +443,7 @@ export const AdminDashboard: React.FC = () => {
               <div className="bg-white p-10 rounded-[4rem] border border-slate-100 shadow-2xl">
                 <div className="flex flex-col gap-8">
                   <div>
-                    <h3 className="text-2xl font-bold text-slate-800 font-serif italic mb-2">Ecosystem Taxonomy</h3>
+                    <h3 className="text-2xl font-bold text-slate-800 font-sans tracking-tight mb-2">Ecosystem Taxonomy</h3>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Manage Global Harvest Categories</p>
                   </div>
 
@@ -496,7 +496,7 @@ export const AdminDashboard: React.FC = () => {
                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-1000" />
                 <TrendingUp className="w-10 h-10 text-accent-light mb-8" />
                 <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-white/60 mb-2">Platform Revenue</p>
-                <h4 className="text-5xl font-bold font-serif italic mb-4 text-accent-light">₱{totalRevenue.toLocaleString()}</h4>
+                <h4 className="text-5xl font-bold font-sans tracking-tighter mb-4 text-accent-light">₱{totalRevenue.toLocaleString()}</h4>
                 <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-400 flex items-center gap-2">
                   <CheckCircle className="w-3 h-3" /> Projected: ₱{(totalRevenue * 1.2).toLocaleString()}
                 </p>
@@ -504,20 +504,20 @@ export const AdminDashboard: React.FC = () => {
               <div className="p-10 bg-white border border-slate-100 rounded-[3.5rem] shadow-xl clay-shadow">
                 <ShoppingBag className="w-10 h-10 text-secondary mb-8" />
                 <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-slate-400 mb-2">Direct Platform Fees</p>
-                <h4 className="text-5xl font-bold font-serif italic mb-4 text-slate-800">₱{platformFees.toLocaleString()}</h4>
+                <h4 className="text-5xl font-bold font-sans tracking-tighter mb-4 text-slate-800">₱{platformFees.toLocaleString()}</h4>
                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Total Harvested Commissions</p>
               </div>
               <div className="p-10 bg-white border border-slate-100 rounded-[3.5rem] shadow-xl clay-shadow">
                 <AlertCircle className="w-10 h-10 text-amber-400 mb-8" />
                 <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-slate-400 mb-2">Disputed Orders</p>
-                <h4 className="text-5xl font-bold font-serif italic mb-4 text-slate-800">{orders.filter(o => o.disputeStatus === 'opened').length}</h4>
+                <h4 className="text-5xl font-bold font-sans tracking-tighter mb-4 text-slate-800">{orders.filter(o => o.disputeStatus === 'opened').length}</h4>
                 <p className="text-[9px] font-bold uppercase tracking-widest text-red-400">Awaiting Mediation</p>
               </div>
             </div>
 
             <div className="bg-white rounded-[4rem] border border-slate-100 overflow-hidden shadow-2xl">
               <div className="p-10 border-b border-slate-50">
-                <h3 className="text-2xl font-bold text-slate-800 font-serif italic">Global Trade Ledger</h3>
+                <h3 className="text-2xl font-bold text-slate-800 font-sans tracking-tight">Global Trade Ledger</h3>
               </div>
               <div className="overflow-x-auto no-scrollbar">
                 <table className="w-full">
@@ -536,8 +536,8 @@ export const AdminDashboard: React.FC = () => {
                           <p className="font-mono text-xs text-slate-400">#{o.id?.slice(0, 12)}</p>
                           <p className="text-xs font-bold text-slate-800 tracking-tight mt-1">Buyer: {users.find(u => u.uid === o.buyerId)?.fullName}</p>
                         </td>
-                        <td className="px-10 py-8">
-                          <p className="text-xl font-bold text-primary font-serif italic">₱{o.total.toLocaleString()}</p>
+                        <td className="px-10 py-8 text-right">
+                          <p className="text-xl font-bold text-primary font-sans">₱{o.total.toLocaleString()}</p>
                         </td>
                         <td className="px-10 py-8">
                           <select 
@@ -576,7 +576,7 @@ export const AdminDashboard: React.FC = () => {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-12">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
               <div className="p-12 bg-white rounded-[4rem] border border-slate-100 shadow-xl clay-shadow">
-                <h3 className="text-2xl font-bold text-slate-800 font-serif italic mb-10">Sales Flux (7D)</h3>
+                <h3 className="text-2xl font-bold text-slate-800 font-sans tracking-tight mb-10">Sales Flux (7D)</h3>
                 <div className="h-[400px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={salesData}>
@@ -600,7 +600,7 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               <div className="p-12 bg-white rounded-[4rem] border border-slate-100 shadow-xl clay-shadow">
-                <h3 className="text-2xl font-bold text-slate-800 font-serif italic mb-10">Harvest Distribution</h3>
+                <h3 className="text-2xl font-bold text-slate-800 font-sans tracking-tight mb-10">Harvest Distribution</h3>
                 <div className="h-[400px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={Object.entries(products.reduce((acc: any, p) => {
@@ -628,7 +628,7 @@ export const AdminDashboard: React.FC = () => {
               <div className="p-12 bg-white rounded-[4rem] border border-slate-100 shadow-xl clay-shadow">
                 <div className="flex items-center gap-4 mb-10">
                   <Radio className="w-8 h-8 text-secondary" />
-                  <h3 className="text-2xl font-bold text-slate-800 font-serif italic">Global Broadcast</h3>
+                  <h3 className="text-2xl font-bold text-slate-800 font-sans tracking-tight">Global Broadcast</h3>
                 </div>
                 <div className="space-y-8">
                   <div>
@@ -664,7 +664,7 @@ export const AdminDashboard: React.FC = () => {
                 <div className="relative z-10">
                   <div className="flex items-center gap-4 mb-10">
                     <History className="w-8 h-8 text-accent-light" />
-                    <h3 className="text-2xl font-bold font-serif italic">Security Audit Log</h3>
+                    <h3 className="text-2xl font-bold font-sans tracking-tight">Security Audit Log</h3>
                   </div>
                   <div className="space-y-6">
                     {auditLogs.slice(0, 10).map(log => (
@@ -685,11 +685,11 @@ export const AdminDashboard: React.FC = () => {
             <div className="space-y-12">
               {/* Site Maintenance */}
               <div className="p-12 bg-white rounded-[4rem] border border-slate-100 shadow-xl clay-shadow">
-                <h3 className="text-2xl font-bold text-slate-800 font-serif italic mb-8">Ecosystem State</h3>
+                <h3 className="text-2xl font-bold text-slate-800 font-sans tracking-tight mb-8">Ecosystem State</h3>
                 <div className="space-y-10">
                   <div className="flex items-center justify-between p-8 bg-slate-50 rounded-[2.5rem]">
                     <div>
-                      <p className="text-base font-bold text-slate-800 font-serif italic">Maintenance Mode</p>
+                      <p className="text-base font-bold text-slate-800 font-sans tracking-tight">Maintenance Mode</p>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Platform Lockdown</p>
                     </div>
                     <button 
@@ -726,7 +726,7 @@ export const AdminDashboard: React.FC = () => {
               <div className="p-12 bg-secondary rounded-[4rem] text-white shadow-2xl shadow-secondary/20 group">
                 <div className="flex items-center gap-4 mb-10">
                   <Star className="w-8 h-8 text-white group-hover:rotate-12 transition-transform" />
-                  <h3 className="text-2xl font-bold font-serif italic">Spotlight Feed</h3>
+                  <h3 className="text-2xl font-bold font-sans tracking-tight">Spotlight Feed</h3>
                 </div>
                 <div className="space-y-6">
                   {products.filter(p => p.isFeatured).map(p => (

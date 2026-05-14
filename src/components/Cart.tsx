@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { X, ShoppingBag, Trash2, Plus, Minus, ArrowRight, CreditCard, CheckCircle2, Ticket } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useCart } from '../context/CartContext';
-import { db, auth } from '../lib/firebase';
+import { useAuth } from '../context/AuthContext';
+import { db } from '../lib/firebase';
 import { collection, doc, setDoc, query, where, getDocs, limit } from 'firebase/firestore';
 
 interface CartProps {
@@ -12,6 +13,7 @@ interface CartProps {
 
 export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
   const { items, removeFromCart, updateQuantity, subtotal, clearCart } = useCart();
+  const { user, openAuth } = useAuth();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isFirstBuyer, setIsFirstBuyer] = useState(false);
@@ -19,11 +21,11 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     const checkFirstBuyer = async () => {
-      if (!auth.currentUser) return;
+      if (!user) return;
       
       const q = query(
         collection(db, 'orders'),
-        where('buyerId', '==', auth.currentUser.uid),
+        where('buyerId', '==', user.uid),
         limit(1)
       );
       
@@ -38,13 +40,16 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
     if (isOpen) {
       checkFirstBuyer();
     }
-  }, [isOpen]);
+  }, [isOpen, user]);
 
   const discount = voucherApplied ? Math.floor(subtotal * 0.2) : 0;
   const finalTotal = subtotal + 50 - discount;
 
   const handleCheckout = async () => {
-    if (!auth.currentUser) return;
+    if (!user) {
+      openAuth('login', 'buyer');
+      return;
+    }
     setLoading(true);
     try {
       // For simplicity, we create one order per farmer in the cart
@@ -53,7 +58,7 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
       const orderRef = doc(collection(db, 'orders'));
       const orderData = {
         id: orderRef.id,
-        buyerId: auth.currentUser.uid,
+        buyerId: user.uid,
         farmerId,
         items: items.map(i => ({
           productId: i.id,

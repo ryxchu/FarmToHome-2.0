@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, onSnapshot, collection, query, where, getDocs, addDoc, serverTimestamp, updateDoc, increment, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, getDocs, addDoc, serverTimestamp, updateDoc, increment, getDoc, setDoc, limit } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { Product, UserProfile, Order, Review } from '../types';
 import { Star, Clock, MapPin, ShieldCheck, ChevronLeft, Minus, Plus, ShoppingBag, Share2, Heart, Check, MessageSquare, ArrowRight } from 'lucide-react';
@@ -16,11 +16,13 @@ interface ProductDetailProps {
 
 export const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onBack, onFarmerClick }) => {
   const { addToCart, setIsOpen } = useCart();
-  const { profile } = useAuth();
+  const { user, profile, openAuth } = useAuth();
   const [product, setProduct] = useState<Product | null>(null);
   const [farmer, setFarmer] = useState<UserProfile | null>(null);
+  const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [dataReady, setDataReady] = useState(false);
   const [added, setAdded] = useState(false);
   
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -31,46 +33,60 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onBack,
   const [submittingReview, setSubmittingReview] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+
+    // Core product listener
     const unsubscribeProduct = onSnapshot(doc(db, 'products', productId), (snapshot) => {
       if (snapshot.exists()) {
         const prodData = { ...snapshot.data(), id: snapshot.id } as Product;
-        setProduct(prodData);
+        if (isMounted) setProduct(prodData);
         
-        // Fetch farmer
-        onSnapshot(doc(db, 'users', prodData.farmerId), (fSnap) => {
-          if (fSnap.exists()) {
+        // Fetch farmer once product is known
+        getDoc(doc(db, 'users', prodData.farmerId)).then((fSnap) => {
+          if (fSnap.exists() && isMounted) {
             setFarmer({ ...fSnap.data(), uid: fSnap.id } as UserProfile);
+            setDataReady(true);
+            setLoading(false);
           }
-        }, (error) => handleFirestoreError(error, OperationType.GET, `users/${prodData.farmerId}`));
+        }).catch((error) => handleFirestoreError(error, OperationType.GET, `users/${prodData.farmerId}`));
+      } else {
+        if (isMounted) setLoading(false);
       }
     }, (error) => handleFirestoreError(error, OperationType.GET, `products/${productId}`));
 
     // Fetch reviews
     const qReviews = query(collection(db, 'reviews'), where('productId', '==', productId));
     const unsubscribeReviews = onSnapshot(qReviews, (snapshot) => {
-      setReviews(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Review)));
+      if (isMounted) {
+        setReviews(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Review)));
+      }
     });
 
-    // Check eligibility
+    // Check eligibility in background
     const checkEligibility = async () => {
       if (!auth.currentUser) return;
-      const qOrders = query(
-        collection(db, 'orders'), 
-        where('buyerId', '==', auth.currentUser.uid),
-        where('status', '==', 'delivered')
-      );
-      const orderDocs = await getDocs(qOrders);
-      const isEligible = orderDocs.docs.some(doc => {
-        const order = doc.data() as Order;
-        return order.items.some(item => item.productId === productId);
-      });
-      setIsEligibleToReview(isEligible);
-      setLoading(false);
+      try {
+        const qOrders = query(
+          collection(db, 'orders'), 
+          where('buyerId', '==', auth.currentUser.uid),
+          where('status', '==', 'delivered'),
+          limit(20) // Limit check to most recent orders for performance
+        );
+        const orderDocs = await getDocs(qOrders);
+        const isEligible = orderDocs.docs.some(doc => {
+          const order = doc.data() as Order;
+          return order.items.some(item => item.productId === productId);
+        });
+        if (isMounted) setIsEligibleToReview(isEligible);
+      } catch (err) {
+        console.error("Eligibility check error:", err);
+      }
     };
 
     checkEligibility();
 
     return () => {
+      isMounted = false;
       unsubscribeProduct();
       unsubscribeReviews();
     };
@@ -93,6 +109,19 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onBack,
 
       const reviewRef = doc(collection(db, 'reviews'));
       await addDoc(collection(db, 'reviews'), { ...reviewData, id: reviewRef.id });
+
+      // Send notification to farmer
+      const notificationDocRef = doc(collection(db, 'notifications'));
+      await setDoc(notificationDocRef, {
+        id: notificationDocRef.id,
+        userId: product.farmerId,
+        title: 'New Review Received',
+        message: `A buyer left a ${rating}-star review for ${product.name}.`,
+        type: 'system',
+        relatedId: productId,
+        read: false,
+        createdAt: new Date().toISOString()
+      });
 
       // Update product rating
       const newReviewCount = (product.reviewCount || 0) + 1;
@@ -126,6 +155,10 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onBack,
   );
 
   const handleAddToCart = () => {
+    if (!user) {
+      openAuth('login', 'buyer');
+      return;
+    }
     if (product) {
       addToCart(product, quantity);
       setAdded(true);
@@ -134,6 +167,10 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onBack,
   };
 
   const handleCheckout = () => {
+    if (!user) {
+      openAuth('login', 'buyer');
+      return;
+    }
     if (product) {
       addToCart(product, quantity);
       setIsOpen(true);
@@ -166,18 +203,30 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onBack,
         {/* Gallery */}
         <div className="space-y-8">
           <div className="aspect-square rounded-[3rem] overflow-hidden bg-slate-50 border border-slate-100 shadow-xl relative">
-            <img 
-              src={product.images?.[0] || 'https://images.unsplash.com/photo-1615485290382-441e4d0c9cb5?auto=format&fit=crop&q=80&w=1200'} 
-              className="w-full h-full object-cover" 
-            />
+            <AnimatePresence mode="wait">
+              <motion.img 
+                key={activeImageIdx}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                src={product.images?.[activeImageIdx] || 'https://images.unsplash.com/photo-1615485290382-441e4d0c9cb5?auto=format&fit=crop&q=80&w=1200'} 
+                className="w-full h-full object-cover" 
+              />
+            </AnimatePresence>
           </div>
-          <div className="flex gap-6">
-            {[1,2,3].map(i => (
-              <div key={i} className="w-20 h-20 rounded-2xl bg-slate-50 overflow-hidden cursor-pointer hover:ring-2 ring-primary transition-all border border-slate-100">
-                <img src={product.images?.[0]} className="w-full h-full object-cover opacity-60 hover:opacity-100 transition-all" />
-              </div>
-            ))}
-          </div>
+          {product.images && product.images.length > 0 && (
+            <div className="flex gap-6 overflow-x-auto no-scrollbar pb-2">
+              {product.images.map((img, idx) => (
+                <button 
+                  key={idx} 
+                  onClick={() => setActiveImageIdx(idx)}
+                  className={`w-20 h-20 rounded-2xl bg-white overflow-hidden cursor-pointer transition-all border-4 flex-shrink-0 ${activeImageIdx === idx ? 'border-primary shadow-lg scale-105' : 'border-transparent opacity-60 hover:opacity-100'}`}
+                >
+                  <img src={img} className="w-full h-full object-cover" alt={`Product thumbnail ${idx + 1}`} />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Info */}
@@ -227,12 +276,7 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onBack,
             
             <div className="p-4 bg-white rounded-2xl shadow-xl shadow-emerald-900/5 group-hover:scale-110 transition-transform duration-500">
               <QRCodeSVG 
-                value={JSON.stringify({
-                  product: product.name,
-                  harvest: product.harvestDate,
-                  farm: farmer?.farmName,
-                  id: product.id
-                })} 
+                value={window.location.href} 
                 size={80}
                 level="M"
                 includeMargin={false}
@@ -242,41 +286,41 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onBack,
           </div>
 
           <div className="mt-auto space-y-10">
-            <div className="flex flex-col sm:flex-row items-center gap-6">
-              <div className="flex items-center p-2 bg-slate-50 rounded-2xl border border-slate-100 w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row items-stretch gap-6">
+              <div className="flex items-center p-2 bg-slate-50 rounded-2xl border border-slate-100 w-full sm:w-auto h-16 relative">
                 <button 
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="w-12 h-12 bg-white rounded-xl shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center text-slate-500 active:scale-95"><Minus className="w-4 h-4" /></button>
-                <span className="px-8 font-bold text-xl text-slate-800 w-16 text-center">{quantity}</span>
+                  className="aspect-square h-full bg-white rounded-xl shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center text-slate-500 active:scale-95"><Minus className="w-4 h-4" /></button>
+                <span className="flex-grow sm:w-20 font-bold text-xl text-slate-800 text-center">{quantity}</span>
                 <button 
                   onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
-                  className="w-12 h-12 bg-white rounded-xl shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center text-slate-500 active:scale-95"><Plus className="w-4 h-4" /></button>
+                  className="aspect-square h-full bg-white rounded-xl shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center text-slate-500 active:scale-95"><Plus className="w-4 h-4" /></button>
               </div>
-              <div className="flex flex-grow w-full sm:w-auto gap-4">
+              <div className="flex-grow flex gap-4 h-16">
                 <button 
                   onClick={handleAddToCart}
                   disabled={product.stock <= 0}
-                  className={`flex-1 py-5 rounded-2xl font-bold text-sm uppercase tracking-[0.2em] flex items-center justify-center gap-4 transition-all active:scale-[0.98] ${added ? 'bg-emerald-500 text-white' : 'bg-slate-50 border border-slate-200 text-slate-800 hover:bg-slate-100 shadow-sm'}`}
+                  className={`flex-1 h-full rounded-2xl font-bold text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all active:scale-[0.98] ${added ? 'bg-emerald-500 text-white' : 'bg-slate-50 border border-slate-200 text-slate-800 hover:bg-slate-100 shadow-sm'}`}
                 >
                   {added ? (
                     <>
-                      <Check className="w-5 h-5" />
+                      <Check className="w-4 h-4" />
                       Added
                     </>
                   ) : (
                     <>
-                      <ShoppingBag className="w-5 h-5" />
-                      {product.stock <= 0 ? 'Sold' : 'Cart'}
+                      <ShoppingBag className="w-4 h-4" />
+                      {product.stock <= 0 ? 'Sold' : 'Add to Cart'}
                     </>
                   )}
                 </button>
                 <button 
                   onClick={handleCheckout}
                   disabled={product.stock <= 0}
-                  className="flex-1 py-5 bg-slate-800 text-white rounded-2xl font-bold text-sm uppercase tracking-[0.2em] flex items-center justify-center gap-4 transition-all active:scale-[0.98] hover:bg-slate-900 shadow-xl disabled:opacity-50"
+                  className="flex-1 h-full bg-slate-800 text-white rounded-2xl font-bold text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all active:scale-[0.98] hover:bg-slate-900 shadow-xl shadow-slate-900/10 disabled:opacity-50"
                 >
                   Checkout
-                  <ArrowRight className="w-5 h-5" />
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>

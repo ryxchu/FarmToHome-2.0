@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, limit } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Product } from '../types';
 import { Star, Clock, MapPin, Plus, Filter, MessageSquare, ShoppingBag, Sun } from 'lucide-react';
 import { motion } from 'motion/react';
 import { SocialFeed } from '../components/SocialFeed';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 
 interface BuyerHomeProps {
   onProductClick: (id: string) => void;
@@ -13,6 +14,9 @@ interface BuyerHomeProps {
   onCategoryChange?: (category: string) => void;
   searchQuery?: string;
   userCoords?: { lat: number; lng: number } | null;
+  nearMeOnly?: boolean;
+  viewMode?: 'shop' | 'community';
+  onViewModeChange?: (mode: 'shop' | 'community') => void;
 }
 
 export const BuyerHome: React.FC<BuyerHomeProps> = ({ 
@@ -20,11 +24,13 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({
   category = 'All', 
   onCategoryChange, 
   searchQuery = '',
-  userCoords = null
+  userCoords = null,
+  nearMeOnly = false,
+  viewMode = 'shop',
+  onViewModeChange
 }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [activeCategory, setActiveCategory] = useState(category);
-  const [viewMode, setViewMode] = useState<'shop' | 'community'>('shop');
   const [loading, setLoading] = useState(true);
 
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -43,9 +49,12 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({
     { name: 'All', icon: '🌳' },
     { name: 'Vegetables', icon: '🥬' },
     { name: 'Fruits', icon: '🍎' },
-    { name: 'Rice', icon: '🌾' },
+    { name: 'Root Crops', icon: '🍠' },
+    { name: 'Grains', icon: '🌾' },
+    { name: 'Herbs & Spices', icon: '🌿' },
     { name: 'Poultry', icon: '🍗' },
-    { name: 'Dairy', icon: '🥚' }
+    { name: 'Dairy', icon: '🥚' },
+    { name: 'Others', icon: '✨' }
   ];
 
   const VerifiedBadge = () => (
@@ -70,8 +79,8 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({
   useEffect(() => {
     if (viewMode !== 'shop') return;
     const q = activeCategory === 'All' 
-      ? query(collection(db, 'products'), where('isPublished', '==', true))
-      : query(collection(db, 'products'), where('isPublished', '==', true), where('category', '==', activeCategory));
+      ? query(collection(db, 'products'), where('isPublished', '==', true), limit(24))
+      : query(collection(db, 'products'), where('isPublished', '==', true), where('category', '==', activeCategory), limit(24));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const prods = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product));
@@ -95,6 +104,11 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({
           return p;
         });
 
+        // Filter by proximity if nearMeOnly is enabled (e.g., 50km radius)
+        if (nearMeOnly) {
+          filteredProds = filteredProds.filter(p => (p as any).distance !== undefined && (p as any).distance <= 50);
+        }
+
         // Sort by distance (those with coordinates first)
         filteredProds.sort((a: any, b: any) => {
           if (a.distance !== undefined && b.distance !== undefined) return a.distance - b.distance;
@@ -109,109 +123,123 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'products'));
 
     return () => unsubscribe();
-  }, [activeCategory, viewMode, searchQuery, userCoords]);
+  }, [activeCategory, viewMode, searchQuery, userCoords, nearMeOnly]);
+
+  // Clientside deduplication in case of database pollution
+  const uniqueProducts = Array.from(
+    new Map(products.map(item => [item.name, item])).values()
+  );
 
   return (
-    <div className="space-y-12">
-      {/* View Selector & Header */}
-      <div className="flex flex-col sm:flex-row gap-8 justify-between items-start sm:items-end p-10 banig-pattern rounded-[3rem] border-4 border-white shadow-xl">
+    <div className="space-y-8">
+      {/* View Selector & Header - Hidden on Desktop (moved to sidebar) */}
+      <div className="lg:hidden flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-end p-5 banig-pattern rounded-[2rem] border-2 border-white shadow-md">
         <div>
-          <h1 className="text-5xl font-bold text-primary tracking-tighter mb-4 font-serif italic">Marketplace</h1>
-          <p className="text-secondary font-bold uppercase tracking-[0.3em] text-[10px]">Directly supporting local farmers.</p>
+          <h1 className="text-2xl font-bold text-primary tracking-tighter mb-1 font-sans italic">Marketplace</h1>
+          <p className="text-secondary font-bold uppercase tracking-[0.2em] text-[8px]">Supporting local farmers.</p>
         </div>
 
-        <div className="bg-accent-light p-2 rounded-[2.5rem] flex items-center border border-primary/5">
+        <div className="bg-accent-light p-1 rounded-[1.5rem] flex items-center border border-primary/5">
           <button 
-            onClick={() => setViewMode('shop')}
-            className={`flex items-center gap-3 py-3.5 px-10 rounded-[2rem] font-bold text-[10px] uppercase tracking-widest transition-all hover:scale-105 active:scale-95 ${viewMode === 'shop' ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'text-slate-400 hover:text-primary hover:bg-white/50'}`}
+            onClick={() => onViewModeChange?.('shop')}
+            className={`flex items-center gap-2 py-2 px-6 rounded-[1rem] font-bold text-[8px] uppercase tracking-widest transition-all ${viewMode === 'shop' ? 'bg-primary text-white shadow-md' : 'text-slate-400'}`}
           >
-            <ShoppingBag className="w-4 h-4" /> The Market
+            <ShoppingBag className="w-3 h-3" /> Shop
           </button>
           <button 
-            onClick={() => setViewMode('community')}
-            className={`flex items-center gap-3 py-3.5 px-10 rounded-[2rem] font-bold text-[10px] uppercase tracking-widest transition-all hover:scale-105 active:scale-95 ${viewMode === 'community' ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'text-slate-400 hover:text-primary hover:bg-white/50'}`}
+            onClick={() => onViewModeChange?.('community')}
+            className={`flex items-center gap-2 py-2 px-6 rounded-[1rem] font-bold text-[8px] uppercase tracking-widest transition-all ${viewMode === 'community' ? 'bg-primary text-white shadow-md' : 'text-slate-400'}`}
           >
-            <MessageSquare className="w-4 h-4" /> Community Feed
+            <MessageSquare className="w-3 h-3" /> Feed
           </button>
         </div>
       </div>
 
       {viewMode === 'shop' ? (
         <React.Fragment>
-          {/* Featured Spotlight Section */}
-          <section className="relative rounded-[5rem] overflow-hidden group shadow-2xl forest-shadow">
-            <div className="absolute inset-0 bg-primary">
+          {/* Featured Spotlight Section - More compact and professional */}
+          <section className="relative rounded-[2rem] overflow-hidden group shadow-lg border border-slate-100">
+            <div className="absolute inset-0 bg-primary/20">
                <img 
                 src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=2000" 
-                className="w-full h-full object-cover opacity-60 group-hover:scale-110 transition-transform duration-[4000ms] mix-blend-luminosity" 
+                className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-[4000ms] mix-blend-luminosity grayscale-[30%]" 
               />
             </div>
-            <div className="relative p-16 md:p-24 text-white max-w-4xl">
+            <div className="relative p-8 md:p-10 text-white max-w-4xl z-10">
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
               >
-                <div className="flex items-center gap-4 mb-10">
-                  <span className="w-12 h-px bg-secondary" />
-                  <span className="text-secondary text-[10px] font-bold uppercase tracking-[0.5em]">Fresh Selection</span>
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="w-8 h-px bg-accent-light" />
+                  <span className="text-accent-light text-[9px] font-bold uppercase tracking-[0.4em]">Featured Collection</span>
                 </div>
-                <h2 className="text-5xl md:text-8xl font-bold mb-10 tracking-tighter leading-[0.9] font-serif">Fresh <br /> <span className="italic text-accent-light">Harvests</span></h2>
-                <p className="text-xl text-white/70 mb-14 leading-relaxed font-medium max-w-xl">Shop fresh products directly from local farmers. High-quality rice, vegetables, and more.</p>
-                <div className="flex items-center gap-10">
-                  <button className="px-12 py-6 bg-white text-primary rounded-full font-bold hover:scale-105 hover:bg-accent-light transition-all shadow-2xl active:scale-95 text-lg">Start Exploring</button>
-                  <button className="text-[10px] font-bold border-b-2 border-white/20 pb-1 hover:border-white transition-all uppercase tracking-[0.3em] text-white/60">Farm Story</button>
+                <h2 className="text-3xl md:text-5xl font-bold mb-4 tracking-tighter leading-tight font-sans">Fresh <span className="italic font-serif">Harvests</span></h2>
+                <p className="text-sm text-white/80 mb-8 leading-relaxed font-medium max-w-sm">Directly supporting local agriculture. Pure, unprocessed, and delivered fresh to your door.</p>
+                <div className="flex items-center gap-6">
+                  <button className="px-8 py-3.5 bg-white text-primary rounded-full font-bold hover:bg-accent-light transition-all shadow-md active:scale-95 text-[10px] uppercase tracking-widest">Start Exploring</button>
                 </div>
               </motion.div>
             </div>
+            <div className="absolute inset-0 bg-gradient-to-r from-primary/80 via-primary/20 to-transparent pointer-events-none" />
           </section>
 
-          {/* Category Navigation */}
-          <div className="py-4">
-            <div className="flex items-center gap-6 overflow-x-auto no-scrollbar py-6">
+          {/* Compact Category Navigation - Mobile Only */}
+          <div className="lg:hidden">
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-2">
               {categories.map((cat) => (
                 <button
                   key={cat.name}
                   onClick={() => handleCategoryClick(cat.name)}
-                  className={`flex items-center gap-4 px-10 py-5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] whitespace-nowrap transition-all border-2 group/cat active:scale-95 ${
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[8px] font-bold uppercase tracking-widest transition-all border ${
                     activeCategory === cat.name 
-                      ? 'bg-primary text-white border-primary shadow-2xl clay-shadow scale-105' 
-                      : 'bg-white text-slate-400 border-border hover:border-primary/20 hover:text-primary hover:bg-background hover:translate-y-[-4px]'
+                      ? 'bg-primary text-white border-primary shadow-md' 
+                      : 'bg-white text-slate-400 border-slate-100'
                   }`}
                 >
-                  <span className="text-2xl opacity-80 group-hover/cat:scale-125 transition-transform">{cat.icon}</span>
+                  <span>{cat.icon}</span>
                   {cat.name}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="pt-12">
-             <div className="flex items-end justify-between mb-16 border-b border-border pb-10">
-               <div>
-                 <h2 className="text-5xl font-bold text-slate-900 tracking-tighter mb-4 font-serif">Product <span className="italic text-primary">List</span></h2>
-                 <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-[10px]">Pure, unprocessed, and delivered fresh to your door.</p>
-               </div>
-               <div className="flex items-center gap-6">
-                 <div className="flex flex-col items-end">
-                    <p className="text-[10px] font-bold text-secondary uppercase tracking-[0.3em] mb-2">Market Status</p>
-                    <p className="text-xs font-bold text-slate-400">Fresh arrivals available now</p>
-                 </div>
-                 <div className="w-16 h-16 bg-accent-light rounded-3xl flex items-center justify-center border border-primary/5 shadow-inner">
-                    <Clock className="w-6 h-6 text-primary animate-pulse" />
-                 </div>
-               </div>
-             </div>
+          <div className="pt-4 space-y-8">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900 tracking-tighter font-sans">
+                    {nearMeOnly ? 'Near Your ' : 'Product '}
+                    <span className="italic text-primary font-serif">{nearMeOnly ? 'Location' : 'List'}</span>
+                  </h2>
+                  <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-[8px] mt-1">
+                    {activeCategory === 'All' ? 'Showing all categories' : `Filtering by ${activeCategory}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-4">
+                  {nearMeOnly ? (
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-xl">
+                      <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                      <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest">50KM Range</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-xl">
+                      <Clock className="w-3 h-3 text-slate-400" />
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Updated Now</span>
+                    </div>
+                  )}
+                </div>
+              </div>
              
-             {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12">
-                {[1,2,3,4,5,6].map(i => (
-                  <div key={i} className="aspect-[4/5] bg-accent-light rounded-[4rem] animate-pulse" />
+            {loading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {[1,2,3,4,5,6,7,8].map(i => (
+                  <div key={i} className="aspect-[4/5] bg-accent-light rounded-[3rem] animate-pulse" />
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12">
-                {products.length > 0 ? (
-                  products.map((product) => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {uniqueProducts.length > 0 ? (
+                  uniqueProducts.map((product) => (
                     <ProductCard 
                       key={product.id} 
                       product={product} 
@@ -255,50 +283,58 @@ const ProductCard: React.FC<{ product: Product; onClick: () => void; distance?: 
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-[2000ms]"
         />
         
-        {/* Overlay Badges */}
-        <div className="absolute inset-x-0 bottom-0 p-8 bg-gradient-to-t from-black/60 via-black/20 to-transparent">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="px-5 py-2 bg-white/10 backdrop-blur-md rounded-full text-[9px] font-bold text-white uppercase tracking-[0.2em] border border-white/20">
-                {product.category}
-              </span>
-              {distance !== undefined && (
-                <span className="px-5 py-2 bg-primary text-white text-[9px] font-bold uppercase tracking-[0.2em] rounded-full shadow-lg border border-primary/20">
-                  {distance < 1 ? '< 1 km' : `${distance.toFixed(1)} km`}
-                </span>
-              )}
-              {product.harvestDate && (
-                <span className="px-5 py-2 bg-emerald-500 text-white text-[9px] font-bold uppercase tracking-[0.2em] rounded-full shadow-lg border border-emerald-400/20">
-                  {Math.floor((new Date().getTime() - new Date(product.harvestDate).getTime()) / (1000 * 60 * 60 * 24)) === 0 ? 'Today' : 'Fresh'}
-                </span>
-              )}
+        {/* Status Badges - Top Row */}
+        <div className="absolute top-6 inset-x-6 flex justify-between items-start pointer-events-none">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/90 backdrop-blur-md rounded-xl border border-white shadow-sm pointer-events-auto">
+              <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+              <span className="text-[10px] font-black text-slate-800">{product.rating ? product.rating.toFixed(1) : 'NEW'}</span>
             </div>
-            <div className="flex items-center gap-2 px-3 py-2 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20">
-              <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-              <span className="text-[10px] font-bold text-white">{product.rating ? product.rating.toFixed(1) : 'New'}</span>
-              {product.reviewCount > 0 && <span className="text-[8px] text-white/60 font-bold ml-1">({product.reviewCount})</span>}
-            </div>
+            
+            {product.isFeatured && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500 text-white rounded-xl shadow-lg shadow-amber-500/20 pointer-events-auto">
+                <Sun className="w-3 h-3 animate-spin-slow" />
+                <span className="text-[8px] font-bold uppercase tracking-widest">Featured</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-3 items-end pointer-events-auto">
+            <AddToCartButton product={product} />
           </div>
         </div>
-
-        {/* Verified Sun Badge */}
-        <div className="absolute top-8 left-8 flex items-center gap-2 px-4 py-2 bg-amber-500/90 backdrop-blur-md rounded-full shadow-lg border border-white/20 scale-90 -translate-x-20 group-hover:translate-x-0 transition-transform duration-500">
-           <Sun className="w-4 h-4 text-white animate-spin-slow" />
-           <span className="text-[8px] font-bold text-white uppercase tracking-widest">Verified</span>
-        </div>
-
-        {/* Action Button Overlays */}
-        <div className="absolute top-8 right-8 flex flex-col gap-4 translate-x-16 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-500">
-           <AddToCartButton product={product} />
+        
+        {/* Detail Badges - Bottom Row */}
+        <div className="absolute inset-x-0 bottom-0 p-6 bg-gradient-to-t from-black/80 via-black/20 to-transparent">
+          <div className="flex items-end justify-between">
+            <div className="flex flex-wrap gap-2 max-w-[70%]">
+              <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-lg text-[8px] font-black text-white uppercase tracking-widest border border-white/10">
+                {product.category}
+              </span>
+              {product.harvestDate && (
+                <span className="px-3 py-1 bg-emerald-500 rounded-lg text-[8px] font-black text-white uppercase tracking-widest shadow-md">
+                  {Math.floor((new Date().getTime() - new Date(product.harvestDate).getTime()) / (1000 * 60 * 60 * 24)) === 0 ? 'Fresh Today' : 'Harvested Fresh'}
+                </span>
+              )}
+            </div>
+            {distance !== undefined && (
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-primary/90 backdrop-blur-md rounded-lg border border-primary/20">
+                <MapPin className="w-2.5 h-2.5 text-white" />
+                <span className="text-[8px] font-black text-white uppercase tracking-widest">
+                  {distance < 1 ? '<1KM' : `${distance.toFixed(1)}KM`}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       <div className="px-6">
         <div className="flex justify-between items-start mb-4">
-          <h4 className="text-2xl font-bold text-slate-800 tracking-tight leading-tight group-hover:text-primary transition-colors font-serif italic">{product.name}</h4>
+          <h4 className="text-xl font-bold text-slate-800 tracking-tight leading-tight group-hover:text-primary transition-colors font-sans">{product.name}</h4>
           <div className="text-right">
              <p className="text-xl font-bold text-primary tracking-tighter">₱{product.price}</p>
-             <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">{product.unit}</p>
+             <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{product.unit}</p>
           </div>
         </div>
         
@@ -327,10 +363,15 @@ const ProductCard: React.FC<{ product: Product; onClick: () => void; distance?: 
 
 const AddToCartButton: React.FC<{ product: Product }> = ({ product }) => {
   const { addToCart } = useCart();
+  const { user, openAuth } = useAuth();
   const [added, setAdded] = useState(false);
 
   const handleAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!user) {
+      openAuth('login', 'buyer');
+      return;
+    }
     if (product.stock <= 0) return;
     addToCart(product, 1);
     setAdded(true);

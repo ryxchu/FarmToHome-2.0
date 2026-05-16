@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Mail, Lock, User, Phone, Check, Eye, EyeOff, Sprout, UserCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from '../lib/firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, browserPopupRedirectResolver } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, browserPopupRedirectResolver, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 interface AuthModalProps {
@@ -13,7 +13,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode = 'login', initialRole = 'buyer' }) => {
-  const [mode, setMode] = useState<'login' | 'register' | 'otp'>(initialMode);
+  const [mode, setMode] = useState<'login' | 'register' | 'otp' | 'forgot-password'>(initialMode);
   const [role, setRole] = useState<'buyer' | 'farmer' | 'admin'>(initialRole);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,6 +25,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [otpMethod, setOtpMethod] = useState<'email' | 'phone'>('email');
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -95,6 +97,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           createdAt: new Date().toISOString()
         });
         setMode('otp');
+        sendOtp(otpMethod);
       }
     } catch (err: any) {
       if (err.code === 'auth/operation-not-allowed') {
@@ -148,23 +151,108 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     }
   };
 
-  const handleVerify = async () => {
-    const enteredOtp = otp.join('');
-    if (enteredOtp !== '123456') {
-      setError('Invalid verification code. Please try 123456 for testing.');
-      return;
-    }
-
+  const sendOtp = async (method: 'email' | 'phone') => {
     setLoading(true);
     try {
-      if (auth.currentUser) {
-        await setDoc(doc(db, 'users', auth.currentUser.uid), {
-          status: 'verified'
-        }, { merge: true });
+      const response = await fetch('/api/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          phone,
+          type: method
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setResendCooldown(60);
+        if (data.dev) {
+          console.info(`[DEV] OTP sent: ${data.otp}`);
+          setError(`Dev Mode: Verification code is ${data.otp}`);
+        }
+      } else {
+        setError(data.message);
       }
-      onClose();
+    } catch (err: any) {
+      setError('Failed to send verification code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
+
+  const handleVerify = async () => {
+    const enteredOtp = otp.join('');
+    setLoading(true);
+    setError('');
+    
+    try {
+      const response = await fetch('/api/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identifier: otpMethod === 'email' ? email : phone,
+          otp: enteredOtp
+        })
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        if (auth.currentUser) {
+          await setDoc(doc(db, 'users', auth.currentUser.uid), {
+            status: 'verified'
+          }, { merge: true });
+        }
+        onClose();
+      } else {
+        setError(data.message || 'Invalid verification code.');
+      }
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) {
+      setError('Please enter your email address.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      // 1. Trigger Firebase standard reset link
+      await sendPasswordResetEmail(auth, email);
+      
+      // 2. Send custom SMTP notification (optional, but helpful to verify SMTP is working)
+      try {
+        await fetch('/api/forgot-password-notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+      } catch (notifyErr) {
+        console.warn("Failed to send SMTP notification, but Firebase reset was triggered.");
+      }
+
+      setError('PASSWORD_RESET_SENT');
+    } catch (err: any) {
+      console.error("Reset Error:", err);
+      if (err.code === 'auth/user-not-found') {
+        setError('No account found with this email.');
+      } else if (err.code === 'auth/network-request-failed' || err.message?.includes('unavailable')) {
+        setError('Connection issue. Please check your internet or try again later.');
+      } else {
+        setError('Failed to send reset email. Please check your email address.');
+      }
     } finally {
       setLoading(false);
     }
@@ -232,10 +320,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                 transition={{ duration: 0.3 }}
               >
                 <h2 className="text-4xl md:text-5xl font-bold text-slate-800 tracking-tighter font-serif italic mb-8">
-                  {mode === 'register' ? 'Create Account' : 'Welcome Back!'}
+                  {mode === 'register' ? 'Create Account' : mode === 'forgot-password' ? 'Reset Password' : 'Welcome Back!'}
                 </h2>
               </motion.div>
             </AnimatePresence>
+
+            {mode === 'forgot-password' && (
+              <div className="mb-8">
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Enter your email address and we'll send you a link to reset your password.
+                </p>
+              </div>
+            )}
 
             {mode === 'register' && (
               <div className="flex bg-slate-50 p-1.5 rounded-2xl border border-slate-100 mb-6">
@@ -290,8 +386,83 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
               </div>
             )}
 
-            <form onSubmit={handleAuth} className="space-y-6">
-              {mode === 'register' && (
+            <form onSubmit={mode === 'otp' ? (e) => { e.preventDefault(); handleVerify(); } : mode === 'forgot-password' ? handleResetPassword : handleAuth} className="space-y-6">
+              {mode === 'otp' ? (
+                <div className="space-y-8">
+                  <div className="flex flex-col gap-4">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Verification Method</p>
+                    <div className="flex gap-4">
+                      <button 
+                        type="button"
+                        onClick={() => { setOtpMethod('email'); sendOtp('email'); }}
+                        className={`flex-1 p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${otpMethod === 'email' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
+                      >
+                        <Mail className="w-5 h-5" />
+                        <span className="text-[10px] font-black uppercase">Email</span>
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => { setOtpMethod('phone'); sendOtp('phone'); }}
+                        className={`flex-1 p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${otpMethod === 'phone' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
+                      >
+                        <Phone className="w-5 h-5" />
+                        <span className="text-[10px] font-black uppercase">Phone</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      We've sent a 6-digit code to your <span className="font-bold text-slate-800">{otpMethod === 'email' ? email : phone}</span>.
+                    </p>
+                    <div className="flex justify-between gap-2">
+                      {otp.map((digit, idx) => (
+                        <input
+                          key={idx}
+                          id={`otp-${idx}`}
+                          type="text"
+                          maxLength={1}
+                          value={digit}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/[^0-9]/g, '');
+                            if (!value && e.target.value !== '') return;
+                            const newOtp = [...otp];
+                            newOtp[idx] = value;
+                            setOtp(newOtp);
+                            if (value && idx < 5) document.getElementById(`otp-${idx + 1}`)?.focus();
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Backspace' && !otp[idx] && idx > 0) {
+                              document.getElementById(`otp-${idx - 1}`)?.focus();
+                            }
+                          }}
+                          className="w-full h-16 bg-slate-50 border border-slate-100 rounded-2xl text-center text-2xl font-bold focus:border-primary focus:bg-white transition-all"
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-4">
+                    <button 
+                      type="submit"
+                      disabled={loading || otp.some(d => !d)}
+                      className="w-full py-5 bg-slate-800 text-white rounded-full font-bold text-[11px] uppercase tracking-[0.3em] hover:bg-primary transition-all active:scale-95 disabled:opacity-40"
+                    >
+                      {loading ? 'Verifying...' : 'Verify Account'}
+                    </button>
+                    <button 
+                      type="button"
+                      disabled={resendCooldown > 0 || loading}
+                      onClick={() => sendOtp(otpMethod)}
+                      className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-primary transition-colors disabled:opacity-50"
+                    >
+                      {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend verification code'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {mode === 'register' && (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="relative group">
                     <input 
@@ -316,22 +487,38 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                 />
               </div>
 
-              {mode === 'login' ? (
-                <div className="relative group text-start">
-                  <input 
-                    type={showPassword ? "text" : "password"} placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
-                    required
-                  />
-                  <button 
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-6 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-slate-300 hover:text-primary transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+              {mode === 'login' && (
+                <div className="space-y-4">
+                  <div className="relative group text-start">
+                    <input 
+                      type={showPassword ? "text" : "password"} placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)}
+                      className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
+                      required
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-6 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-slate-300 hover:text-primary transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <div className="flex justify-end">
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setMode('forgot-password');
+                        setError('');
+                      }}
+                      className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-primary transition-colors"
+                    >
+                      Forgot Password?
+                    </button>
+                  </div>
                 </div>
-              ) : (
+              )}
+
+              {mode === 'register' && (
                 <div className="grid grid-cols-2 gap-4 text-start">
                   <div className="relative group text-start">
                     <input 
@@ -390,6 +577,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                 </div>
               )}
 
+                  <div className="pt-4">
+                    <button 
+                      type="submit"
+                      disabled={loading || !isFormValid}
+                      className="w-full sm:w-auto px-14 py-5 bg-slate-800 text-white rounded-full font-bold text-[11px] uppercase tracking-[0.3em] hover:bg-primary transition-all active:scale-95 disabled:opacity-40"
+                    >
+                      {loading ? 'Processing...' : mode === 'login' ? 'Sign In' : mode === 'forgot-password' ? 'Send Link' : 'Sign Up'}
+                    </button>
+                    {mode === 'forgot-password' && (
+                      <button 
+                        type="button"
+                        onClick={() => setMode('login')}
+                        className="ml-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-primary transition-colors"
+                      >
+                        Back to Login
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+
               {error && (
                 <div className="p-4 bg-secondary/5 border border-secondary/10 rounded-2xl text-secondary text-[10px] font-bold uppercase tracking-tight flex flex-col gap-2">
                   {error === 'ALREADY_REGISTERED' ? (
@@ -406,21 +614,28 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                         Sign in instead?
                       </button>
                     </>
+                  ) : error === 'PASSWORD_RESET_SENT' ? (
+                    <div className="text-emerald-600 flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <Check className="w-3 h-3" />
+                        <span>Reset link sent! Please check your email inbox.</span>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setMode('login');
+                          setError('');
+                        }}
+                        className="text-primary hover:underline self-start"
+                      >
+                        Back to Login
+                      </button>
+                    </div>
                   ) : (
                     error
                   )}
                 </div>
               )}
-
-              <div className="pt-4">
-                <button 
-                  type="submit"
-                  disabled={loading || !isFormValid}
-                  className="w-full sm:w-auto px-14 py-5 bg-slate-800 text-white rounded-full font-bold text-[11px] uppercase tracking-[0.3em] hover:bg-primary transition-all active:scale-95 disabled:opacity-40"
-                >
-                  {loading ? 'Processing...' : mode === 'login' ? 'Sign In' : 'Sign Up'}
-                </button>
-              </div>
             </form>
           </div>
         </motion.div>

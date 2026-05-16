@@ -102,21 +102,6 @@ export const seedProducts = async (farmerId: string = 'demo-farmer') => {
       isPublished: true
     },
     {
-      name: 'Wild Forest Honey',
-      description: 'Pure, unprocessed honey collected from the nearby sierra. Rich, floral notes.',
-      price: 350,
-      category: 'Others',
-      stock: 20,
-      unit: 'bottle',
-      images: ['https://images.unsplash.com/photo-1587049352846-4a222e7831d3?auto=format&fit=crop&q=80&w=800'],
-      farmerId,
-      harvestDate: new Date().toISOString(),
-      status: 'available',
-      rating: 4.9,
-      reviews: 32,
-      isPublished: true
-    },
-    {
       name: 'Upland Red Rice',
       description: 'Traditional organic red rice. High in fiber and nutty in flavor. No chemical polishing.',
       price: 95,
@@ -207,21 +192,6 @@ export const seedProducts = async (farmerId: string = 'demo-farmer') => {
       isPublished: true
     },
     {
-      name: 'Free-Range Eggs',
-      description: 'Rich yolks from native chickens fed on organic grains and greens. No antibiotics used.',
-      price: 250,
-      category: 'Poultry',
-      stock: 40,
-      unit: 'dozen',
-      images: ['https://images.unsplash.com/photo-1582722872445-44ad5c7864dd?auto=format&fit=crop&q=80&w=800'],
-      farmerId,
-      harvestDate: new Date().toISOString(),
-      status: 'available',
-      rating: 5.0,
-      reviews: 54,
-      isPublished: true
-    },
-    {
       name: 'Native Yellow Corn',
       description: 'Sweet and starchy yellow corn. Great for boiling or as livestock feed.',
       price: 35,
@@ -249,36 +219,6 @@ export const seedProducts = async (farmerId: string = 'demo-farmer') => {
       status: 'available',
       rating: 4.7,
       reviews: 15,
-      isPublished: true
-    },
-    {
-      name: 'Native White Cheese',
-      description: 'Fresh, soft, and salty cheese made from pure Carabao milk.',
-      price: 150,
-      category: 'Dairy',
-      stock: 20,
-      unit: 'pc',
-      images: ['https://images.unsplash.com/photo-1552767059-ce182ead6c1b?auto=format&fit=crop&q=80&w=800'],
-      farmerId,
-      harvestDate: new Date().toISOString(),
-      status: 'available',
-      rating: 4.9,
-      reviews: 31,
-      isPublished: true
-    },
-    {
-      name: 'Honey Glazed Banana Chips',
-      description: 'Crispy, natural snacks made from saba bananas and wild honey.',
-      price: 55,
-      category: 'Others',
-      stock: 100,
-      unit: 'pack',
-      images: ['https://images.unsplash.com/photo-1628102422295-8134707acc60?auto=format&fit=crop&q=80&w=800'],
-      farmerId,
-      harvestDate: new Date().toISOString(),
-      status: 'available',
-      rating: 4.7,
-      reviews: 22,
       isPublished: true
     }
   ];

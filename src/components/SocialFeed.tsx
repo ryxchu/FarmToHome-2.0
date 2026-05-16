@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, getDocs, doc, getDoc, limit } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, getDocs, doc, getDoc, limit, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Post, UserProfile } from '../types';
 import { Heart, MessageCircle, Share2, MoreHorizontal } from 'lucide-react';
@@ -10,46 +10,74 @@ export const SocialFeed: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(10));
-    
-    // Simple cache to avoid redundant reads
-    const farmerCache: Record<string, UserProfile> = {};
-
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      const postsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Post));
-      
+    const fetchPosts = async () => {
       try {
-        const enrichedPosts = await Promise.all(postsData.map(async (post) => {
-          if (farmerCache[post.farmerId]) {
-            return { ...post, farmer: farmerCache[post.farmerId] };
-          }
-          
+        setLoading(true);
+        
+        // Cache posts for social feed to improve speed and reduce reads
+        const cachedPosts = localStorage.getItem('social_feed_posts');
+        if (cachedPosts) {
           try {
-            const farmerSnap = await getDoc(doc(db, 'users', post.farmerId));
-            if (farmerSnap.exists()) {
-              const farmerData = farmerSnap.data() as UserProfile;
-              farmerCache[post.farmerId] = farmerData;
-              return { ...post, farmer: farmerData };
-            }
-            return { ...post };
-          } catch (err) {
-            console.warn(`Could not load farmer profile for post ${post.id}:`, err);
-            return { ...post };
+            setPosts(JSON.parse(cachedPosts));
+            setLoading(false);
+          } catch (e) {
+            localStorage.removeItem('social_feed_posts');
           }
+        }
+
+        const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(15));
+        const snapshot = await getDocs(q);
+        const postsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Post));
+        
+        // Batch fetch farmer profiles
+        const uniqueFarmerIds = Array.from(new Set(postsData.map(p => p.farmerId)));
+        const farmerCache: Record<string, UserProfile> = {};
+        
+        // Try to get from individual profile cache first
+        const farmersToFetch: string[] = [];
+        uniqueFarmerIds.forEach(fid => {
+          const cached = localStorage.getItem(`user_profile_${fid}`);
+          if (cached) {
+            try {
+              farmerCache[fid] = JSON.parse(cached);
+            } catch (e) {
+              farmersToFetch.push(fid);
+            }
+          } else {
+            farmersToFetch.push(fid);
+          }
+        });
+
+        // Batch fetch remaining farmers if any
+        if (farmersToFetch.length > 0) {
+          // Firestore 'in' query has a limit of 10-30 elements depending on version, 10 is very safe
+          for (let i = 0; i < farmersToFetch.length; i += 10) {
+            const batch = farmersToFetch.slice(i, i + 10);
+            const farmerQuery = query(collection(db, 'users'), where('uid', 'in', batch));
+            const farmerSnapshot = await getDocs(farmerQuery);
+            farmerSnapshot.docs.forEach(d => {
+              const data = { ...d.data(), uid: d.id } as UserProfile;
+              farmerCache[d.id] = data;
+              localStorage.setItem(`user_profile_${d.id}`, JSON.stringify(data));
+            });
+          }
+        }
+        
+        const enrichedPosts = postsData.map(post => ({
+          ...post,
+          farmer: farmerCache[post.farmerId]
         }));
+
         setPosts(enrichedPosts);
+        localStorage.setItem('social_feed_posts', JSON.stringify(enrichedPosts));
       } catch (err) {
-        console.error("Social feed enrichment error:", err);
-        setPosts(postsData.map(p => ({ ...p })));
+        console.error("Social feed error:", err);
       } finally {
         setLoading(false);
       }
-    }, (error) => {
-      console.error("Social feed listener error:", error);
-      setLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
+    fetchPosts();
   }, []);
 
   if (loading) return <div className="space-y-4">{[1,2].map(i => <div key={i} className="h-64 bg-white rounded-3xl animate-pulse" />)}</div>;

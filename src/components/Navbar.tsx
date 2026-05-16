@@ -3,7 +3,7 @@ import { ShoppingCart, User, Sprout, Search, MapPin, Home, History, LayoutDashbo
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { auth, db } from '../lib/firebase';
-import { collection, query, where, onSnapshot, orderBy, limit, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, limit, updateDoc, doc, getDocs } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface NavbarProps {
@@ -34,26 +34,28 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
   React.useEffect(() => {
     if (!user || !profile) return;
 
-    // Listen for new messages or orders that might trigger notifications
-    // For now, we'll simulate notifications by listening to recent context-specific events
-    // In a real app, you'd have a 'notifications' collection
-    const q = query(
-      collection(db, 'notifications'),
-      where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc'),
-      limit(5)
-    );
+    const fetchNotifications = async () => {
+      try {
+        const q = query(
+          collection(db, 'notifications'),
+          where('userId', '==', user.uid),
+          orderBy('createdAt', 'desc'),
+          limit(10)
+        );
+        const snapshot = await getDocs(q);
+        const docs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+        setNotifications(docs);
+        setUnreadCount(docs.filter((n: any) => !n.read).length);
+      } catch (err) {
+        console.log('Notifications fetch error');
+      }
+    };
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-      setNotifications(docs);
-      setUnreadCount(docs.filter((n: any) => !n.read).length);
-    }, (err) => {
-      // If collection doesn't exist yet, it's fine
-      console.log('Notifications not available yet');
-    });
+    fetchNotifications();
 
-    return () => unsubscribe();
+    // Check every 5 minutes instead of real-time
+    const interval = setInterval(fetchNotifications, 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, [user, profile]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {

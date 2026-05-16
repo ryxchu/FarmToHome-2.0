@@ -39,8 +39,8 @@ const SideNavLink: React.FC<{ icon: string; label: string; active?: boolean; onC
 );
 
 import { SystemConfig } from './types';
-import { db, handleFirestoreError, OperationType } from './lib/firebase';
-import { doc, onSnapshot, collection, getDocs, query, limit } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType, isQuotaError } from './lib/firebase';
+import { doc, getDoc, collection, getDocs, query, limit } from 'firebase/firestore';
 
 function AppContent() {
   const { 
@@ -52,7 +52,8 @@ function AppContent() {
     setShowAuthModal, 
     authVariant, 
     setAuthVariant,
-    openAuth 
+    openAuth,
+    refreshProfile
   } = useAuth();
   const { isOpen: showCart, setIsOpen: setShowCart } = useCart();
   const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
@@ -159,10 +160,60 @@ function AppContent() {
   }, [user, profile, currentView, wasLoggedIn]);
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'system', 'config'), (doc) => {
-      if (doc.exists()) setSystemConfig(doc.data() as SystemConfig);
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'system/config'));
-    return () => unsub();
+    const fetchConfig = async () => {
+      // Try local cache first
+      const cached = localStorage.getItem('system_config');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed === 'object') {
+            setSystemConfig(parsed);
+          }
+        } catch (e) {
+          localStorage.removeItem('system_config');
+        }
+      }
+
+      try {
+        const docSnap = await getDoc(doc(db, 'system', 'config'));
+        if (docSnap.exists()) {
+          const config = docSnap.data() as SystemConfig;
+          setSystemConfig(config);
+          localStorage.setItem('system_config', JSON.stringify(config));
+        } else {
+          // If config doc doesn't exist, use a basic default
+          const defaultConfig: SystemConfig = {
+            maintenanceMode: false,
+            broadcastMessage: '',
+            broadcastType: 'info',
+            platformCommissionRate: 5,
+            lastUpdated: new Date().toISOString()
+          };
+          setSystemConfig(defaultConfig);
+        }
+      } catch (error) {
+        if (isQuotaError(error)) {
+          // If we have cached version, use it and don't throw
+          if (localStorage.getItem('system_config')) {
+            console.warn("Using cached system config due to quota limit");
+            return;
+          }
+
+          // If no cache, use minimal defaults to keep the app working
+          console.error("Quota reached - Using default system config");
+          setSystemConfig({
+            maintenanceMode: false,
+            broadcastMessage: 'Platform is high traffic - Using offline modes.',
+            broadcastType: 'info',
+            platformCommissionRate: 5,
+            lastUpdated: new Date().toISOString()
+          });
+        } else {
+          handleFirestoreError(error, OperationType.GET, 'system/config');
+        }
+      }
+    };
+    fetchConfig();
   }, []);
 
   if (loading) {
@@ -269,9 +320,6 @@ function AppContent() {
                         <SideNavLink icon="🍠" label="Root Crops" active={selectedCategory === 'Root Crops'} onClick={() => handleCategorySelect('Root Crops')} />
                         <SideNavLink icon="🌿" label="Herbs & Spices" active={selectedCategory === 'Herbs & Spices'} onClick={() => handleCategorySelect('Herbs & Spices')} />
                         <SideNavLink icon="🌾" label="Grains" active={selectedCategory === 'Grains'} onClick={() => handleCategorySelect('Grains')} />
-                        <SideNavLink icon="🍗" label="Poultry" active={selectedCategory === 'Poultry'} onClick={() => handleCategorySelect('Poultry')} />
-                        <SideNavLink icon="🥚" label="Dairy" active={selectedCategory === 'Dairy'} onClick={() => handleCategorySelect('Dairy')} />
-                        <SideNavLink icon="✨" label="Others" active={selectedCategory === 'Others'} onClick={() => handleCategorySelect('Others')} />
                       </nav>
                     </div>
 

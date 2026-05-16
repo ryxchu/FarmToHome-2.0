@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, limit } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { collection, query, where, onSnapshot, limit, getDocs } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType, isQuotaError } from '../lib/firebase';
 import { Product } from '../types';
 import { Star, Clock, MapPin, Plus, Filter, MessageSquare, ShoppingBag, Sun } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -50,11 +50,8 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({
     { name: 'Vegetables', icon: '🥬' },
     { name: 'Fruits', icon: '🍎' },
     { name: 'Root Crops', icon: '🍠' },
-    { name: 'Grains', icon: '🌾' },
     { name: 'Herbs & Spices', icon: '🌿' },
-    { name: 'Poultry', icon: '🍗' },
-    { name: 'Dairy', icon: '🥚' },
-    { name: 'Others', icon: '✨' }
+    { name: 'Grains', icon: '🌾' }
   ];
 
   const VerifiedBadge = () => (
@@ -78,14 +75,50 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({
 
   useEffect(() => {
     if (viewMode !== 'shop') return;
-    const q = activeCategory === 'All' 
-      ? query(collection(db, 'products'), where('isPublished', '==', true), limit(24))
-      : query(collection(db, 'products'), where('isPublished', '==', true), where('category', '==', activeCategory), limit(24));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const prods = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product));
-      
-      // Filter by search query client side for faster feedback
+    // Use a timeout to debounce reads when the user types in the search bar
+    const timer = setTimeout(async () => {
+      // Try cache only for 'All' category without search
+      if (activeCategory === 'All' && !searchQuery) {
+        const cached = localStorage.getItem('shop_products_all');
+        if (cached) {
+          try {
+            setProducts(JSON.parse(cached));
+            setLoading(false);
+          } catch (e) {
+            localStorage.removeItem('shop_products_all');
+          }
+        }
+      }
+
+      try {
+        setLoading(true);
+        const q = activeCategory === 'All' 
+          ? query(collection(db, 'products'), where('isPublished', '==', true), limit(32))
+          : query(collection(db, 'products'), where('isPublished', '==', true), where('category', '==', activeCategory), limit(32));
+    
+        const snapshot = await getDocs(q);
+        const prods = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product));
+        
+        // Cache if it's the 'All' landing
+        if (activeCategory === 'All' && !searchQuery) {
+          localStorage.setItem('shop_products_all', JSON.stringify(prods));
+        }
+
+        processProducts(prods);
+      } catch (error) {
+        if (!isQuotaError(error)) {
+          handleFirestoreError(error, OperationType.LIST, 'products');
+        } else {
+          console.warn("Using cached products due to quota limit");
+          // If we had a cached version, it's already set by the initial check
+        }
+      } finally {
+        setLoading(false);
+      }
+    }, 400); // 400ms debounce
+
+    const processProducts = (prods: Product[]) => {
       let filteredProds = searchQuery 
         ? prods.filter(p => 
             p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -94,7 +127,6 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({
           )
         : prods;
 
-      // Add distance property if userCoords is available
       if (userCoords) {
         filteredProds = filteredProds.map(p => {
           if (p.coordinates) {
@@ -104,12 +136,10 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({
           return p;
         });
 
-        // Filter by proximity if nearMeOnly is enabled (e.g., 50km radius)
         if (nearMeOnly) {
           filteredProds = filteredProds.filter(p => (p as any).distance !== undefined && (p as any).distance <= 50);
         }
 
-        // Sort by distance (those with coordinates first)
         filteredProds.sort((a: any, b: any) => {
           if (a.distance !== undefined && b.distance !== undefined) return a.distance - b.distance;
           if (a.distance !== undefined) return -1;
@@ -119,10 +149,9 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({
       }
 
       setProducts(filteredProds);
-      setLoading(false);
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'products'));
+    };
 
-    return () => unsubscribe();
+    return () => clearTimeout(timer);
   }, [activeCategory, viewMode, searchQuery, userCoords, nearMeOnly]);
 
   // Clientside deduplication in case of database pollution

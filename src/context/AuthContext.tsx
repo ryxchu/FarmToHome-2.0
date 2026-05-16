@@ -1,7 +1,7 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db, isQuotaError } from '../lib/firebase';
 import { UserProfile } from '../types';
 
 interface AuthContextType {
@@ -14,6 +14,7 @@ interface AuthContextType {
   authVariant: { mode: 'login' | 'register'; role: 'buyer' | 'farmer' | 'admin' };
   setAuthVariant: (variant: { mode: 'login' | 'register'; role: 'buyer' | 'farmer' | 'admin' }) => void;
   openAuth: (mode?: 'login' | 'register', role?: 'buyer' | 'farmer' | 'admin') => void;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({ 
@@ -25,7 +26,8 @@ const AuthContext = createContext<AuthContextType>({
   setShowAuthModal: () => {},
   authVariant: { mode: 'login', role: 'buyer' },
   setAuthVariant: () => {},
-  openAuth: () => {}
+  openAuth: () => {},
+  refreshProfile: async () => {}
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -44,33 +46,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await signOut(auth);
   };
 
+  const fetchProfile = useCallback(async (uid: string) => {
+    // Try cache first
+    const cached = localStorage.getItem(`user_profile_${uid}`);
+    if (cached) {
+      try {
+        setProfile(JSON.parse(cached));
+      } catch (e) {
+        localStorage.removeItem(`user_profile_${uid}`);
+      }
+    }
+
+    try {
+      const snapshot = await getDoc(doc(db, 'users', uid));
+      if (snapshot.exists()) {
+        const data = { ...snapshot.data(), uid: snapshot.id } as UserProfile;
+        setProfile(data);
+        localStorage.setItem(`user_profile_${uid}`, JSON.stringify(data));
+      }
+    } catch (error) {
+      if (!isQuotaError(error)) {
+        console.error("Profile fetch error:", error);
+      } else {
+        console.warn("Using cached profile due to quota limit");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    if (user) await fetchProfile(user.uid);
+  }, [user, fetchProfile]);
+
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       if (!firebaseUser) {
         setProfile(null);
         setLoading(false);
+      } else {
+        fetchProfile(firebaseUser.uid);
       }
     });
 
     return () => unsubscribeAuth();
-  }, []);
-
-  useEffect(() => {
-    if (user) {
-      const unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), (snapshot) => {
-        if (snapshot.exists()) {
-          setProfile({ ...snapshot.data(), uid: snapshot.id } as UserProfile);
-        }
-        setLoading(false);
-      }, (error) => {
-        console.error("Profile sync error:", error);
-        setLoading(false);
-        // We don't throw here to avoid crashing the whole app, but we log it
-      });
-      return () => unsubscribeProfile();
-    }
-  }, [user]);
+  }, [fetchProfile]);
 
   return (
     <AuthContext.Provider value={{ 
@@ -82,7 +103,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setShowAuthModal,
       authVariant,
       setAuthVariant,
-      openAuth
+      openAuth,
+      refreshProfile
     }}>
       {children}
     </AuthContext.Provider>

@@ -49,6 +49,26 @@ export interface FirestoreErrorInfo {
   }
 }
 
+export function isQuotaError(error: unknown): boolean {
+  if (!error) return false;
+  
+  // Case: Error object
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes('quota') || msg.includes('limit reached') || msg.includes('exhausted')) return true;
+  }
+
+  // Case: Firestore error object with code
+  const errObj = error as any;
+  if (errObj.code === 'resource-exhausted' || errObj.code === 'quota-exceeded') return true;
+  
+  // Case: Stringified JSON error from handleFirestoreError
+  const errStr = String(error).toLowerCase();
+  if (errStr.includes('quota') || errStr.includes('limit reached') || errStr.includes('exhausted') || errStr.includes('resource-exhausted')) return true;
+
+  return false;
+}
+
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),

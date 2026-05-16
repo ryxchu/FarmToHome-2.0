@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, setDoc, updateDoc, doc, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, setDoc, updateDoc, doc, deleteDoc, getDoc, getDocs } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Product, Order } from '../types';
@@ -37,7 +37,31 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
   useEffect(() => {
     if (!auth.currentUser) return;
 
-    const qConv = query(collection(db, 'conversations'), where('participants', 'array-contains', auth.currentUser.uid));
+    const fetchData = async () => {
+      try {
+        // Fetch products once
+        const qProds = query(collection(db, 'products'), where('farmerId', '==' , auth.currentUser!.uid));
+        const prodsSnap = await getDocs(qProds);
+        setProducts(prodsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product)));
+
+        // Fetch orders once
+        const qOrders = query(collection(db, 'orders'), where('farmerId', '==' , auth.currentUser!.uid));
+        const ordersSnap = await getDocs(qOrders);
+        setOrders(ordersSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order)));
+
+        // Fetch reviews once
+        const qReviews = query(collection(db, 'reviews'), where('farmerId', '==' , auth.currentUser!.uid));
+        const reviewsSnap = await getDocs(qReviews);
+        setReviews(reviewsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as any)));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.LIST, 'farmer_dashboard_data');
+      }
+    };
+
+    fetchData();
+
+    // Keep conversations real-time as messaging needs it
+    const qConv = query(collection(db, 'conversations'), where('participants', 'array-contains', auth.currentUser!.uid));
     const unsubscribeConv = onSnapshot(qConv, (snapshot) => {
       setConversations(snapshot.docs.map(doc => ({ ...doc.data() })));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'conversations'));
@@ -60,37 +84,13 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
       setSelectedConversation({ conv, recipient });
     }
   };
+
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [expandAllActivity, setExpandAllActivity] = useState(false);
   const [weatherAlert, setWeatherAlert] = useState<{ type: 'warning' | 'info'; message: string } | null>({
     type: 'info',
     message: 'Heavy rainfall expected tomorrow in your region. Consider harvesting early.'
   });
-
-  useEffect(() => {
-    if (!auth.currentUser) return;
-
-    const qProds = query(collection(db, 'products'), where('farmerId', '==' , auth.currentUser.uid));
-    const unsubscribeProds = onSnapshot(qProds, (snapshot) => {
-      setProducts(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product)));
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'products'));
-
-    const qOrders = query(collection(db, 'orders'), where('farmerId', '==' , auth.currentUser.uid));
-    const unsubscribeOrders = onSnapshot(qOrders, (snapshot) => {
-      setOrders(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order)));
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'orders'));
-
-    const qReviews = query(collection(db, 'reviews'), where('farmerId', '==' , auth.currentUser.uid));
-    const unsubscribeReviews = onSnapshot(qReviews, (snapshot) => {
-      setReviews(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as any)));
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'reviews'));
-
-    return () => {
-      unsubscribeProds();
-      unsubscribeOrders();
-      unsubscribeReviews();
-    };
-  }, [auth.currentUser?.uid]);
 
   const totalSales = orders.reduce((sum, order) => order.status === 'delivered' ? sum + order.total : sum, 0);
   const pendingOrders = orders.filter(o => o.status === 'pending');
@@ -842,11 +842,8 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
                   <option>Vegetables</option>
                   <option>Fruits</option>
                   <option>Root Crops</option>
-                  <option>Grains</option>
                   <option>Herbs & Spices</option>
-                  <option>Poultry</option>
-                  <option>Dairy</option>
-                  <option>Others</option>
+                  <option>Grains</option>
                 </select>
               </div>
               <div>

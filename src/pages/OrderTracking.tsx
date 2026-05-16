@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, addDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
-import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { collection, query, where, onSnapshot, addDoc, doc, updateDoc, getDoc, getDocs } from 'firebase/firestore';
+import { db, auth, handleFirestoreError, OperationType, isQuotaError } from '../lib/firebase';
 import { Order, Review, Product } from '../types';
 import { Package, Truck, CheckCircle2, Clock, Map as MapIcon, Star, Camera, X, ShoppingBag, ArrowRight, AlertCircle, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -16,17 +16,30 @@ export const OrderTracking: React.FC = () => {
 
   useEffect(() => {
     if (!auth.currentUser) return;
-    const q = query(collection(db, 'orders'), where('buyerId', '==', auth.currentUser.uid));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const ords = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order)).sort((a, b) => {
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      });
-      setOrders(ords);
-      if (ords.length > 0 && !selectedOrder) setSelectedOrder(ords[0]);
-      setLoading(false);
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'orders'));
-    return () => unsubscribe();
-  }, [selectedOrder]);
+    
+    const fetchOrders = async () => {
+      try {
+        setLoading(true);
+        const q = query(collection(db, 'orders'), where('buyerId', '==', auth.currentUser!.uid));
+        const snapshot = await getDocs(q);
+        const ords = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order)).sort((a, b) => {
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+        setOrders(ords);
+        if (ords.length > 0 && !selectedOrder) setSelectedOrder(ords[0]);
+      } catch (error) {
+        if (!isQuotaError(error)) {
+          handleFirestoreError(error, OperationType.LIST, 'orders');
+        } else {
+          console.warn("Using cached orders due to quota limit");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrders();
+  }, [auth.currentUser?.uid]);
 
   const handleCancelOrder = async () => {
     if (!selectedOrder) return;

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { ArrowRight, Leaf, Heart, CheckCircle2, ShoppingBag, Star, Quote, Sprout } from 'lucide-react';
-import { db } from '../lib/firebase';
+import { db, isQuotaError } from '../lib/firebase';
 import { collection, query, where, limit, getDocs } from 'firebase/firestore';
 
 interface LandingPageProps {
@@ -14,12 +14,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onShopClick, onFarmerR
 
   useEffect(() => {
     const fetchFeatured = async () => {
+      const cached = localStorage.getItem('featured_products');
+      if (cached) {
+        try {
+          setFeaturedProducts(JSON.parse(cached));
+        } catch (e) {
+          localStorage.removeItem('featured_products');
+        }
+      }
+
       try {
         const q = query(collection(db, 'products'), where('isPublished', '==', true), limit(4));
         const snapshot = await getDocs(q);
-        setFeaturedProducts(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+        const products = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+        setFeaturedProducts(products);
+        localStorage.setItem('featured_products', JSON.stringify(products));
       } catch (error) {
-        console.error('Error fetching featured products:', error);
+        if (!isQuotaError(error)) {
+          console.error('Error fetching featured products:', error);
+        } else {
+          console.warn("Using cached featured products due to quota limit");
+        }
       }
     };
     fetchFeatured();
@@ -89,6 +104,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onShopClick, onFarmerR
             >
               Start Shopping
               <ArrowRight className="w-6 h-6 group-hover:translate-x-2 transition-transform" />
+            </button>
+            <button 
+              onClick={onFarmerRegister}
+              className="px-12 py-6 bg-primary/20 backdrop-blur-md text-white border-2 border-white/30 rounded-full font-bold text-xl hover:bg-white/10 transition-all active:scale-95 shadow-xl"
+            >
+              Join as Farmer
             </button>
           </motion.div>
         </div>

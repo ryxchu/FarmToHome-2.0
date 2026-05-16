@@ -40,6 +40,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     }
   }, [isOpen, initialMode, initialRole]);
 
+  // Auto-close if user is authenticated and not in OTP mode
+  useEffect(() => {
+    if (isOpen && auth.currentUser && mode !== 'otp') {
+      // Check if profile exists before closing to ensure they have the role set
+      const checkProfile = async () => {
+        const userDoc = await getDoc(doc(db, 'users', auth.currentUser!.uid));
+        if (userDoc.exists()) {
+          onClose();
+        }
+      };
+      checkProfile();
+    }
+  }, [isOpen, mode, onClose]);
+
   const toggleMode = () => {
     const newMode = mode === 'login' ? 'register' : 'login';
     setMode(newMode);
@@ -86,8 +100,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       if (err.code === 'auth/operation-not-allowed') {
         setError('Email/Password login is not enabled in Firebase. Please enable it in the console or use Google Sign-in.');
       } else if (err.code === 'auth/email-already-in-use') {
-        setError('This email is already registered. Please sign in instead.');
-      } else if (err.code === 'auth/invalid-credential') {
+        setError('ALREADY_REGISTERED');
+      } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
         setError('Invalid email or password. Please try again.');
       } else {
         setError(err.message);
@@ -377,8 +391,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
               )}
 
               {error && (
-                <div className="p-4 bg-secondary/5 border border-secondary/10 rounded-2xl text-secondary text-[10px] font-bold uppercase tracking-tight">
-                  {error}
+                <div className="p-4 bg-secondary/5 border border-secondary/10 rounded-2xl text-secondary text-[10px] font-bold uppercase tracking-tight flex flex-col gap-2">
+                  {error === 'ALREADY_REGISTERED' ? (
+                    <>
+                      <span>This email is already registered.</span>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setMode('login');
+                          setError('');
+                        }}
+                        className="text-primary hover:underline self-start"
+                      >
+                        Sign in instead?
+                      </button>
+                    </>
+                  ) : (
+                    error
+                  )}
                 </div>
               )}
 

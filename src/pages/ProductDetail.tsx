@@ -35,32 +35,37 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onBack,
   useEffect(() => {
     let isMounted = true;
 
-    // Core product listener
-    const unsubscribeProduct = onSnapshot(doc(db, 'products', productId), (snapshot) => {
-      if (snapshot.exists()) {
-        const prodData = { ...snapshot.data(), id: snapshot.id } as Product;
-        if (isMounted) setProduct(prodData);
-        
-        // Fetch farmer once product is known
-        getDoc(doc(db, 'users', prodData.farmerId)).then((fSnap) => {
-          if (fSnap.exists() && isMounted) {
-            setFarmer({ ...fSnap.data(), uid: fSnap.id } as UserProfile);
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        // Fetch product
+        const productSnap = await getDoc(doc(db, 'products', productId));
+        if (productSnap.exists()) {
+          const prodData = { ...productSnap.data(), id: productSnap.id } as Product;
+          if (isMounted) setProduct(prodData);
+          
+          // Fetch farmer
+          const farmerSnap = await getDoc(doc(db, 'users', prodData.farmerId));
+          if (farmerSnap.exists() && isMounted) {
+            setFarmer({ ...farmerSnap.data(), uid: farmerSnap.id } as UserProfile);
             setDataReady(true);
-            setLoading(false);
           }
-        }).catch((error) => handleFirestoreError(error, OperationType.GET, `users/${prodData.farmerId}`));
-      } else {
+        }
+        
+        // Fetch reviews
+        const qReviews = query(collection(db, 'reviews'), where('productId', '==', productId), limit(100));
+        const reviewsSnap = await getDocs(qReviews);
+        if (isMounted) {
+          setReviews(reviewsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Review)));
+        }
+      } catch (error) {
+        handleFirestoreError(error, OperationType.GET, `product_detail_${productId}`);
+      } finally {
         if (isMounted) setLoading(false);
       }
-    }, (error) => handleFirestoreError(error, OperationType.GET, `products/${productId}`));
+    };
 
-    // Fetch reviews
-    const qReviews = query(collection(db, 'reviews'), where('productId', '==', productId));
-    const unsubscribeReviews = onSnapshot(qReviews, (snapshot) => {
-      if (isMounted) {
-        setReviews(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Review)));
-      }
-    });
+    fetchData();
 
     // Check eligibility in background
     const checkEligibility = async () => {
@@ -87,8 +92,6 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onBack,
 
     return () => {
       isMounted = false;
-      unsubscribeProduct();
-      unsubscribeReviews();
     };
   }, [productId]);
 

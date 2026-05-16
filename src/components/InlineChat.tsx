@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, orderBy, onSnapshot, serverTimestamp, setDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, serverTimestamp, setDoc, doc, updateDoc, limit, addDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { UserProfile } from '../types';
@@ -30,11 +30,14 @@ export const InlineChat: React.FC<InlineChatProps> = ({ conversationId, recipien
 
     const q = query(
       collection(db, 'conversations', conversationId, 'messages'),
-      orderBy('createdAt', 'asc')
+      orderBy('createdAt', 'desc'), // Query desc for limit
+      limit(50)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message)));
+      const newMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+      // Reverse because we want asc for display
+      setMessages(newMessages.reverse());
       setTimeout(() => {
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;

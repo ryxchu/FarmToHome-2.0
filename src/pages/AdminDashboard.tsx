@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, updateDoc, doc, getDocs, setDoc, deleteDoc, getDoc, where } from 'firebase/firestore';
-import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { collection, query, onSnapshot, updateDoc, doc, getDocs, setDoc, deleteDoc, getDoc, where, limit } from 'firebase/firestore';
+import { db, auth, handleFirestoreError, OperationType, isQuotaError } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Product, Order, UserProfile, SystemConfig, AuditLog } from '../types';
 import { 
@@ -22,56 +22,77 @@ export const AdminDashboard: React.FC = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [categories, setCategories] = useState<string[]>(['Vegetables', 'Fruits', 'Rice', 'Poultry']);
+  const [categories, setCategories] = useState<string[]>(['Vegetables', 'Fruits', 'Root Crops', 'Herbs & Spices', 'Grains']);
   const [newCategory, setNewCategory] = useState('');
   const [config, setConfig] = useState<SystemConfig | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [quotaHit, setQuotaHit] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<'all' | 'farmer' | 'buyer' | 'admin'>('all');
   const [broadcastDraft, setBroadcastDraft] = useState('');
   const [broadcastType, setBroadcastType] = useState<'info' | 'warning' | 'emergency'>('info');
 
   useEffect(() => {
-    const unsubscribers = [
-      onSnapshot(collection(db, 'users'), 
-        (snapshot) => {
-          setUsers(snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as UserProfile)));
-        },
-        (error) => handleFirestoreError(error, OperationType.LIST, 'users')
-      ),
-      onSnapshot(collection(db, 'products'), 
-        (snapshot) => {
-          setProducts(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product)));
-        },
-        (error) => handleFirestoreError(error, OperationType.LIST, 'products')
-      ),
-      onSnapshot(collection(db, 'orders'), 
-        (snapshot) => {
-          setOrders(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order)));
-        },
-        (error) => handleFirestoreError(error, OperationType.LIST, 'orders')
-      ),
-      onSnapshot(doc(db, 'system', 'config'), 
-        (doc) => {
-          if (doc.exists()) setConfig(doc.data() as SystemConfig);
-        },
-        (error) => handleFirestoreError(error, OperationType.GET, 'system/config')
-      ),
-      onSnapshot(query(collection(db, 'audit_logs')), 
-        (snapshot) => {
-          setAuditLogs(snapshot.docs.map(doc => ({ ...doc.data() } as AuditLog)).sort((a,b) => b.timestamp.localeCompare(a.timestamp)));
-        },
-        (error) => handleFirestoreError(error, OperationType.LIST, 'audit_logs')
-      ),
-      onSnapshot(doc(db, 'system', 'categories'), 
-        (doc) => {
-          if (doc.exists()) setCategories(doc.data().list || ['Vegetables', 'Fruits', 'Rice', 'Poultry']);
-        },
-        (error) => handleFirestoreError(error, OperationType.GET, 'system/categories')
-      )
-    ];
+    // Only fetch data once to save quota, instead of constant listeners
+    const fetchData = async () => {
+      try {
+        setLoading(true);
 
-    return () => unsubscribers.forEach(unsub => unsub());
+        // Try load system config from cache first for immediate UI
+        const cachedConfig = localStorage.getItem('system_config');
+        if (cachedConfig) setConfig(JSON.parse(cachedConfig));
+
+        // Load other lists from cache if available
+        const cachedUsers = localStorage.getItem('admin_users');
+        if (cachedUsers) setUsers(JSON.parse(cachedUsers));
+        const cachedProducts = localStorage.getItem('admin_products');
+        if (cachedProducts) setProducts(JSON.parse(cachedProducts));
+        const cachedOrders = localStorage.getItem('admin_orders');
+        if (cachedOrders) setOrders(JSON.parse(cachedOrders));
+
+        const usersSnap = await getDocs(query(collection(db, 'users'), limit(50)));
+        const usersData = usersSnap.docs.map(doc => ({ ...doc.data(), uid: doc.id } as UserProfile));
+        setUsers(usersData);
+        localStorage.setItem('admin_users', JSON.stringify(usersData.slice(0, 50)));
+
+        const productsSnap = await getDocs(query(collection(db, 'products'), limit(50)));
+        const productsData = productsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product));
+        setProducts(productsData);
+        localStorage.setItem('admin_products', JSON.stringify(productsData.slice(0, 50)));
+
+        const ordersSnap = await getDocs(query(collection(db, 'orders'), limit(50)));
+        const ordersData = ordersSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order));
+        setOrders(ordersData);
+        localStorage.setItem('admin_orders', JSON.stringify(ordersData.slice(0, 50)));
+
+        const configSnap = await getDoc(doc(db, 'system', 'config'));
+        if (configSnap.exists()) {
+          const configData = configSnap.data() as SystemConfig;
+          setConfig(configData);
+          localStorage.setItem('system_config', JSON.stringify(configData));
+        }
+
+        const categoriesSnap = await getDoc(doc(db, 'system', 'categories'));
+        if (categoriesSnap.exists()) setCategories(categoriesSnap.data().list || ['Vegetables', 'Fruits', 'Root Crops', 'Herbs & Spices', 'Grains']);
+
+        const logsSnap = await getDocs(query(collection(db, 'audit_logs'), limit(20)));
+        setAuditLogs(logsSnap.docs.map(doc => ({ ...doc.data() } as AuditLog)).sort((a,b) => b.timestamp.localeCompare(a.timestamp)));
+      } catch (error) {
+        if (!isQuotaError(error)) {
+          handleFirestoreError(error, OperationType.LIST, 'admin_data');
+        } else {
+          setQuotaHit(true);
+          console.warn("Admin dashboard: partially using cached/last-known data due to quota limits");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+
+    return () => {};
   }, []);
 
   const logAction = async (action: string, details: string) => {
@@ -211,8 +232,49 @@ export const AdminDashboard: React.FC = () => {
     return matchesSearch && matchesRole;
   });
 
+  if (loading && users.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
+        <motion.div 
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full shadow-lg shadow-primary/20"
+        />
+        <div className="text-center">
+          <p className="text-xl font-bold text-slate-800 font-serif italic mb-1 tracking-tight">Initializing Command Center</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Aggregating Global Ecosystem Data...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-6 py-12">
+      {/* Quota Warning */}
+      {quotaHit && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-3xl flex items-center justify-between gap-4 shadow-lg shadow-amber-500/5"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-600">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest">Protocol Restriction: Quota Limit Detected</p>
+              <p className="text-[10px] text-amber-600/80 font-bold uppercase tracking-widest">Displaying cached offline data. New updates may be delayed.</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-6 py-2 bg-amber-200 text-amber-800 rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-amber-300 transition-all"
+          >
+            Retry Sync
+          </button>
+        </motion.div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-10 mb-16">
         <div>

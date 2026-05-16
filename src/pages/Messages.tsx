@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, getDoc, doc } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { collection, query, where, onSnapshot, getDoc, doc, getDocs, limit } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType, isQuotaError } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { InlineChat } from '../components/InlineChat';
 import { MessageSquare, User, Calendar, ChevronRight, ArrowLeft } from 'lucide-react';
@@ -16,36 +16,55 @@ export const Messages: React.FC = () => {
   useEffect(() => {
     if (!profile) return;
 
-    const q = query(
-      collection(db, 'conversations'),
-      where('participants', 'array-contains', profile.uid)
-    );
+    const fetchConversations = async () => {
+      try {
+        setLoading(true);
+        const q = query(
+          collection(db, 'conversations'),
+          where('participants', 'array-contains', profile.uid),
+          limit(50)
+        );
+        const snapshot = await getDocs(q);
+        const convs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as any));
+        convs.sort((a, b) => {
+          const dateA = a.lastMessageAt?.toDate?.() || new Date(a.lastMessageAt || 0);
+          const dateB = b.lastMessageAt?.toDate?.() || new Date(b.lastMessageAt || 0);
+          return dateB.getTime() - dateA.getTime();
+        });
+        setConversations(convs);
+      } catch (error) {
+        if (!isQuotaError(error)) {
+          handleFirestoreError(error, OperationType.LIST, 'conversations');
+        } else {
+          console.warn("Conversations list hit quota - items may be missing");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const convs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as any));
-      // Sort by last message date
-      convs.sort((a, b) => {
-        const dateA = a.lastMessageAt?.toDate?.() || new Date(a.lastMessageAt || 0);
-        const dateB = b.lastMessageAt?.toDate?.() || new Date(b.lastMessageAt || 0);
-        return dateB.getTime() - dateA.getTime();
-      });
-      setConversations(convs);
-      setLoading(false);
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'conversations'));
-
-    return () => unsubscribe();
+    fetchConversations();
+    
+    // Check every minute instead of real-time
+    const interval = setInterval(fetchConversations, 60000);
+    return () => clearInterval(interval);
   }, [profile]);
 
   const handleOpenConversation = async (conv: any) => {
     if (selectedConversation?.conv?.id === conv.id) return;
     
     setLoading(true);
-    const recipientId = conv.participants.find((id: string) => id !== profile?.uid);
-    const docSnap = await getDoc(doc(db, 'users', recipientId));
-    if (docSnap.exists()) {
-      setSelectedConversation({ conv, recipient: { ...docSnap.data(), uid: docSnap.id } });
+    try {
+      const recipientId = conv.participants.find((id: string) => id !== profile?.uid);
+      const docSnap = await getDoc(doc(db, 'users', recipientId));
+      if (docSnap.exists()) {
+        setSelectedConversation({ conv, recipient: { ...docSnap.data(), uid: docSnap.id } });
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, 'recipient_profile');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const filteredConversations = conversations.filter(conv => {

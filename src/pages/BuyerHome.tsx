@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, limit, getDocs } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType, isQuotaError } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType, isQuotaError, isOfflineError } from '../lib/firebase';
 import { Product } from '../types';
 import { Star, Clock, MapPin, Plus, Filter, MessageSquare, ShoppingBag, Sun } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -107,10 +107,10 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({
 
         processProducts(prods);
       } catch (error) {
-        if (!isQuotaError(error)) {
+        if (!isQuotaError(error) && !isOfflineError(error)) {
           handleFirestoreError(error, OperationType.LIST, 'products');
         } else {
-          console.warn("Using cached products due to quota limit");
+          console.warn("Using cached products due to quota limit or offline status");
           // If we had a cached version, it's already set by the initial check
         }
       } finally {

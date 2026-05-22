@@ -41,7 +41,7 @@ const SideNavLink: React.FC<{ icon: string; label: string; active?: boolean; onC
 );
 
 import { SystemConfig } from './types';
-import { db, handleFirestoreError, OperationType, isQuotaError } from './lib/firebase';
+import { db, handleFirestoreError, OperationType, isQuotaError, isOfflineError } from './lib/firebase';
 import { doc, getDoc, collection, getDocs, query, limit } from 'firebase/firestore';
 
 function AppContent() {
@@ -197,18 +197,22 @@ function AppContent() {
           setSystemConfig(defaultConfig);
         }
       } catch (error) {
-        if (isQuotaError(error)) {
+        if (isQuotaError(error) || isOfflineError(error)) {
           // If we have cached version, use it and don't throw
           if (localStorage.getItem('system_config')) {
-            console.warn("Using cached system config due to quota limit");
-            return;
+            console.warn("Using cached system config due to quota or offline status");
+            try {
+              const parsed = JSON.parse(localStorage.getItem('system_config')!);
+              setSystemConfig(parsed);
+              return;
+            } catch (e) {}
           }
 
           // If no cache, use minimal defaults to keep the app working
-          console.error("Quota reached - Using default system config");
+          console.error("Quota reached or client is offline - Using default system config");
           setSystemConfig({
             maintenanceMode: false,
-            broadcastMessage: 'Platform is high traffic - Using offline modes.',
+            broadcastMessage: 'FarmToHome is currently running in offline checkout/cached mode.',
             broadcastType: 'info',
             platformCommissionRate: 5,
             lastUpdated: new Date().toISOString()

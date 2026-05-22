@@ -5,7 +5,7 @@ import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
+  experimentalAutoDetectLongPolling: true,
 }, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 
@@ -15,8 +15,8 @@ async function testConnection() {
     await getDocFromServer(doc(db, 'test', 'connection'));
     console.log("Firebase connected successfully");
   } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration.");
+    if (error instanceof Error && (error.message.includes('the client is offline') || error.message.includes('Could not reach Cloud Firestore backend'))) {
+      console.warn("Firestore is operating in offline-cached mode. Connection to Firestore backend will resume once container networking resolves.");
     }
   }
 }
@@ -47,6 +47,23 @@ export interface FirestoreErrorInfo {
       email?: string | null;
     }[];
   }
+}
+
+export function isOfflineError(error: unknown): boolean {
+  if (!error) return false;
+  
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes('offline') || msg.includes('could not reach') || msg.includes('unavailable') || msg.includes('network-request-failed')) return true;
+  }
+
+  const errObj = error as any;
+  if (errObj.code === 'unavailable' || errObj.code === 'failed-precondition') return true;
+
+  const errStr = String(error).toLowerCase();
+  if (errStr.includes('offline') || errStr.includes('could not reach') || errStr.includes('network') || errStr.includes('unavailable')) return true;
+
+  return false;
 }
 
 export function isQuotaError(error: unknown): boolean {

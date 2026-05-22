@@ -28,6 +28,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   const [otpMethod, setOtpMethod] = useState<'email' | 'phone'>('email');
   const [resendCooldown, setResendCooldown] = useState(0);
   const [devOtp, setDevOtp] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   // Reset state when modal opens
   useEffect(() => {
@@ -35,6 +36,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       setMode(initialMode);
       setRole(initialRole);
       setError('');
+      setSuccessMessage('');
       setPassword('');
       setConfirmPassword('');
       setFullName('');
@@ -51,17 +53,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       const checkProfile = async () => {
         const userDoc = await getDoc(doc(db, 'users', auth.currentUser!.uid));
         if (userDoc.exists()) {
-          onClose();
+          const profileData = userDoc.data();
+          if (profileData && profileData.status === 'unverified') {
+            setMode('otp');
+            sendOtp(otpMethod);
+          } else {
+            onClose();
+          }
         }
       };
       checkProfile();
     }
-  }, [isOpen, mode, onClose]);
+  }, [isOpen, mode, onClose, otpMethod]);
 
   const toggleMode = () => {
     const newMode = mode === 'login' ? 'register' : 'login';
     setMode(newMode);
     setError(''); // CRITICAL: Clear error when switching modes
+    setSuccessMessage('');
   };
 
   // Password validation
@@ -172,12 +181,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       const data = await response.json();
       if (data.success) {
         setResendCooldown(60);
+        setOtp(['', '', '', '', '', '']);
         if (data.dev) {
           console.info(`[DEV] OTP sent: ${data.otp}`);
           setDevOtp(data.otp);
-          if (data.otp) {
-            setOtp(data.otp.split(''));
-          }
         }
       } else {
         setError(data.message);
@@ -200,6 +207,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     const enteredOtp = otp.join('');
     setLoading(true);
     setError('');
+    setSuccessMessage('');
     
     try {
       const response = await fetch('/api/verify-otp', {
@@ -218,7 +226,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
             status: 'verified'
           }, { merge: true });
         }
-        onClose();
+        
+        // Sign out so they must log in using the newly created/verified account first
+        await auth.signOut();
+        
+        // Retain email for ease, reset password and otp state
+        setPassword('');
+        setConfirmPassword('');
+        setOtp(['', '', '', '', '', '']);
+        setDevOtp('');
+        
+        setSuccessMessage('Account verified successfully! Please log in to your account.');
+        setMode('login');
       } else {
         setError(data.message || 'Invalid verification code.');
       }
@@ -452,7 +471,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                     >
                       <span className="text-[10px] font-black uppercase text-emerald-800 tracking-wider">Localhost Dev Mode Active</span>
                       <p className="text-[11px] font-semibold text-emerald-600/90 leading-relaxed">
-                        Verification code is <strong className="text-emerald-700 bg-white px-2.5 py-1 rounded-xl border border-emerald-200 shadow-sm text-sm font-bold ml-1">{devOtp}</strong> (Auto-filled below!)
+                        Verification code is <strong className="text-emerald-700 bg-white px-2.5 py-1 rounded-xl border border-emerald-200 shadow-sm text-sm font-bold ml-1">{devOtp}</strong> (Enter this code below to proceed!)
                       </p>
                     </motion.div>
                   )}
@@ -642,6 +661,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                     )}
                   </div>
                 </>
+              )}
+
+              {successMessage && (
+                <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl text-emerald-800 text-[10px] font-bold uppercase tracking-tight flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>{successMessage}</span>
+                  </div>
+                </div>
               )}
 
               {error && (

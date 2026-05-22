@@ -19,6 +19,7 @@ import { Messages } from './pages/Messages';
 import { Cart } from './components/Cart';
 import { OrderTracking } from './pages/OrderTracking';
 import { AIChatbot } from './components/AIChatbot';
+import { InfoModal, InfoSectionType } from './components/InfoModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sprout, Search, ShoppingBag, Radio, Lock, MapPin } from 'lucide-react';
 import { useCart } from './context/CartContext';
@@ -27,7 +28,7 @@ import { seedProducts, cleanupDuplicates } from './lib/seed';
 const SideNavLink: React.FC<{ icon: string; label: string; active?: boolean; onClick?: () => void }> = ({ icon, label, active, onClick }) => (
   <button 
     onClick={onClick}
-    className={`w-full flex items-center gap-4 px-6 py-4 rounded-3xl font-bold text-xs transition-all group ${
+    className={`w-full flex items-center gap-4 px-6 py-4 rounded-[1.5rem] font-bold text-xs transition-all group ${
       active 
         ? 'bg-primary text-white shadow-xl shadow-primary/20 scale-105' 
         : 'text-slate-400 hover:bg-white hover:text-slate-700 hover:shadow-lg hover:translate-x-1'
@@ -57,6 +58,8 @@ function AppContent() {
   } = useAuth();
   const { isOpen: showCart, setIsOpen: setShowCart } = useCart();
   const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [infoModalSection, setInfoModalSection] = useState<InfoSectionType>('about');
   
   useEffect(() => {
     if (profile?.status === 'banned') {
@@ -265,7 +268,7 @@ function AppContent() {
             className={`${
               systemConfig.broadcastType === 'emergency' ? 'bg-red-500' : 
               systemConfig.broadcastType === 'warning' ? 'bg-amber-500' : 'bg-secondary'
-            } text-white px-6 py-3 flex items-center justify-center gap-4 text-[10px] font-bold uppercase tracking-[0.2em] relative z-99`}
+            } text-white px-6 py-3 flex items-center justify-center gap-4 text-[10px] font-bold uppercase tracking-[0.2em] relative z-[99]`}
           >
             <Radio className="w-4 h-4 animate-pulse" />
             <span>{systemConfig.broadcastMessage}</span>
@@ -280,7 +283,7 @@ function AppContent() {
         onSearch={setSearchQuery}
       />
 
-      <main className="grow">
+      <main className="flex-grow">
         <AnimatePresence mode="wait">
           {currentView === 'landing' ? (
             <LandingPage 
@@ -295,7 +298,7 @@ function AppContent() {
                   <div className="flex-1 overflow-y-auto no-scrollbar">
                     <div className="mb-10">
                       <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Navigation</h3>
-                      <div className="bg-slate-50 p-1.5 rounded-3xl flex flex-col gap-1 mb-8">
+                      <div className="bg-slate-50 p-1.5 rounded-[1.5rem] flex flex-col gap-1 mb-8">
                         <button 
                           onClick={() => { setMarketViewMode('shop'); setCurrentView('home'); }}
                           className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all ${marketViewMode === 'shop' && currentView === 'home' ? 'bg-primary text-white shadow-lg' : 'text-slate-400 hover:text-primary hover:bg-white'}`}
@@ -324,7 +327,7 @@ function AppContent() {
                     </div>
 
                     <div className="mt-8">
-                      <div className="bg-primary/5 rounded-4xl p-6 border border-primary/10 relative overflow-hidden group">
+                      <div className="bg-primary/5 rounded-[2rem] p-6 border border-primary/10 relative overflow-hidden group">
                         <p className="text-[9px] uppercase font-bold text-primary/60 mb-2 tracking-[0.2em]">Carbon Saved</p>
                         <p className="text-3xl font-bold mb-2 tracking-tighter font-serif italic text-primary">12.5 <span className="text-xs not-italic opacity-60">kg</span></p>
                         <p className="text-[8px] leading-relaxed text-slate-400 font-medium tracking-tight">Eco-friendly logistics.</p>
@@ -425,6 +428,15 @@ function AppContent() {
           />
         )}
       </AnimatePresence>
+      <AnimatePresence>
+        {showInfoModal && (
+          <InfoModal 
+            isOpen={showInfoModal}
+            onClose={() => setShowInfoModal(false)}
+            initialSection={infoModalSection}
+          />
+        )}
+      </AnimatePresence>
       <Cart isOpen={showCart} onClose={() => setShowCart(false)} />
       <AIChatbot />
       
@@ -462,25 +474,25 @@ function AppContent() {
           <div>
             <h4 className="text-[10px] font-bold uppercase tracking-[0.4em] mb-6 text-secondary">The Platform</h4>
             <ul className="space-y-4 text-white/50 font-bold text-[10px] uppercase tracking-widest">
-              <li className="hover:text-secondary cursor-pointer transition-colors" onClick={() => { window.scrollTo({ top: 0, behavior: 'smooth' }); setCurrentView('home'); }}>Our Stories</li>
-              <li className="hover:text-secondary cursor-pointer transition-colors" onClick={() => { window.scrollTo({ top: 0, behavior: 'smooth' }); setCurrentView('home'); }}>Product Care</li>
-              <li className="hover:text-secondary cursor-pointer transition-colors" onClick={() => { window.scrollTo({ top: 0, behavior: 'smooth' }); setCurrentView('home'); }}>Community Impact</li>
-              <li className="hover:text-secondary cursor-pointer transition-colors" onClick={() => { window.scrollTo({ top: 0, behavior: 'smooth' }); setCurrentView('home'); }}>Farm Map</li>
+              <li className="hover:text-secondary cursor-pointer transition-colors" onClick={() => { setInfoModalSection('stories'); setShowInfoModal(true); }}>Our Stories</li>
+              <li className="hover:text-secondary cursor-pointer transition-colors" onClick={() => { setInfoModalSection('care'); setShowInfoModal(true); }}>Product Care</li>
+              <li className="hover:text-secondary cursor-pointer transition-colors" onClick={() => { setInfoModalSection('impact'); setShowInfoModal(true); }}>Community Impact</li>
+              <li className="hover:text-secondary cursor-pointer transition-colors" onClick={() => { setInfoModalSection('map'); setShowInfoModal(true); }}>Farm Map</li>
             </ul>
           </div>
           <div>
-            <h4 className="text-[10px] font-bold uppercase tracking-[0.4em] mb-6 text-secondary">Contact</h4>
-            <p className="text-white font-bold mb-2 tracking-tight text-sm">hello@farmtohome.run</p>
-            <p className="text-white font-bold mb-6 tracking-tight text-sm">+63 900 000 0000</p>
+            <h4 className="text-[10px] font-bold uppercase tracking-[0.4em] mb-6 text-secondary cursor-pointer hover:underline animate-pulse" onClick={() => { setInfoModalSection('contact'); setShowInfoModal(true); }}>Contact</h4>
+            <p className="text-white font-bold mb-2 tracking-tight text-sm cursor-pointer hover:text-secondary transition-colors" onClick={() => { setInfoModalSection('contact'); setShowInfoModal(true); }}>farmtohomee11@gmail.com</p>
+            <p className="text-white font-bold mb-6 tracking-tight text-sm cursor-pointer hover:text-secondary transition-colors" onClick={() => { setInfoModalSection('contact'); setShowInfoModal(true); }}>09193604094</p>
             <p className="text-white/30 text-[9px] font-bold uppercase tracking-widest leading-relaxed">Manila Base • Support Network for Local Agriculture</p>
           </div>
         </div>
         <div className="max-w-7xl mx-auto border-t border-white/10 mt-16 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-white/30 text-[9px] font-bold uppercase tracking-[0.3em]">
           <span>© 2026 Local Farmers Network.</span>
           <div className="flex gap-8">
-            <span className="hover:text-white cursor-pointer transition-colors" onClick={() => { window.scrollTo({ top: 0, behavior: 'smooth' }); setCurrentView('home'); }}>About Us</span>
-            <span className="hover:text-white cursor-pointer transition-colors" onClick={() => { window.scrollTo({ top: 0, behavior: 'smooth' }); setCurrentView('home'); }}>Guidelines</span>
-            <span className="hover:text-white cursor-pointer transition-colors" onClick={() => { window.scrollTo({ top: 0, behavior: 'smooth' }); setCurrentView('home'); }}>Certification</span>
+            <span className="hover:text-white cursor-pointer transition-colors" onClick={() => { setInfoModalSection('about'); setShowInfoModal(true); }}>About Us</span>
+            <span className="hover:text-white cursor-pointer transition-colors" onClick={() => { setInfoModalSection('guidelines'); setShowInfoModal(true); }}>Guidelines</span>
+            <span className="hover:text-white cursor-pointer transition-colors" onClick={() => { setInfoModalSection('certifications'); setShowInfoModal(true); }}>Certification</span>
           </div>
         </div>
       </footer>

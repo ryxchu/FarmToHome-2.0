@@ -111,6 +111,53 @@ async function startServer() {
     }
   });
 
+  // Contact Us endpoint
+  app.post("/api/contact-us", async (req, res) => {
+    const { name, email, phone, message } = req.body;
+    const smtpUser = process.env.SMTP_USER || 'farmtohomee11@gmail.com';
+    const smtpPass = process.env.SMTP_PASS || 'welt gieb tlom kpxe';
+
+    try {
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+      });
+
+      await transporter.sendMail({
+        from: `"FarmToHome Contact Form" <${smtpUser}>`,
+        to: 'farmtohomee11@gmail.com',
+        replyTo: email,
+        subject: `[Contact Form] Message from ${name}`,
+        text: `Name: ${name}\nEmail: ${email}\nPhone: ${phone || 'N/A'}\n\nMessage:\n${message}`,
+        html: `
+          <div style="font-family: sans-serif; padding: 20px; color: #333; border: 1px solid #e2e8f0; border-radius: 12px; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #10b981; margin-top: 0;">New Contact Form Submission</h2>
+            <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+              <p style="margin: 5px 0;"><strong>Name:</strong> ${name}</p>
+              <p style="margin: 5px 0;"><strong>Email:</strong> ${email}</p>
+              <p style="margin: 5px 0;"><strong>Phone:</strong> ${phone || 'N/A'}</p>
+            </div>
+            <p style="font-size: 14px; font-weight: bold; color: #64748b; text-transform: uppercase; margin-bottom: 5px; letter-spacing: 0.5px;">Message:</p>
+            <div style="background-color: #fff; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; white-space: pre-wrap; font-size: 15px; color: #1e293b; line-height: 1.6;">
+              ${message}
+            </div>
+            <p style="margin-top: 25px; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 15px;">
+              This email was sent from the FarmToHome platform contact page.
+            </p>
+          </div>
+        `,
+      });
+
+      res.json({ success: true, message: "Thank you for contacting us! We've received your message." });
+    } catch (error: any) {
+      console.error("Failed to process contact message:", error);
+      res.status(500).json({ success: false, message: "Failed to send message. Please try again later." });
+    }
+  });
+
   app.post("/api/verify-otp", (req, res) => {
     const { identifier, otp } = req.body;
     const storedOtp = otps.get(identifier);

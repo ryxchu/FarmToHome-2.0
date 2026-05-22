@@ -96,14 +96,22 @@ export const AdminDashboard: React.FC = () => {
   }, []);
 
   const logAction = async (action: string, details: string) => {
-    const logId = doc(collection(db, 'audit_logs')).id;
-    await setDoc(doc(db, 'audit_logs', logId), {
-      id: logId,
-      adminId: auth.currentUser?.uid,
-      action,
-      details,
-      timestamp: new Date().toISOString()
-    });
+    try {
+      const logId = doc(collection(db, 'audit_logs')).id;
+      const newLog = {
+        id: logId,
+        adminId: auth.currentUser?.uid,
+        action,
+        details,
+        timestamp: new Date().toISOString()
+      };
+      await setDoc(doc(db, 'audit_logs', logId), newLog);
+      
+      // Update local React state for audit logs
+      setAuditLogs(prev => [newLog, ...prev].slice(0, 20));
+    } catch (err) {
+      console.warn('Logging action failed silently:', err);
+    }
   };
 
   const addCategory = async () => {
@@ -114,6 +122,9 @@ export const AdminDashboard: React.FC = () => {
         list: updated,
         updatedAt: new Date().toISOString()
       }, { merge: true });
+      
+      // Update local state
+      setCategories(updated);
       setNewCategory('');
       logAction('Category Add', `Added category ${newCategory.trim()}`);
     } catch (err) {
@@ -123,9 +134,17 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const removeCategory = async (cat: string) => {
-    const updated = categories.filter(c => c !== cat);
-    await setDoc(doc(db, 'system', 'categories'), { list: updated }, { merge: true });
-    logAction('Category Remove', `Removed category ${cat}`);
+    try {
+      const updated = categories.filter(c => c !== cat);
+      await setDoc(doc(db, 'system', 'categories'), { list: updated }, { merge: true });
+      
+      // Update local state
+      setCategories(updated);
+      logAction('Category Remove', `Removed category ${cat}`);
+    } catch (err) {
+      console.error('Remove category error:', err);
+      alert('Failed to remove category. Please check your permissions.');
+    }
   };
 
   const totalRevenue = orders.reduce((sum, order) => order.status === 'delivered' ? sum + order.total : sum, 0);
@@ -141,6 +160,11 @@ export const AdminDashboard: React.FC = () => {
         updatedAt: new Date().toISOString()
       });
       
+      // Update local state and cache
+      const updatedUsers = users.map(u => u.uid === userId ? { ...u, ...updates } : u);
+      setUsers(updatedUsers);
+      localStorage.setItem('admin_users', JSON.stringify(updatedUsers.slice(0, 50)));
+
       // If user is banned, unpublish all their products
       if (updates.status === 'banned') {
         const productsRef = collection(db, 'products');
@@ -155,6 +179,12 @@ export const AdminDashboard: React.FC = () => {
         );
         
         await Promise.all(unpublishPromises);
+
+        // Update local products state and cache
+        const updatedProducts = products.map(p => p.farmerId === userId ? { ...p, isPublished: false } : p);
+        setProducts(updatedProducts);
+        localStorage.setItem('admin_products', JSON.stringify(updatedProducts.slice(0, 50)));
+
         logAction('User Update', `Banned user ${userId} and unpublished ${unpublishPromises.length} products`);
       } else {
         logAction('User Update', `Updated user ${userId} with ${JSON.stringify(updates)}`);
@@ -171,6 +201,12 @@ export const AdminDashboard: React.FC = () => {
         ...updates,
         updatedAt: new Date().toISOString()
       });
+
+      // Update local state and cache
+      const updatedProducts = products.map(p => p.id === productId ? { ...p, ...updates } : p);
+      setProducts(updatedProducts);
+      localStorage.setItem('admin_products', JSON.stringify(updatedProducts.slice(0, 50)));
+
       logAction('Product Update', `Updated product ${productId} with ${JSON.stringify(updates)}`);
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `products/${productId}`);
@@ -181,6 +217,12 @@ export const AdminDashboard: React.FC = () => {
     if (!window.confirm('Are you sure you want to permanently delete this product from the marketplace?')) return;
     try {
       await deleteDoc(doc(db, 'products', productId));
+
+      // Update local state and cache
+      const updatedProducts = products.filter(p => p.id !== productId);
+      setProducts(updatedProducts);
+      localStorage.setItem('admin_products', JSON.stringify(updatedProducts.slice(0, 50)));
+
       logAction('Product Delete', `Deleted product ${productId}`);
       alert('Product successfully removed from the marketplace.');
     } catch (err) {
@@ -192,14 +234,61 @@ export const AdminDashboard: React.FC = () => {
   // System Config
   const updateSystemConfig = async (updates: Partial<SystemConfig>) => {
     try {
-      await setDoc(doc(db, 'system', 'config'), {
+      const newConfig = {
         ...config,
         ...updates,
         lastUpdated: new Date().toISOString()
-      }, { merge: true });
+      } as SystemConfig;
+
+      await setDoc(doc(db, 'system', 'config'), newConfig, { merge: true });
+
+      // Update local state and cache
+      setConfig(newConfig);
+      localStorage.setItem('system_config', JSON.stringify(newConfig));
+
       logAction('System Update', `Updated system config`);
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, 'system/config');
+    }
+  };
+
+  // Order Logistics Actions
+  const updateOrderStatus = async (orderId: string, status: Order['status']) => {
+    try {
+      await updateDoc(doc(db, 'orders', orderId), { 
+        status,
+        updatedAt: new Date().toISOString()
+      });
+
+      const updatedOrders = orders.map(o => o.id === orderId ? { ...o, status } : o);
+      setOrders(updatedOrders as Order[]);
+      localStorage.setItem('admin_orders', JSON.stringify(updatedOrders.slice(0, 50)));
+
+      logAction('Order Update', `Updated order ${orderId} status to ${status}`);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `orders/${orderId}`);
+      alert('Failed to update order status. Please check your permissions.');
+    }
+  };
+
+  const resolveOrderDispute = async (orderId: string, disputeStatus: 'none' | 'opened' | 'resolved' | 'refunded', updates: Partial<Order> = {}) => {
+    try {
+      const finalUpdates = {
+        disputeStatus,
+        ...updates,
+        updatedAt: new Date().toISOString()
+      };
+      await updateDoc(doc(db, 'orders', orderId), finalUpdates);
+
+      const updatedOrders = orders.map(o => o.id === orderId ? { ...o, ...finalUpdates } : o);
+      setOrders(updatedOrders as Order[]);
+      localStorage.setItem('admin_orders', JSON.stringify(updatedOrders.slice(0, 50)));
+
+      logAction('Order Dispute Update', `Updated dispute for ${orderId} to ${disputeStatus}`);
+      alert(`Order dispute successfully marked as ${disputeStatus}.`);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `orders/${orderId}`);
+      alert('Failed to update dispute status. Please check your permissions.');
     }
   };
 
@@ -604,7 +693,7 @@ export const AdminDashboard: React.FC = () => {
                         <td className="px-10 py-8">
                           <select 
                             value={o.status}
-                            onChange={(e) => updateDoc(doc(db, 'orders', o.id), { status: e.target.value })}
+                            onChange={(e) => updateOrderStatus(o.id, e.target.value as Order['status'])}
                             className="bg-transparent text-[10px] font-bold uppercase tracking-widest focus:outline-none hover:text-primary transition-all cursor-pointer"
                           >
                             <option value="pending">Pending</option>
@@ -616,11 +705,11 @@ export const AdminDashboard: React.FC = () => {
                         <td className="px-10 py-8 text-right space-x-2">
                           {o.disputeStatus === 'opened' && (
                             <div className="flex gap-2">
-                              <button onClick={() => updateDoc(doc(db, 'orders', o.id), { disputeStatus: 'resolved' })} className="px-6 py-3 bg-emerald-500 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest hover:scale-110 active:scale-90 transition-all shadow-lg shadow-emerald-500/20">Resolve</button>
-                              <button onClick={() => updateDoc(doc(db, 'orders', o.id), { disputeStatus: 'refunded', status: 'cancelled' })} className="px-6 py-3 bg-red-500 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest hover:scale-110 active:scale-90 transition-all shadow-lg shadow-red-500/20">Refund</button>
+                              <button onClick={() => resolveOrderDispute(o.id, 'resolved')} className="px-6 py-3 bg-emerald-500 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest hover:scale-110 active:scale-90 transition-all shadow-lg shadow-emerald-500/20">Resolve</button>
+                              <button onClick={() => resolveOrderDispute(o.id, 'refunded', { status: 'cancelled' })} className="px-6 py-3 bg-red-500 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest hover:scale-110 active:scale-90 transition-all shadow-lg shadow-red-500/20">Refund</button>
                             </div>
                           )}
-                          {!o.disputeStatus || o.disputeStatus === 'none' && (
+                          {(!o.disputeStatus || o.disputeStatus === 'none') && (
                             <p className="text-[10px] font-bold text-slate-300 uppercase italic">Trade Stable</p>
                           )}
                         </td>

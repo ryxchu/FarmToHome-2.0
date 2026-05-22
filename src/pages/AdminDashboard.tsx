@@ -15,9 +15,25 @@ import {
   LineChart, Line, PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
 
-export const AdminDashboard: React.FC = () => {
-  const { profile } = useAuth();
-  const [activeTab, setActiveTab] = useState<'users' | 'marketplace' | 'logistics' | 'analytics' | 'system'>('users');
+interface AdminDashboardProps {
+  activeTabProp?: 'users' | 'marketplace' | 'logistics' | 'analytics' | 'system';
+  onTabChange?: (tab: 'users' | 'marketplace' | 'logistics' | 'analytics' | 'system') => void;
+}
+
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTabProp, onTabChange }) => {
+  const { user, profile, openAuth } = useAuth();
+  const [activeTab, setActiveTab] = useState<'users' | 'marketplace' | 'logistics' | 'analytics' | 'system'>(activeTabProp || 'users');
+
+  useEffect(() => {
+    if (activeTabProp) {
+      setActiveTab(activeTabProp);
+    }
+  }, [activeTabProp]);
+
+  const handleTabChange = (tab: 'users' | 'marketplace' | 'logistics' | 'analytics' | 'system') => {
+    setActiveTab(tab);
+    onTabChange?.(tab);
+  };
   
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -36,8 +52,20 @@ export const AdminDashboard: React.FC = () => {
   useEffect(() => {
     // Only fetch data once to save quota, instead of constant listeners
     const fetchData = async () => {
+      if (!auth.currentUser) {
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
+
+        // Force-refresh or resolve Firebase Auth ID token so it's guaranteed to be attached
+        // to Firestore headers, avoiding "Missing or insufficient permissions" with empty providerInfo on localhost.
+        try {
+          await auth.currentUser.getIdToken(true);
+        } catch (tokenErr) {
+          console.warn("Retrying token synchronization...", tokenErr);
+        }
 
         // Try load system config from cache first for immediate UI
         const cachedConfig = localStorage.getItem('system_config');
@@ -321,6 +349,28 @@ export const AdminDashboard: React.FC = () => {
     return matchesSearch && matchesRole;
   });
 
+  if (!user || profile?.role !== 'admin') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center max-w-sm mx-auto p-8">
+        <div className="w-16 h-16 rounded-3xl bg-rose-50 flex items-center justify-center text-rose-500 shadow-xl shadow-rose-500/10 border-2 border-rose-100 mb-2">
+          <Shield className="w-8 h-8" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold font-serif italic text-slate-800 tracking-tight mb-2">Authentication Required</h2>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed mb-6">
+            You must be signed in with a verified Administrator account to access this section.
+          </p>
+        </div>
+        <button 
+          onClick={() => openAuth('login', 'admin')}
+          className="px-12 py-5 bg-slate-800 text-white rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-primary transition-all active:scale-95 shadow-xl shadow-slate-900/10"
+        >
+          Authenticate Admin
+        </button>
+      </div>
+    );
+  }
+
   if (loading && users.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
@@ -336,6 +386,55 @@ export const AdminDashboard: React.FC = () => {
       </div>
     );
   }
+
+  const getTabHeaderDetails = () => {
+    switch (activeTab) {
+      case 'users':
+        return {
+          title: "User",
+          italicTitle: "Directory",
+          subtitle: "Manage platform memberships, verify farmer registrations, and configure accounts",
+          color: "bg-secondary"
+        };
+      case 'marketplace':
+        return {
+          title: "Product",
+          italicTitle: "Approvals",
+          subtitle: "Review merchant submissions, approve listings, and audit active stock descriptions",
+          color: "bg-emerald-600"
+        };
+      case 'logistics':
+        return {
+          title: "Logistics",
+          italicTitle: "Tracker",
+          subtitle: "Monitor global order deliveries, routing status, and logistics milestones",
+          color: "bg-amber-500"
+        };
+      case 'analytics':
+        return {
+          title: "System",
+          italicTitle: "Analytics",
+          subtitle: "Analyze system transaction volume, citizen growth, and market indicators",
+          color: "bg-primary"
+        };
+      case 'system':
+        return {
+          title: "Platform",
+          italicTitle: "Setup",
+          subtitle: "Configure global system preferences, active maintenance flags, and configurations",
+          color: "bg-slate-700"
+        };
+      default:
+        return {
+          title: "Control",
+          italicTitle: "Center",
+          subtitle: "Command & Control Hub for the FarmToHome Ecosystem",
+          color: "bg-secondary"
+        };
+    }
+  };
+
+  const headerDetails = getTabHeaderDetails();
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-12">
@@ -364,16 +463,16 @@ export const AdminDashboard: React.FC = () => {
         </motion.div>
       )}
 
-      {/* Header */}
+      {/* Dynamic Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-10 mb-16">
         <div>
           <div className="flex items-center gap-4 mb-3">
-            <div className="w-2 h-10 bg-secondary rounded-full" />
+            <div className={`w-2 h-10 ${headerDetails.color} rounded-full transition-colors duration-300`} />
             <h1 className="text-5xl font-bold text-slate-800 tracking-tighter font-sans uppercase">
-              Control <span className="italic text-secondary font-serif">Center</span>
+              {headerDetails.title} <span className={`italic font-serif normal-case ${headerDetails.color.replace('bg-', 'text-')}`}>{headerDetails.italicTitle}</span>
             </h1>
           </div>
-          <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-[10px]">Command & Control Hub for the FarmToHome Ecosystem</p>
+          <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-[10px]">{headerDetails.subtitle}</p>
         </div>
         
         <div className="flex items-center gap-4">
@@ -391,28 +490,6 @@ export const AdminDashboard: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Navigation */}
-      <div className="flex gap-4 mb-16 overflow-x-auto no-scrollbar pb-2">
-        {(['users', 'marketplace', 'logistics', 'analytics', 'system'] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-10 py-5 rounded-[2rem] text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-3 whitespace-nowrap hover:scale-105 active:scale-95 ${
-              activeTab === tab 
-                ? 'bg-primary text-white shadow-2xl shadow-primary/30' 
-                : 'bg-white text-slate-400 hover:bg-slate-50 border border-slate-100'
-            }`}
-          >
-            {tab === 'users' && <Users className="w-4 h-4" />}
-            {tab === 'marketplace' && <ShoppingBag className="w-4 h-4" />}
-            {tab === 'logistics' && <TrendingUp className="w-4 h-4" />}
-            {tab === 'analytics' && <BarChart3 className="w-4 h-4" />}
-            {tab === 'system' && <Settings className="w-4 h-4" />}
-            {tab}
-          </button>
-        ))}
       </div>
 
       <AnimatePresence mode="wait">

@@ -24,6 +24,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Sprout, Search, ShoppingBag, Radio, Lock, MapPin } from 'lucide-react';
 import { useCart } from './context/CartContext';
 import { seedProducts, cleanupDuplicates } from './lib/seed';
+import { UnifiedSidebar } from './components/UnifiedSidebar';
 
 const SideNavLink: React.FC<{ icon: string; label: string; active?: boolean; onClick?: () => void }> = ({ icon, label, active, onClick }) => (
   <button 
@@ -72,6 +73,7 @@ function AppContent() {
   const [currentView, setCurrentView] = useState<'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages'>('landing');
   const [marketViewMode, setMarketViewMode] = useState<'shop' | 'community'>('shop');
   const [dashboardTab, setDashboardTab] = useState<'inventory' | 'feedback' | 'messages'>('inventory');
+  const [adminTab, setAdminTab] = useState<'users' | 'marketplace' | 'logistics' | 'analytics' | 'system'>('users');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedFarmerId, setSelectedFarmerId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -293,72 +295,26 @@ function AppContent() {
           ) : (
             <>
             <div className="flex flex-1 overflow-hidden min-h-[calc(100vh-80px)]">
-              {(profile?.role !== 'farmer' && profile?.role !== 'admin' || !user) && (
-                <aside className="hidden lg:flex w-64 bg-white border-r border-slate-100 flex-col p-6 shrink-0 h-full">
-                  <div className="flex-1 overflow-y-auto no-scrollbar">
-                    <div className="mb-10">
-                      <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Navigation</h3>
-                      <div className="bg-slate-50 p-1.5 rounded-[1.5rem] flex flex-col gap-1 mb-8">
-                        <button 
-                          onClick={() => { setMarketViewMode('shop'); setCurrentView('home'); }}
-                          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all ${marketViewMode === 'shop' && currentView === 'home' ? 'bg-primary text-white shadow-lg' : 'text-slate-400 hover:text-primary hover:bg-white'}`}
-                        >
-                          <ShoppingBag className="w-3.5 h-3.5" /> Market
-                        </button>
-                        <button 
-                          onClick={() => { setMarketViewMode('community'); setCurrentView('home'); }}
-                          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all ${marketViewMode === 'community' && currentView === 'home' ? 'bg-primary text-white shadow-lg' : 'text-slate-400 hover:text-primary hover:bg-white'}`}
-                        >
-                          <Radio className="w-3.5 h-3.5" /> Community
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="mb-10">
-                      <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Sectors</h3>
-                      <nav className="space-y-1">
-                        <SideNavLink icon="🌳" label="All" active={selectedCategory === 'All'} onClick={() => handleCategorySelect('All')} />
-                        <SideNavLink icon="🥬" label="Vegetables" active={selectedCategory === 'Vegetables'} onClick={() => handleCategorySelect('Vegetables')} />
-                        <SideNavLink icon="🍎" label="Fruits" active={selectedCategory === 'Fruits'} onClick={() => handleCategorySelect('Fruits')} />
-                        <SideNavLink icon="🍠" label="Root Crops" active={selectedCategory === 'Root Crops'} onClick={() => handleCategorySelect('Root Crops')} />
-                        <SideNavLink icon="🌿" label="Herbs & Spices" active={selectedCategory === 'Herbs & Spices'} onClick={() => handleCategorySelect('Herbs & Spices')} />
-                        <SideNavLink icon="🌾" label="Grains" active={selectedCategory === 'Grains'} onClick={() => handleCategorySelect('Grains')} />
-                      </nav>
-                    </div>
-
-                    <div className="mt-8">
-                      <div className="bg-primary/5 rounded-[2rem] p-6 border border-primary/10 relative overflow-hidden group">
-                        <p className="text-[9px] uppercase font-bold text-primary/60 mb-2 tracking-[0.2em]">Carbon Saved</p>
-                        <p className="text-3xl font-bold mb-2 tracking-tighter font-serif italic text-primary">12.5 <span className="text-xs not-italic opacity-60">kg</span></p>
-                        <p className="text-[8px] leading-relaxed text-slate-400 font-medium tracking-tight">Eco-friendly logistics.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 pt-6 border-t border-slate-100">
-                    <button 
-                      onClick={handleNearMeClick}
-                      className={`w-full bg-white rounded-2xl p-4 border flex items-center gap-4 transition-all text-left ${nearMeEnabled ? 'border-primary bg-primary/5' : 'border-slate-100 hover:border-primary/20'}`}
-                    >
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${nearMeEnabled ? 'bg-primary text-white' : 'bg-slate-50 text-slate-400'}`}>
-                        <MapPin className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-[9px] font-bold text-slate-800 uppercase tracking-[0.2em]">Near Me</p>
-                        <p className={`text-[8px] font-bold uppercase tracking-widest ${nearMeEnabled ? 'text-primary' : 'text-slate-400'}`}>
-                          {nearMeEnabled ? 'Active' : 'Disabled'}
-                        </p>
-                      </div>
-                    </button>
-                  </div>
-                </aside>
-              )}
+              <UnifiedSidebar
+                currentView={currentView}
+                setView={setCurrentView}
+                marketViewMode={marketViewMode}
+                setMarketViewMode={setMarketViewMode}
+                selectedCategory={selectedCategory}
+                setSelectedCategory={setSelectedCategory}
+                farmerTab={dashboardTab}
+                setFarmerTab={setDashboardTab}
+                adminTab={adminTab}
+                setAdminTab={setAdminTab}
+                nearMeEnabled={nearMeEnabled}
+                onNearMeToggle={handleNearMeClick}
+              />
 
               <main className="flex-1 p-8 lg:p-12 overflow-y-auto flex flex-col no-scrollbar">
-                {user && profile?.role === 'farmer' && (currentView === 'home' || currentView === 'dashboard') ? (
+                {user && profile?.role === 'farmer' && currentView === 'dashboard' ? (
                   <FarmerDashboard onEditProfile={() => setCurrentView('profile')} activeTabProp={dashboardTab} onTabChange={setDashboardTab} />
-                ) : user && profile?.role === 'admin' && (currentView === 'home' || currentView === 'admin-dashboard') ? (
-                  <AdminDashboard />
+                ) : user && profile?.role === 'admin' && currentView === 'admin-dashboard' ? (
+                  <AdminDashboard activeTabProp={adminTab} onTabChange={setAdminTab} />
                 ) : (
                   <>
                     {currentView === 'home' && (
@@ -377,7 +333,7 @@ function AppContent() {
                       />
                     )}
                     {currentView === 'admin-dashboard' && profile?.role === 'admin' && (
-                      <AdminDashboard />
+                      <AdminDashboard activeTabProp={adminTab} onTabChange={setAdminTab} />
                     )}
                   </>
                 )}

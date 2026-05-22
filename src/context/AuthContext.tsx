@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, isQuotaError } from '../lib/firebase';
 import { UserProfile } from '../types';
 
@@ -63,6 +63,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const data = { ...snapshot.data(), uid: snapshot.id } as UserProfile;
         setProfile(data);
         localStorage.setItem(`user_profile_${uid}`, JSON.stringify(data));
+      } else {
+        // Automatically bootstrap admin profile collection document if current user is the hardcoded admin
+        const currentUser = auth.currentUser;
+        if (currentUser && currentUser.email && currentUser.email.toLowerCase() === 'ryzabasas16@gmail.com') {
+          const adminProfile: UserProfile = {
+            uid,
+            email: currentUser.email,
+            fullName: currentUser.displayName || 'Ryza Basas (Admin)',
+            phone: currentUser.phoneNumber || '09193604094',
+            role: 'admin',
+            status: 'verified',
+            createdAt: new Date().toISOString()
+          };
+          await setDoc(doc(db, 'users', uid), adminProfile);
+          setProfile(adminProfile);
+          localStorage.setItem(`user_profile_${uid}`, JSON.stringify(adminProfile));
+        }
       }
     } catch (error) {
       if (!isQuotaError(error)) {

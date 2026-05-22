@@ -27,6 +27,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [otpMethod, setOtpMethod] = useState<'email' | 'phone'>('email');
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [devOtp, setDevOtp] = useState('');
 
   // Reset state when modal opens
   useEffect(() => {
@@ -39,6 +40,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       setFullName('');
       setPhone('');
       setOtp(['', '', '', '', '', '']);
+      setDevOtp('');
     }
   }, [isOpen, initialMode, initialRole]);
 
@@ -136,14 +138,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       }
       onClose();
     } catch (err: any) {
-      console.error("Google Sign-in Error:", err);
       if (err.code === 'auth/popup-closed-by-user') {
-        setError('The login window was closed before completion. Please try again and complete the sign-in. If this persists, try opening the app in a new tab.');
+        console.warn("Google credentials window closed by the user.");
+        setError('The login window was closed before completion. If this keeps happening in the preview, click "Open in New Tab" up top or log in with your email & password.');
       } else if (err.code === 'auth/cancelled-popup-request') {
-        setError('A previous login request is still pending. Please wait or refresh the page.');
+        console.warn("Google popup request cancelled or repeated.");
+        setError('Google Sign-in request was cancelled. If you clicked multiple times, please wait or click "Open in New Tab" to authorize outside the preview window.');
       } else if (err.code === 'auth/popup-blocked') {
-        setError('The login popup was blocked by your browser. Please allow popups for this site or try opening the app in a new tab.');
+        console.warn("Google popup was blocked by the browser sandbox.");
+        setError('The login popup was blocked by your browser. Please allow popups, or open the app in a new tab by clicking "Open in New Tab" in the top-right corner.');
       } else {
+        console.error("Google Sign-in Error:", err);
         setError(err.message);
       }
     } finally {
@@ -153,6 +158,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
 
   const sendOtp = async (method: 'email' | 'phone') => {
     setLoading(true);
+    setDevOtp('');
     try {
       const response = await fetch('/api/send-otp', {
         method: 'POST',
@@ -168,7 +174,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         setResendCooldown(60);
         if (data.dev) {
           console.info(`[DEV] OTP sent: ${data.otp}`);
-          setError(`Dev Mode: Verification code is ${data.otp}`);
+          setDevOtp(data.otp);
+          if (data.otp) {
+            setOtp(data.otp.split(''));
+          }
         }
       } else {
         setError(data.message);
@@ -356,22 +365,38 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
               </div>
             )}
 
-            {mode === 'register' && (
+            {mode === 'register' ? (
               <div className="flex items-center gap-4 mb-6">
                 <div className="flex gap-3">
-                  <button className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 hover:bg-white hover:shadow-lg transition-all group">
+                  <button 
+                    type="button"
+                    onClick={() => alert('Facebook sign-in/up is not configured in this environment.')} 
+                    className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 hover:bg-white hover:shadow-lg transition-all group"
+                    title="Continue with Facebook"
+                  >
                     <div className="w-5 h-5 bg-blue-600 rounded flex items-center justify-center text-white font-black text-xs">f</div>
                   </button>
-                  <button className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 hover:bg-white hover:shadow-lg transition-all group">
-                    <div className="w-5 h-5 bg-blue-400 rounded flex items-center justify-center text-white font-black text-xs italic">in</div>
+                  <button 
+                    type="button" 
+                    onClick={handleGoogleSignIn}
+                    className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 hover:bg-white hover:shadow-lg transition-all group"
+                    title="Continue with Google"
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
                   </button>
                 </div>
                 <div className="h-px flex-1 bg-slate-100 ml-2" />
                 <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">or use email</span>
               </div>
-            ) || (
+            ) : (
               <div className="mb-8 p-1.5 bg-slate-50 rounded-[2rem] flex items-center gap-3 border border-slate-100">
                 <button 
+                  type="button"
                   onClick={handleGoogleSignIn}
                   className="flex-1 py-3.5 px-6 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center gap-3 group hover:scale-[1.02] transition-all"
                 >
@@ -381,7 +406,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
                     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                   </svg>
-                  <span className="text-[11px] font-black text-slate-700 uppercase tracking-widest">Continue with Google</span>
+                  <span className="text-[11px] font-black text-slate-700 uppercase tracking-widest">Google</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => alert('Facebook sign-in/up is not configured in this environment.')}
+                  className="flex-1 py-3.5 px-6 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center gap-3 group hover:scale-[1.02] transition-all"
+                >
+                  <div className="w-5 h-5 bg-blue-600 rounded flex items-center justify-center text-white font-black text-xs">f</div>
+                  <span className="text-[11px] font-black text-slate-700 uppercase tracking-widest">Facebook</span>
                 </button>
               </div>
             )}
@@ -410,6 +443,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                       </button>
                     </div>
                   </div>
+
+                  {devOtp && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-4 bg-emerald-50 border border-emerald-100/80 rounded-2xl flex flex-col items-center justify-center gap-1 text-center shadow-lg shadow-emerald-500/5 mb-4"
+                    >
+                      <span className="text-[10px] font-black uppercase text-emerald-800 tracking-wider">Localhost Dev Mode Active</span>
+                      <p className="text-[11px] font-semibold text-emerald-600/90 leading-relaxed">
+                        Verification code is <strong className="text-emerald-700 bg-white px-2.5 py-1 rounded-xl border border-emerald-200 shadow-sm text-sm font-bold ml-1">{devOtp}</strong> (Auto-filled below!)
+                      </p>
+                    </motion.div>
+                  )}
 
                   <div className="space-y-4">
                     <p className="text-[11px] text-slate-500 leading-relaxed">

@@ -14,7 +14,7 @@ interface FarmerDashboardProps {
 }
 
 export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile, activeTabProp, onTabChange }) => {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
@@ -35,22 +35,23 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
   };
 
   useEffect(() => {
-    if (!auth.currentUser) return;
+    const currentUid = auth.currentUser?.uid;
+    if (!currentUid) return;
 
     const fetchData = async () => {
       try {
         // Fetch products once
-        const qProds = query(collection(db, 'products'), where('farmerId', '==' , auth.currentUser!.uid));
+        const qProds = query(collection(db, 'products'), where('farmerId', '==', currentUid));
         const prodsSnap = await getDocs(qProds);
         setProducts(prodsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product)));
 
         // Fetch orders once
-        const qOrders = query(collection(db, 'orders'), where('farmerId', '==' , auth.currentUser!.uid));
+        const qOrders = query(collection(db, 'orders'), where('farmerId', '==', currentUid));
         const ordersSnap = await getDocs(qOrders);
         setOrders(ordersSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order)));
 
         // Fetch reviews once
-        const qReviews = query(collection(db, 'reviews'), where('farmerId', '==' , auth.currentUser!.uid));
+        const qReviews = query(collection(db, 'reviews'), where('farmerId', '==', currentUid));
         const reviewsSnap = await getDocs(qReviews);
         setReviews(reviewsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as any)));
       } catch (error) {
@@ -61,7 +62,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
     fetchData();
 
     // Keep conversations real-time as messaging needs it
-    const qConv = query(collection(db, 'conversations'), where('participants', 'array-contains', auth.currentUser!.uid));
+    const qConv = query(collection(db, 'conversations'), where('participants', 'array-contains', currentUid));
     const unsubscribeConv = onSnapshot(qConv, (snapshot) => {
       setConversations(snapshot.docs.map(doc => ({ ...doc.data() })));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'conversations'));
@@ -150,127 +151,129 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-12">
-      {/* Header Area */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-10 mb-12">
-        <div>
-          <div className="flex items-center gap-4 mb-3">
-            <div className="w-2 h-10 bg-primary rounded-full" />
-            <h1 className="text-4xl font-bold text-slate-800 tracking-tighter font-sans">Store <span className="italic text-primary font-serif">Management</span></h1>
+      {/* Header Area - Catalog & Stats only */}
+      {activeTab === 'inventory' && (
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-10 mb-12">
+          <div>
+            <div className="flex items-center gap-4 mb-3">
+              <div className="w-2 h-10 bg-primary rounded-full" />
+              <h1 className="text-4xl font-bold text-slate-800 tracking-tighter font-sans">Store <span className="italic text-primary font-serif">Management</span></h1>
+            </div>
+            <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-[10px]">Real-time operational overview for {profile?.farmName || "Your Farm"}.</p>
           </div>
-          <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-[10px]">Real-time operational overview for {profile?.farmName || "Your Farm"}.</p>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={onEditProfile}
-            className="px-6 py-3 bg-white text-slate-600 font-bold text-[10px] uppercase tracking-widest rounded-2xl transition-all border border-slate-100 shadow-sm hover:shadow-md active:scale-95 flex items-center gap-3"
-          >
-            <User className="w-4 h-4" /> Profile Settings
-          </button>
-          <button 
-            onClick={() => handleTabChange('messages')}
-            className="px-6 py-3 bg-white text-slate-600 font-bold text-[10px] uppercase tracking-widest rounded-2xl transition-all border border-slate-100 shadow-sm hover:shadow-md active:scale-95 flex items-center gap-3 relative"
-          >
-            <MessageSquare className="w-4 h-4" /> Messages
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white" />
-          </button>
-        </div>
-      </div>
-
-      {/* Stats Row - Professional Analytics Style */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-16">
-        <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Active Products</p>
-          <div className="flex items-end gap-3">
-            <h3 className="text-4xl font-black text-slate-800 tracking-tighter">{products.length}</h3>
-            <span className="text-[10px] font-bold text-slate-400 mb-1.5 italic font-sans tracking-widest">Listed Products</span>
-          </div>
-          <Package className="absolute right-6 bottom-6 w-12 h-12 text-slate-50 -mb-2 -mr-2" />
-        </div>
-
-        <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Top Performer</p>
+          
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-500">
-              <Star className="w-5 h-5 fill-amber-500" />
-            </div>
-            <div className="overflow-hidden">
-              <h3 className="text-lg font-bold text-slate-800 tracking-tight truncate">
-                {products.sort((a,b) => (b.rating || 0) - (a.rating || 0))[0]?.name || '---'}
-              </h3>
-              <p className="text-[10px] font-medium text-slate-400">Winning Item</p>
-            </div>
+            <button 
+              onClick={onEditProfile}
+              className="px-6 py-3 bg-white text-slate-600 font-bold text-[10px] uppercase tracking-widest rounded-2xl transition-all border border-slate-100 shadow-sm hover:shadow-md active:scale-95 flex items-center gap-3"
+            >
+              <User className="w-4 h-4" /> Profile Settings
+            </button>
+            <button 
+              onClick={() => handleTabChange('messages')}
+              className="px-6 py-3 bg-white text-slate-600 font-bold text-[10px] uppercase tracking-widest rounded-2xl transition-all border border-slate-100 shadow-sm hover:shadow-md active:scale-95 flex items-center gap-3 relative"
+            >
+              <MessageSquare className="w-4 h-4" /> Messages
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white" />
+            </button>
           </div>
         </div>
+      )}
 
-        <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Performance</p>
-          <div className="flex items-center gap-4">
-            <div className="relative w-12 h-12 flex items-center justify-center">
-              <svg className="w-full h-full rotate-[-90deg] absolute">
-                <circle cx="24" cy="24" r="20" fill="none" stroke="#f8fafc" strokeWidth="4" />
-                <circle cx="24" cy="24" r="20" fill="none" stroke="#10b981" strokeWidth="4" strokeDasharray="125" strokeDashoffset="30" strokeLinecap="round" />
-              </svg>
-              <span className="text-[9px] font-bold text-emerald-600 relative z-10">82%</span>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-slate-800 tracking-tight font-sans leading-none mb-1">Good!</h3>
-              <p className="text-[10px] font-medium text-slate-400">Quality Score</p>
-            </div>
-          </div>
+      {/* Title Specific Headers for Feedback and Client Inbox */}
+      {activeTab === 'feedback' && (
+        <div className="flex items-center gap-4 mb-10">
+          <div className="w-2 h-10 bg-primary rounded-full" />
+          <h1 className="text-4xl font-bold text-slate-800 tracking-tighter font-sans">Customer <span className="italic text-primary font-serif">Feedback & Reviews</span></h1>
         </div>
+      )}
 
-        <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Sales Value</p>
-          <div className="flex items-end gap-3">
-            <h3 className="text-4xl font-black text-primary tracking-tighter">₱{totalSales.toLocaleString()}</h3>
-            <span className="text-[10px] font-bold text-emerald-500 mb-1.5">+12.4%</span>
+      {activeTab === 'messages' && (
+        <div className="flex items-center gap-4 mb-10">
+          <div className="w-2 h-10 bg-primary rounded-full" />
+          <h1 className="text-4xl font-bold text-slate-800 tracking-tighter font-sans">Client <span className="italic text-primary font-serif">Inbox</span></h1>
+        </div>
+      )}
+
+      {/* Stats Row - Catalog & Stats only */}
+      {activeTab === 'inventory' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-16">
+          <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Active Products</p>
+            <div className="flex items-end gap-3">
+              <h3 className="text-4xl font-black text-slate-800 tracking-tighter">{products.length}</h3>
+              <span className="text-[10px] font-bold text-slate-400 mb-1.5 italic font-sans tracking-widest">Listed Products</span>
+            </div>
+            <Package className="absolute right-6 bottom-6 w-12 h-12 text-slate-50 -mb-2 -mr-2" />
+          </div>
+
+          <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Top Performer</p>
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-500">
+                <Star className="w-5 h-5 fill-amber-500" />
+              </div>
+              <div className="overflow-hidden">
+                <h3 className="text-lg font-bold text-slate-800 tracking-tight truncate">
+                  {products.sort((a,b) => (b.rating || 0) - (a.rating || 0))[0]?.name || '---'}
+                </h3>
+                <p className="text-[10px] font-medium text-slate-400">Winning Item</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Performance</p>
+            <div className="flex items-center gap-4">
+              <div className="relative w-12 h-12 flex items-center justify-center">
+                <svg className="w-full h-full rotate-[-90deg] absolute">
+                  <circle cx="24" cy="24" r="20" fill="none" stroke="#f8fafc" strokeWidth="4" />
+                  <circle cx="24" cy="24" r="20" fill="none" stroke="#10b981" strokeWidth="4" strokeDasharray="125" strokeDashoffset="30" strokeLinecap="round" />
+                </svg>
+                <span className="text-[9px] font-bold text-emerald-600 relative z-10">82%</span>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 tracking-tight font-sans leading-none mb-1">Good!</h3>
+                <p className="text-[10px] font-medium text-slate-400">Quality Score</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Sales Value</p>
+            <div className="flex items-end gap-3">
+              <h3 className="text-4xl font-black text-primary tracking-tighter">₱{totalSales.toLocaleString()}</h3>
+              <span className="text-[10px] font-bold text-emerald-500 mb-1.5">+12.4%</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="space-y-16">
-        {/* Main Panel with Tabs */}
+        {/* Main Panel */}
         <div className="space-y-10">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 px-4">
-            <div className="flex items-center gap-10">
-              <button 
-                onClick={() => handleTabChange('inventory')}
-                className={`text-xl font-bold tracking-tight transition-all pb-4 border-b-2 ${activeTab === 'inventory' ? 'text-slate-800 border-primary' : 'text-slate-300 border-transparent hover:text-slate-400'}`}
-              >
-                Product Inventory
-              </button>
-              <button 
-                onClick={() => handleTabChange('feedback')}
-                className={`text-xl font-bold tracking-tight transition-all pb-4 border-b-2 ${activeTab === 'feedback' ? 'text-slate-800 border-primary' : 'text-slate-300 border-transparent hover:text-slate-400'}`}
-              >
-                Feedback
-              </button>
-              <button 
-                onClick={() => handleTabChange('messages')}
-                className={`text-xl font-bold tracking-tight transition-all pb-4 border-b-2 ${activeTab === 'messages' ? 'text-slate-800 border-primary' : 'text-slate-300 border-transparent hover:text-slate-400'}`}
-              >
-                Messages
-              </button>
-            </div>
+          {activeTab === 'inventory' && (
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 px-4">
+              <h2 className="text-xl font-bold text-slate-800 tracking-tight font-sans">Produce & Crop Catalog</h2>
 
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <input 
-                  type="text" 
-                  placeholder="Search produce..." 
-                  className="pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-[2rem] text-xs focus:ring-2 focus:ring-primary/10 outline-none w-72 transition-all shadow-sm"
-                />
-                <Package className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    placeholder="Search produce..." 
+                    className="pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-[2rem] text-xs focus:ring-2 focus:ring-primary/10 outline-none w-72 transition-all shadow-sm"
+                  />
+                  <Package className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                </div>
+                <button 
+                  onClick={() => { setEditingProduct(null); setShowAddModal(true); }}
+                  className="px-8 py-4 bg-primary text-white rounded-[2rem] text-xs font-bold uppercase tracking-widest hover:bg-primary-dark transition-all shadow-xl shadow-primary/20 flex items-center gap-3"
+                >
+                  <Plus className="w-4 h-4" /> Add Item
+                </button>
               </div>
-              <button 
-                onClick={() => { setEditingProduct(null); setShowAddModal(true); }}
-                className="px-8 py-4 bg-primary text-white rounded-[2rem] text-xs font-bold uppercase tracking-widest hover:bg-primary-dark transition-all shadow-xl shadow-primary/20 flex items-center gap-3"
-              >
-                <Plus className="w-4 h-4" /> Add Item
-              </button>
             </div>
-          </div>
+          )}
           
           <AnimatePresence mode="wait">
             {activeTab === 'inventory' ? (
@@ -657,7 +660,6 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: string; 
   </div>
 );
 
-import { GoogleGenAI, Type } from "@google/genai";
 
 const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => void }> = ({ initialData, onClose }) => {
   const { profile } = useAuth();
@@ -692,25 +694,23 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
     if (!formData.name) return;
     setAiLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Recommend a fair market price in Philippine Pesos (PHP) for ${formData.name} in the category of ${formData.category}. Consider seasonal trends. Return only the number.`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              recommendedPrice: { type: Type.NUMBER }
-            },
-            required: ["recommendedPrice"]
-          }
-        }
+      const response = await fetch('/api/gemini/price-suggestion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          category: formData.category
+        })
       });
+      const data = await response.json();
       
-      const result = JSON.parse(response.text);
-      if (result.recommendedPrice) {
-        setFormData(prev => ({ ...prev, price: result.recommendedPrice }));
+      if (data.success && data.text) {
+        const result = JSON.parse(data.text);
+        if (result.recommendedPrice) {
+          setFormData(prev => ({ ...prev, price: result.recommendedPrice }));
+        }
+      } else {
+        console.error("AI Price suggestion API error:", data.error);
       }
     } catch (err) {
       console.error("AI Error:", err);

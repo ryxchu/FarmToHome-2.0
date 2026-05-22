@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Bot, User, Loader2, Languages, Globe } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 
 export const AIChatbot: React.FC = () => {
@@ -40,26 +39,22 @@ export const AIChatbot: React.FC = () => {
     setLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          { role: 'user', parts: [{ text: userMsg }] }
-        ],
-        config: {
-          systemInstruction: `You are the official FarmToHome support bot. 
-You assist users with order status, farming techniques, and platform navigation. 
-Be warm, professional, and knowledgeable about organic farming.
-IMPORTANT: 
-- Always respond in ${language === 'tagalog' ? 'Tagalog' : 'English'}.
-- If you are providing steps, instructions, or lists, MUST use bullet points or numbered lists.
-- User Markdown formatting for better readability (bold, italic, lists).
-- Keep responses concise but helpful.`
-        }
+      const response = await fetch('/api/gemini/support-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMsg,
+          language,
+          history: messages
+        })
       });
-      const text = response.text;
+      const data = await response.json();
 
-      setMessages(prev => [...prev, { role: 'bot', text: text || "I'm sorry, I couldn't process that. Can you try again?" }]);
+      if (data.success && data.text) {
+        setMessages(prev => [...prev, { role: 'bot', text: data.text }]);
+      } else {
+        setMessages(prev => [...prev, { role: 'bot', text: data.error || "I'm sorry, I couldn't process that. Can you try again?" }]);
+      }
     } catch (err) {
       console.error(err);
       setMessages(prev => [...prev, { role: 'bot', text: "Sorry, I'm having trouble connecting right now. Please try again later." }]);

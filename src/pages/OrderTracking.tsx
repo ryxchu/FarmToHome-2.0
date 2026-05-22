@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, addDoc, doc, updateDoc, getDoc, getDocs } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType, isQuotaError } from '../lib/firebase';
+import { useAuth } from '../context/AuthContext';
 import { Order, Review, Product } from '../types';
 import { Package, Truck, CheckCircle2, Clock, Map as MapIcon, Star, Camera, X, ShoppingBag, ArrowRight, AlertCircle, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const OrderTracking: React.FC = () => {
+  const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -15,12 +17,13 @@ export const OrderTracking: React.FC = () => {
   const [cancellingOrder, setCancellingOrder] = useState(false);
 
   useEffect(() => {
-    if (!auth.currentUser) return;
+    const currentUid = auth.currentUser?.uid;
+    if (!currentUid) return;
     
     const fetchOrders = async () => {
       try {
         setLoading(true);
-        const q = query(collection(db, 'orders'), where('buyerId', '==', auth.currentUser!.uid));
+        const q = query(collection(db, 'orders'), where('buyerId', '==', currentUid));
         const snapshot = await getDocs(q);
         const ords = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order)).sort((a, b) => {
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();

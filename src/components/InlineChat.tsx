@@ -9,6 +9,7 @@ import { motion } from 'motion/react';
 interface InlineChatProps {
   conversationId: string;
   recipientProfile: UserProfile;
+  onBack?: () => void;
 }
 
 interface Message {
@@ -18,7 +19,7 @@ interface Message {
   createdAt: any;
 }
 
-export const InlineChat: React.FC<InlineChatProps> = ({ conversationId, recipientProfile }) => {
+export const InlineChat: React.FC<InlineChatProps> = ({ conversationId, recipientProfile, onBack }) => {
   const { profile } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -94,9 +95,17 @@ export const InlineChat: React.FC<InlineChatProps> = ({ conversationId, recipien
   return (
     <div className="flex flex-col h-full bg-white overflow-hidden">
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 p-6 flex justify-between items-center relative z-10 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-accent-light p-0.5 overflow-hidden border border-slate-100 shadow-sm">
+      <div className="bg-white border-b border-slate-100 p-4 sm:p-6 flex justify-between items-center relative z-10 shadow-sm animate-fade-in">
+        <div className="flex items-center gap-3 sm:gap-4">
+          {onBack && (
+            <button 
+              onClick={onBack}
+              className="p-2.5 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-xl transition-all border border-slate-100 md:hidden"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-arrow-left"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            </button>
+          )}
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-accent-light p-0.5 overflow-hidden border border-slate-100 shadow-sm">
             {recipientProfile.photoURL ? (
               <img src={recipientProfile.photoURL} alt="" className="w-full h-full object-cover bg-white" />
             ) : (
@@ -104,10 +113,10 @@ export const InlineChat: React.FC<InlineChatProps> = ({ conversationId, recipien
             )}
           </div>
           <div>
-            <h3 className="text-xl font-bold tracking-tight font-serif italic text-slate-800">{recipientProfile.farmName || recipientProfile.fullName}</h3>
+            <h3 className="text-lg sm:text-xl font-bold tracking-tight font-serif italic text-slate-800">{recipientProfile.farmName || recipientProfile.fullName}</h3>
             <div className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-              <p className="text-[11px] text-slate-400 capitalize tracking-widest font-bold">Online</p>
+              <p className="text-[10px] sm:text-[11px] text-slate-400 capitalize tracking-widest font-bold">Online</p>
             </div>
           </div>
         </div>

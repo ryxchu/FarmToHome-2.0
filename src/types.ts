@@ -76,6 +76,8 @@ export interface Order {
   deliveryAddress: string;
   contactNumber: string;
   paymentMethod: string;
+  buyerMessage?: string | null;
+  shippingMethod?: string | null;
   disputeStatus?: 'none' | 'opened' | 'resolved' | 'refunded';
   disputeReason?: string;
   platformFee?: number;

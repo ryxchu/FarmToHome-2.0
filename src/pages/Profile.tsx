@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { User, Mail, Phone, Shield, Calendar, MapPin, Award, X, Save, Loader2, Image as ImageIcon, Star } from 'lucide-react';
+import { User, Mail, Phone, Shield, Calendar, MapPin, Award, X, Save, Loader2, Image as ImageIcon, Star, LogOut, Package, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, auth } from '../lib/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
 
 enum OperationType {
   CREATE = 'create',
@@ -43,10 +43,12 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 }
 
 export const Profile: React.FC = () => {
-  const { profile } = useAuth();
+  const { profile, logout } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [orders, setOrders] = useState<any[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
   
   const [editForm, setEditForm] = useState({
     fullName: profile?.fullName || '',
@@ -60,6 +62,32 @@ export const Profile: React.FC = () => {
     photoURL: profile?.photoURL || '',
     coordinates: profile?.coordinates || null,
   });
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      if (!profile?.uid || profile?.role !== 'buyer') return;
+      setOrdersLoading(true);
+      try {
+        const q = query(
+          collection(db, 'orders'),
+          where('buyerId', '==', profile.uid),
+          orderBy('createdAt', 'desc'),
+          limit(10)
+        );
+        const snapshot = await getDocs(q);
+        const fetchedOrders = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setOrders(fetchedOrders);
+      } catch (err) {
+        console.error("Error fetching orders in profile", err);
+      } finally {
+        setOrdersLoading(false);
+      }
+    };
+    fetchOrders();
+  }, [profile?.uid, profile?.role]);
 
   if (!profile) return null;
 
@@ -141,86 +169,95 @@ export const Profile: React.FC = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto py-16 px-6">
+    <div className="max-w-5xl mx-auto py-6 sm:py-16 px-4 sm:px-6">
       <motion.div 
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-[4rem] shadow-2xl overflow-hidden border-4 border-white forest-shadow"
+        className="bg-white rounded-[2.5rem] sm:rounded-[4rem] shadow-2xl overflow-hidden border-2 sm:border-4 border-white forest-shadow"
       >
         {/* Banner */}
-        <div className="h-64 bg-primary relative overflow-hidden">
+        <div className="h-40 sm:h-64 bg-primary relative overflow-hidden">
           <div className="absolute inset-0 opacity-20">
             <img src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=2000" className="w-full h-full object-cover grayscale" />
           </div>
-          <div className="absolute -bottom-20 left-16 p-2 bg-white rounded-[2.5rem] shadow-2xl border-4 border-accent-light">
-            <div className="w-40 h-40 rounded-[2rem] bg-accent-light flex items-center justify-center overflow-hidden border border-primary/5">
+          <div className="absolute -bottom-14 sm:-bottom-20 left-1/2 -translate-x-1/2 sm:left-16 sm:translate-x-0 p-1.5 sm:p-2 bg-white rounded-[1.75rem] sm:rounded-[2.5rem] shadow-2xl border-[3px] sm:border-4 border-accent-light">
+            <div className="w-28 h-28 sm:w-40 sm:h-40 rounded-[1.25rem] sm:rounded-[2rem] bg-accent-light flex items-center justify-center overflow-hidden border border-primary/5">
               {profile.photoURL ? (
                 <img src={profile.photoURL} alt="Profile Picture" className="w-full h-full object-contain bg-slate-50" />
               ) : (
-                <User className="w-20 h-20 text-primary opacity-20" />
+                <User className="w-12 h-12 sm:w-20 sm:h-20 text-primary opacity-20" />
               )}
             </div>
           </div>
         </div>
 
-        <div className="pt-28 px-16 pb-16">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-10 mb-16">
-            <div>
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-2 h-10 bg-secondary rounded-full" />
-                <h1 className="text-5xl font-bold text-slate-800 tracking-tighter font-serif italic">{profile.fullName}</h1>
+        <div className="pt-20 sm:pt-28 px-4 sm:px-10 md:px-16 pb-10 sm:pb-16 animate-fade-in">
+          <div className="flex flex-col md:flex-row justify-between items-center sm:items-start md:items-center gap-6 sm:gap-10 mb-10 sm:mb-16 text-center sm:text-left">
+            <div className="flex flex-col items-center sm:items-start w-full md:w-auto">
+              <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 mb-3 sm:mb-4">
+                <div className="w-2 h-10 bg-secondary rounded-full hidden sm:block" />
+                <h1 className="text-3xl sm:text-5xl font-bold text-slate-800 tracking-tighter font-serif italic text-balance">{profile.fullName}</h1>
               </div>
-              <div className="flex flex-wrap items-center gap-6">
-                <span className="px-5 py-2 bg-primary text-white text-[10px] font-bold uppercase tracking-[0.4em] rounded-full shadow-lg shadow-primary/20">
+              <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-6">
+                <span className="px-5 py-2 bg-primary text-white text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.4em] rounded-full shadow-lg shadow-primary/20">
                   {profile.role === 'buyer' ? 'Local Buyer' : 'Local Farmer'}
                 </span>
-                <span className="flex items-center gap-2.5 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-                  <MapPin className="w-4 h-4 text-primary" />
+                <span className="flex items-center gap-2 text-slate-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-center">
+                  <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
                   {profile.role === 'farmer' ? (profile.farmAddress || 'Farm Address Not Set') : (profile.address || 'Address Not Set')}
                 </span>
               </div>
             </div>
-            <button 
-              onClick={openEdit}
-              className="group flex items-center gap-4 px-10 py-5 bg-accent-light text-primary rounded-full font-bold border-2 border-primary/5 hover:border-primary/20 transition-all active:scale-95 text-[10px] uppercase tracking-widest shadow-inner"
-            >
-              <Save className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-              Edit Profile
-            </button>
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto shrink-0">
+              <button 
+                onClick={openEdit}
+                className="group flex items-center justify-center gap-3 w-full sm:w-auto px-8 py-4 sm:px-10 sm:py-5 bg-accent-light text-primary rounded-full font-bold border-2 border-primary/5 hover:border-primary/20 transition-all active:scale-95 text-[10px] uppercase tracking-widest shadow-inner shrink-0"
+              >
+                <Save className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                Edit Profile
+              </button>
+              <button 
+                onClick={() => logout()}
+                className="group flex items-center justify-center gap-3 w-full sm:w-auto px-8 py-4 sm:px-10 sm:py-5 bg-rose-50 text-rose-600 rounded-full font-bold border-2 border-rose-100 hover:border-rose-200 transition-all active:scale-95 text-[10px] uppercase tracking-widest shadow-sm shrink-0"
+              >
+                <LogOut className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+                Sign Out
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-16">
-            <div className="lg:col-span-2 space-y-16">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 sm:gap-16">
+            <div className="lg:col-span-2 space-y-10 sm:space-y-16">
               {profile.role === 'farmer' && (
-                <div className="space-y-8">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="p-3 bg-accent-light rounded-2xl">
-                      <Award className="w-6 h-6 text-primary" />
+                <div className="space-y-6 sm:space-y-8">
+                  <div className="flex items-center gap-3 sm:gap-4 mb-2">
+                    <div className="p-2.5 bg-accent-light rounded-xl">
+                      <Award className="w-5.5 h-5.5 text-primary" />
                     </div>
-                    <h3 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.4em]">Farm Details</h3>
+                    <h3 className="text-[11px] sm:text-[12px] font-bold text-slate-400 uppercase tracking-[0.4em]">Farm Details</h3>
                   </div>
-                  <div className="bg-background p-12 rounded-[3.5rem] border-2 border-border space-y-10 text-slate-600 leading-relaxed shadow-inner">
-                    <div className="relative pl-10 border-l-4 border-primary/20">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.5em] mb-4 leading-none italic">Our Story</p>
-                      <p className="text-xl font-serif italic text-slate-700 leading-relaxed opacity-80">"{profile.farmStory || 'No story shared yet.'}"</p>
+                  <div className="bg-background p-6 sm:p-12 rounded-[2rem] sm:rounded-[3.5rem] border-2 border-stone-200/50 space-y-8 sm:space-y-10 text-slate-600 leading-relaxed shadow-inner">
+                    <div className="relative pl-6 sm:pl-10 border-l-4 border-primary/20">
+                      <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-[0.5em] mb-3 leading-none italic">Our Story</p>
+                      <p className="text-lg sm:text-xl font-serif italic text-slate-700 leading-relaxed opacity-80">"{profile.farmStory || 'No story shared yet.'}"</p>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 sm:gap-10">
                       <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.4em] mb-3 leading-none underline decoration-primary/20 underline-offset-8">Growing Methods</p>
-                        <p className="text-base font-bold text-slate-800 font-serif italic">{profile.farmingMethods || 'Standard farming practices'}</p>
+                        <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-[0.4em] mb-2 sm:mb-3 leading-none underline decoration-primary/20 underline-offset-8">Growing Methods</p>
+                        <p className="text-sm sm:text-base font-bold text-slate-800 font-serif italic">{profile.farmingMethods || 'Standard farming practices'}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.4em] mb-5 leading-none underline decoration-primary/20 underline-offset-8">Certifications</p>
-                        <div className="flex flex-wrap gap-3">
+                        <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-[0.4em] mb-4 leading-none underline decoration-primary/20 underline-offset-8">Certifications</p>
+                        <div className="flex flex-wrap gap-2.5">
                           {profile.certifications && profile.certifications.length > 0 ? (
                             profile.certifications.map(cert => (
-                              <span key={cert} className="px-4 py-2 bg-white border-2 border-primary/5 rounded-2xl text-[9px] font-bold text-primary uppercase tracking-widest flex items-center gap-2 shadow-sm">
+                              <span key={cert} className="px-3 py-1.5 bg-white border-2 border-primary/5 rounded-xl text-[8.5px] font-bold text-primary uppercase tracking-widest flex items-center gap-1.5 shadow-sm">
                                 <Shield className="w-3 h-3 text-secondary" />
                                 {cert}
                               </span>
                             ))
                           ) : (
-                            <p className="text-sm font-bold text-slate-300 italic">No certifications listed</p>
+                            <p className="text-xs sm:text-sm font-bold text-slate-300 italic">No certifications listed</p>
                           )}
                         </div>
                       </div>
@@ -229,30 +266,102 @@ export const Profile: React.FC = () => {
                 </div>
               )}
 
-              <div className="space-y-8">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="p-3 bg-accent-light rounded-2xl">
-                    <Phone className="w-6 h-6 text-primary" />
+              {profile.role === 'buyer' && (
+                <div className="space-y-6 sm:space-y-8 animate-fade-in">
+                  <div className="flex items-center gap-3 sm:gap-4 mb-2">
+                    <div className="p-2.5 bg-accent-light rounded-xl">
+                      <Package className="w-5.5 h-5.5 text-primary" />
+                    </div>
+                    <h3 className="text-[11px] sm:text-[12px] font-bold text-slate-400 uppercase tracking-[0.4em]">Sourced Purchase History</h3>
                   </div>
-                  <h3 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.4em]">Contact Information</h3>
+
+                  <div className="bg-white p-6 sm:p-10 rounded-[2.5rem] border-2 border-stone-200/50 shadow-inner space-y-6">
+                    {ordersLoading ? (
+                      <div className="flex flex-col items-center justify-center py-12 space-y-3">
+                        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                        <span className="text-[10px] uppercase font-black tracking-widest text-slate-400">Loading purchase ledger...</span>
+                      </div>
+                    ) : orders.length > 0 ? (
+                      <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1 no-scrollbar-y">
+                        {orders.map((order) => (
+                          <div key={order.id} className="p-4 bg-stone-50 rounded-2xl border border-stone-150 space-y-3 hover:border-primary/25 transition-all">
+                            <div className="flex justify-between items-center pb-2 border-b border-stone-200/50">
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                <span className="text-[10px] font-mono text-slate-500">
+                                  {new Date(order.createdAt).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <span className={`text-[8.5px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full ${
+                                order.status === 'delivered' ? 'bg-emerald-50 text-emerald-600 border border-emerald-150' :
+                                order.status === 'shipping' ? 'bg-amber-50 text-amber-600 border border-amber-150' :
+                                'bg-sky-50 text-sky-600 border border-sky-150'
+                              }`}>
+                                {order.status}
+                              </span>
+                            </div>
+
+                            <div className="space-y-1">
+                              {order.items?.map((item: any, idx: number) => (
+                                <div key={idx} className="flex justify-between items-center text-xs">
+                                  <span className="text-slate-700 font-medium">{item.name} <strong className="text-primary font-bold">x{item.quantity}</strong></span>
+                                  <span className="text-slate-400 font-mono">₱{item.price * item.quantity}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            <div className="pt-2 border-t border-stone-200/50 flex justify-between items-end">
+                              <div>
+                                <p className="text-[8px] font-extrabold uppercase text-slate-400 tracking-widest leading-none mb-0.5">Payment Method</p>
+                                <p className="text-[10px] font-bold text-slate-600">{order.paymentMethod || 'Cash on Delivery'}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-[8px] font-extrabold uppercase text-slate-400 tracking-widest leading-none mb-0.5">Total Paid</p>
+                                <p className="text-sm font-black text-[#e65c00]">₱{order.total}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-10 space-y-3">
+                        <div className="w-14 h-14 rounded-full bg-stone-50 flex items-center justify-center mx-auto text-slate-300 border border-stone-200/50">
+                          <Package className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold font-serif italic text-slate-400">No sourced purchases yet</p>
+                          <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Your ordered crops will be logged here</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-                  <div className="flex items-center gap-6 p-8 bg-white rounded-[2.5rem] border-2 border-border shadow-xl clay-shadow hover:scale-[1.02] transition-transform">
-                    <div className="w-14 h-14 rounded-2xl bg-accent-light flex items-center justify-center text-primary shadow-inner border border-primary/5">
-                      <Mail className="w-7 h-7" />
+              )}
+
+              <div className="space-y-6 sm:space-y-8">
+                <div className="flex items-center gap-3 sm:gap-4 mb-2">
+                  <div className="p-2.5 bg-accent-light rounded-xl">
+                    <Phone className="w-5.5 h-5.5 text-primary" />
+                  </div>
+                  <h3 className="text-[11px] sm:text-[12px] font-bold text-slate-400 uppercase tracking-[0.4em]">Contact Information</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8">
+                  <div className="flex items-center gap-4 sm:gap-6 p-6 sm:p-8 bg-white rounded-[2rem] border-2 border-stone-200/50 shadow-xl clay-shadow hover:scale-[1.01] transition-transform">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-accent-light flex items-center justify-center text-primary shadow-inner border border-primary/5 shrink-0">
+                      <Mail className="w-6 h-6 sm:w-7 sm:h-7" />
                     </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mb-1">Email</p>
-                      <p className="text-sm font-bold text-slate-800 truncate w-40 font-serif">{profile.email}</p>
+                    <div className="min-w-0">
+                      <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mb-1">Email</p>
+                      <p className="text-xs sm:text-sm font-bold text-slate-800 truncate font-serif">{profile.email}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-6 p-8 bg-white rounded-[2.5rem] border-2 border-border shadow-xl clay-shadow hover:scale-[1.02] transition-transform">
-                    <div className="w-14 h-14 rounded-2xl bg-accent-light flex items-center justify-center text-primary shadow-inner border border-primary/5">
-                      <Phone className="w-7 h-7" />
+                  <div className="flex items-center gap-4 sm:gap-6 p-6 sm:p-8 bg-white rounded-[2rem] border-2 border-stone-200/50 shadow-xl clay-shadow hover:scale-[1.01] transition-transform">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-accent-light flex items-center justify-center text-primary shadow-inner border border-primary/5 shrink-0">
+                      <Phone className="w-6 h-6 sm:w-7 sm:h-7" />
                     </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mb-1">Phone Number</p>
-                      <p className="text-sm font-bold text-slate-800 font-serif">{profile.phone || 'Not set'}</p>
+                    <div className="min-w-0">
+                      <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mb-1">Phone Number</p>
+                      <p className="text-xs sm:text-sm font-bold text-slate-800 font-serif">{profile.phone || 'Not set'}</p>
                     </div>
                   </div>
                 </div>
@@ -260,25 +369,25 @@ export const Profile: React.FC = () => {
             </div>
 
             <div className="space-y-10">
-              <div className="p-10 bg-primary rounded-[4rem] text-white relative overflow-hidden shadow-2xl forest-shadow group">
+              <div className="p-8 sm:p-10 bg-primary rounded-[2.5rem] sm:rounded-[4rem] text-white relative overflow-hidden shadow-2xl forest-shadow group">
                 <div className="absolute top-0 right-0 w-40 h-40 bg-secondary/10 rounded-full -mr-20 -mt-20 group-hover:scale-150 transition-transform duration-1000" />
-                <div className="flex items-center gap-5 mb-12 relative z-10">
-                  <div className="w-16 h-16 rounded-[1.5rem] bg-white/10 backdrop-blur-3xl border border-white/20 flex items-center justify-center text-accent-light shadow-inner">
-                    <Award className="w-8 h-8" />
+                <div className="flex items-center gap-4 sm:gap-5 mb-10 sm:mb-12 relative z-10">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-[1.25rem] sm:rounded-[1.5rem] bg-white/10 backdrop-blur-3xl border border-white/20 flex items-center justify-center text-accent-light shadow-inner">
+                    <Award className="w-7 h-7 sm:w-8 sm:h-8" />
                   </div>
                   <div>
-                    <p className="text-xl font-bold font-serif italic text-accent-light">{profile.role === 'farmer' ? 'Farmer Profile' : 'Buyer Profile'}</p>
-                    <p className="text-[9px] text-white/40 font-bold uppercase tracking-[0.4em]">Level 04</p>
+                    <p className="text-lg sm:text-xl font-bold font-serif italic text-accent-light">{profile.role === 'farmer' ? 'Farmer Profile' : 'Buyer Profile'}</p>
+                    <p className="text-[8.5px] sm:text-[9px] text-white/40 font-bold uppercase tracking-[0.4em]">Level 04</p>
                   </div>
                 </div>
 
-                <div className="space-y-8 relative z-10">
+                <div className="space-y-6 sm:space-y-8 relative z-10">
                   <div>
-                    <div className="flex justify-between text-[10px] font-bold text-accent-light uppercase tracking-widest mb-3 opacity-60">
+                    <div className="flex justify-between text-[8.5px] sm:text-[10px] font-bold text-accent-light uppercase tracking-widest mb-2.5 opacity-60">
                       <span>{profile.role === 'farmer' ? 'TOTAL YIELD' : 'TOTAL PURCHASES'}</span>
                       <span className="text-white">65% Progress</span>
                     </div>
-                    <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                    <div className="h-1.5 sm:h-2 bg-white/10 rounded-full overflow-hidden">
                       <motion.div 
                         initial={{ width: 0 }}
                         animate={{ width: '65%' }}
@@ -287,11 +396,11 @@ export const Profile: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <div className="flex justify-between text-[10px] font-bold text-accent-light uppercase tracking-widest mb-3 opacity-60">
+                    <div className="flex justify-between text-[8.5px] sm:text-[10px] font-bold text-accent-light uppercase tracking-widest mb-2.5 opacity-60">
                       <span>{profile.role === 'farmer' ? 'ECO IMPACT' : 'SAVINGS'}</span>
                       <span className="text-white">40% Rank</span>
                     </div>
-                    <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                    <div className="h-1.5 sm:h-2 bg-white/10 rounded-full overflow-hidden">
                       <motion.div 
                         initial={{ width: 0 }}
                         animate={{ width: '40%' }}
@@ -301,8 +410,8 @@ export const Profile: React.FC = () => {
                   </div>
                 </div>
                 
-                <div className="mt-12 pt-12 border-t border-white/5 opacity-40">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.5em] text-center">Active Member since 2024</p>
+                <div className="mt-10 sm:mt-12 pt-8 sm:pt-12 border-t border-white/5 opacity-40">
+                  <p className="text-[8.5px] sm:text-[9px] font-bold uppercase tracking-[0.5em] text-center">Active Member since 2024</p>
                 </div>
               </div>
             </div>

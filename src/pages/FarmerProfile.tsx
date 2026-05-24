@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, getDoc, collection, query, where, getDocs, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { UserProfile, Product } from '../types';
-import { MapPin, ShieldCheck, ChevronLeft, Calendar, Leaf, Award, Star, Plus, Sun, BadgeCheck, MessageSquare } from 'lucide-react';
+import { MapPin, ShieldCheck, ChevronLeft, Calendar, Leaf, Award, Star, Plus, Sun, BadgeCheck, MessageSquare, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Chat } from '../components/Chat';
 import { useAuth } from '../context/AuthContext';
@@ -149,15 +149,37 @@ export const FarmerProfile: React.FC<FarmerProfileProps> = ({ farmerId, onBack, 
              <div>
                <p className="text-[10px] font-bold text-secondary uppercase tracking-[0.5em] mb-4 font-serif italic">Verified Farmer</p>
                <h1 className="text-6xl font-bold text-slate-800 tracking-tighter mb-4 font-serif">{farmer.farmName}</h1>
-               <div className="flex flex-wrap items-center gap-4 text-slate-500">
-                  <div className="flex items-center gap-3 px-5 py-2.5 bg-white rounded-2xl border border-border shadow-sm">
-                    <MapPin className="w-4 h-4 text-primary" />
-                    <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">{farmer.farmAddress}</span>
-                  </div>
-                  <div className="flex items-center gap-3 px-5 py-2.5 bg-white rounded-2xl border border-border shadow-sm">
-                    <Calendar className="w-4 h-4 text-primary" />
-                    <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">Since {new Date(farmer.createdAt).getFullYear()}</span>
-                  </div>
+               <div className="flex flex-col gap-4">
+                 <div className="flex flex-wrap items-center gap-4 text-slate-500">
+                    <div className="flex items-center gap-3 px-5 py-2.5 bg-white rounded-2xl border border-border shadow-sm">
+                      <MapPin className="w-4 h-4 text-primary" />
+                      <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">{farmer.farmAddress}</span>
+                    </div>
+                    <div className="flex items-center gap-3 px-5 py-2.5 bg-white rounded-2xl border border-border shadow-sm">
+                      <Calendar className="w-4 h-4 text-primary" />
+                      <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">Since {new Date(farmer.createdAt).getFullYear()}</span>
+                    </div>
+                 </div>
+
+                 <div className="flex flex-wrap items-center gap-3 pt-1">
+                   <a 
+                     href={`tel:${farmer.phone || '09193604094'}`}
+                     className="inline-flex items-center gap-2 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all border border-emerald-500 shadow-lg shadow-emerald-500/10 hover:scale-105 active:scale-95"
+                   >
+                     <Phone className="w-4 h-4" /> Call Farmer Direct
+                   </a>
+                   <a 
+                     href={`sms:${farmer.phone || '09193604094'}`}
+                     className="inline-flex items-center gap-2 px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all border border-blue-500 shadow-lg shadow-blue-500/10 hover:scale-105 active:scale-95"
+                   >
+                     <MessageSquare className="w-4 h-4" /> Send Direct SMS
+                   </a>
+                   {farmer.phone && (
+                     <span className="text-[10px] font-bold text-slate-400 tracking-widest font-mono uppercase px-2">
+                       Direct Line: {farmer.phone}
+                     </span>
+                   )}
+                 </div>
                </div>
              </div>
           </div>

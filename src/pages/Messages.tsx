@@ -74,15 +74,15 @@ export const Messages: React.FC = () => {
 
   return (
     <div className="w-full h-[calc(100vh-73px)] flex flex-col bg-slate-50/30">
-      <div className="px-8 py-6 bg-white border-b border-slate-100">
-        <h1 className="text-3xl font-bold text-slate-800 tracking-tighter font-serif italic">Messages</h1>
+      <div className="px-6 py-4 sm:px-8 sm:py-6 bg-white border-b border-slate-100">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tighter font-serif italic">Messages</h1>
         <p className="text-slate-400 font-bold uppercase tracking-widest text-[8px] mt-1">Real-time Trading Communication</p>
       </div>
 
       <div className="flex flex-grow overflow-hidden">
         {/* Sidebar */}
-        <div className="w-full md:w-96 lg:w-[450px] border-r border-slate-100 flex flex-col bg-white">
-          <div className="p-6 border-b border-slate-50">
+        <div className={`w-full md:w-96 lg:w-[450px] border-r border-slate-100 flex flex-col bg-white ${selectedConversation ? 'hidden md:flex' : 'flex'}`}>
+          <div className="p-4 sm:p-6 border-b border-slate-50">
             <div className="relative">
               <input 
                 type="text" 
@@ -149,11 +149,12 @@ export const Messages: React.FC = () => {
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-grow flex flex-col bg-white">
+        <div className={`flex-grow flex flex-col bg-white ${selectedConversation ? 'flex' : 'hidden md:flex'}`}>
           {selectedConversation ? (
             <InlineChat 
               conversationId={selectedConversation.conv.id} 
               recipientProfile={selectedConversation.recipient} 
+              onBack={() => setSelectedConversation(null)}
             />
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-center p-10 bg-slate-50/10">

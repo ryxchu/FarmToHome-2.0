@@ -527,7 +527,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTabProp, o
                   </div>
                 </div>
               </div>
-              <div className="overflow-x-auto no-scrollbar">
+              <div className="hidden md:block overflow-x-auto no-scrollbar">
                 <table className="w-full">
                   <thead>
                     <tr className="bg-slate-50/50">
@@ -594,6 +594,75 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTabProp, o
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Mobile Card-Based Directory Layout */}
+              <div className="block md:hidden divide-y divide-slate-100 p-4 sm:p-6 bg-white">
+                {filteredUsers.map(u => (
+                  <div key={u.uid} className="py-6 flex flex-col gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-lg font-bold font-serif italic shadow-inner overflow-hidden border border-slate-100 flex-shrink-0">
+                        {u.photoURL ? (
+                          <img src={u.photoURL} alt={u.fullName} className="w-full h-full object-contain bg-slate-50" />
+                        ) : (
+                          u.fullName.charAt(0)
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-slate-800 text-base truncate">{u.fullName}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">{u.email}</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 pb-1">
+                      <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Role / Protocol</p>
+                        <select 
+                          value={u.role}
+                          onChange={(e) => updateUserAttribute(u.uid, { role: e.target.value as any })}
+                          className="bg-transparent text-[10px] font-bold uppercase tracking-widest focus:outline-none w-full"
+                        >
+                          <option value="buyer">Buyer</option>
+                          <option value="farmer">Farmer</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </div>
+
+                      <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100 flex flex-col justify-center">
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Account Status</p>
+                        <span className={`self-start px-2.5 py-0.5 rounded-full text-[8.5px] font-bold uppercase tracking-[0.2em] ${
+                          u.status === 'verified' ? 'bg-emerald-50 text-emerald-500' : 
+                          u.status === 'banned' ? 'bg-red-50 text-red-500' : 'bg-amber-50 text-amber-500'
+                        }`}>
+                          {u.status}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => updateUserAttribute(u.uid, { status: u.status === 'verified' ? 'pending' : 'verified' })} 
+                        className="flex-1 py-3 bg-slate-50 text-slate-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-primary hover:text-white transition-all shadow-sm border border-slate-100 hover:border-primary flex items-center justify-center gap-1 min-h-[48px]"
+                      >
+                        {u.status === 'verified' ? (
+                          <>
+                            <Lock className="w-3.5 h-3.5" /> Suspend
+                          </>
+                        ) : (
+                          <>
+                            <Unlock className="w-3.5 h-3.5" /> Verify
+                          </>
+                        )}
+                      </button>
+                      <button 
+                        onClick={() => updateUserAttribute(u.uid, { status: u.status === 'banned' ? 'verified' : 'banned' })} 
+                        className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-sm border flex items-center justify-center gap-1 min-h-[48px] ${u.status === 'banned' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}
+                      >
+                        <Ban className="w-3.5 h-3.5" /> {u.status === 'banned' ? 'Unban' : 'Ban User'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </motion.div>
@@ -747,7 +816,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTabProp, o
               <div className="p-10 border-b border-slate-50">
                 <h3 className="text-2xl font-bold text-slate-800 font-sans tracking-tight">Global Trade Ledger</h3>
               </div>
-              <div className="overflow-x-auto no-scrollbar">
+              <div className="hidden md:block overflow-x-auto no-scrollbar">
                 <table className="w-full">
                   <thead>
                     <tr className="bg-slate-50/50">
@@ -781,7 +850,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTabProp, o
                         </td>
                         <td className="px-10 py-8 text-right space-x-2">
                           {o.disputeStatus === 'opened' && (
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 justify-end">
                               <button onClick={() => resolveOrderDispute(o.id, 'resolved')} className="px-6 py-3 bg-emerald-500 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest hover:scale-110 active:scale-90 transition-all shadow-lg shadow-emerald-500/20">Resolve</button>
                               <button onClick={() => resolveOrderDispute(o.id, 'refunded', { status: 'cancelled' })} className="px-6 py-3 bg-red-500 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest hover:scale-110 active:scale-90 transition-all shadow-lg shadow-red-500/20">Refund</button>
                             </div>
@@ -794,6 +863,65 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTabProp, o
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Mobile Card-Based Order Ledger Layout */}
+              <div className="block md:hidden divide-y divide-slate-100 p-4 sm:p-6 bg-white">
+                {orders.map(o => (
+                  <div key={o.id} className="py-6 flex flex-col gap-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-mono text-xs text-slate-400">Order #{o.id?.slice(0, 12)}</p>
+                        <p className="text-sm font-bold text-slate-800 tracking-tight mt-1">
+                          Buyer: {users.find(u => u.uid === o.buyerId)?.fullName || 'Farmer Ecosystem'}
+                        </p>
+                      </div>
+                      <p className="text-lg font-black text-primary font-sans">
+                        ₱{o.total.toLocaleString()}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 pb-1">
+                      <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100 flex flex-col justify-center">
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Trade State</p>
+                        <select 
+                          value={o.status}
+                          onChange={(e) => updateOrderStatus(o.id, e.target.value as Order['status'])}
+                          className="bg-transparent text-[10px] font-bold uppercase tracking-widest focus:outline-none w-full hover:text-primary transition-all cursor-pointer"
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="shipped">Shipped</option>
+                          <option value="delivered">Delivered</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      </div>
+
+                      <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100 flex flex-col justify-center">
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Dispute Protocol</p>
+                        <span className={`text-[9px] font-black uppercase tracking-[0.1em] ${o.disputeStatus === 'opened' ? 'text-red-500 animate-pulse' : 'text-slate-400'}`}>
+                          {o.disputeStatus === 'opened' ? '⚠️ Disputed' : 'Stable'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {o.disputeStatus === 'opened' && (
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => resolveOrderDispute(o.id, 'resolved')} 
+                          className="flex-1 py-3 bg-emerald-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-emerald-500/10 flex items-center justify-center min-h-[48px]"
+                        >
+                          Resolve Dispute
+                        </button>
+                        <button 
+                          onClick={() => resolveOrderDispute(o.id, 'refunded', { status: 'cancelled' })} 
+                          className="flex-1 py-3 bg-red-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-red-500/10 flex items-center justify-center min-h-[48px]"
+                        >
+                          Issue Refund
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           </motion.div>

@@ -3,7 +3,7 @@ import { collection, query, where, onSnapshot, setDoc, updateDoc, doc, deleteDoc
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Product, Order } from '../types';
-import { Plus, Package, ShoppingBag, TrendingUp, Edit, Trash2, X, Check, Image as ImageIcon, Star, User, Settings, MessageSquare, ArrowLeft, ChevronRight } from 'lucide-react';
+import { Plus, Package, ShoppingBag, TrendingUp, Edit, Trash2, X, Check, Image as ImageIcon, Star, User, Settings, MessageSquare, ArrowLeft, ChevronRight, MapPin, Phone, Truck, CreditCard } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Chat } from '../components/Chat';
 
@@ -130,6 +130,19 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
       await deleteDoc(doc(db, 'products', productId));
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `products/${productId}`);
+    }
+  };
+
+  const togglePublishStatus = async (product: Product) => {
+    try {
+      const updatedStatus = !product.isPublished;
+      await updateDoc(doc(db, 'products', product.id), { 
+        isPublished: updatedStatus,
+        updatedAt: new Date().toISOString()
+      });
+      setProducts(prev => prev.map(p => p.id === product.id ? { ...p, isPublished: updatedStatus } : p));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `products/${product.id}`);
     }
   };
 
@@ -291,7 +304,8 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
                   </div>
                 ) : (
                   <>
-                    <div className="bg-white/50 border border-slate-100 rounded-[3.5rem] overflow-hidden">
+                    {/* Desktop/Tablet Table Layout */}
+                    <div className="hidden md:block bg-white/50 border border-slate-100 rounded-[3.5rem] overflow-hidden">
                       <div className="grid grid-cols-12 gap-4 px-10 py-6 border-b border-slate-100 bg-slate-50/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                         <div className="col-span-4">Product Info</div>
                         <div className="col-span-2">Performance</div>
@@ -377,6 +391,94 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
                           </div>
                         ))}
                       </div>
+                    </div>
+
+                    {/* Mobile Cards Layout */}
+                    <div className="md:hidden space-y-4">
+                      {paginatedProducts.map(product => (
+                        <div key={product.id} className="bg-white border-2 border-stone-200 rounded-[2.5rem] p-6 shadow-md flex flex-col gap-4">
+                          <div className="flex items-center gap-4">
+                            <img 
+                              src={product.images?.[0] || 'https://images.unsplash.com/photo-1615485290382-441e4d0c9cb5?auto=format&fit=crop&q=80&w=200'} 
+                              className="w-20 h-20 rounded-3xl object-cover shadow-sm border-2 border-white/80" 
+                              alt={product.name}
+                            />
+                            <div className="min-w-0 flex-1">
+                              {/* Large Bold Crop Name */}
+                              <h4 className="font-extrabold text-slate-900 text-xl tracking-tight leading-tight mb-1 truncate">{product.name}</h4>
+                              <p className="text-[9px] text-slate-400 font-mono">ID: {product.id.slice(0, 8).toUpperCase()}</p>
+                              <div className="flex gap-2 mt-1">
+                                <span className="text-[8px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full uppercase tracking-widest border border-emerald-100">Quality Verified</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+                            <div>
+                              <p className="text-[9px] font-bold text-slate-450 uppercase tracking-widest mb-1">Price per {product.unit}</p>
+                              <p className="text-xl font-black text-primary tracking-tight">₱{product.price.toLocaleString()}</p>
+                            </div>
+                            <div>
+                              <p className="text-[9px] font-bold text-slate-450 uppercase tracking-widest mb-1">Listing Visibility</p>
+                              <div className="flex items-center gap-2">
+                                {/* Massive physical switch button toggle */}
+                                <button 
+                                  type="button"
+                                  onClick={() => togglePublishStatus(product)}
+                                  aria-label="Toggle visible state"
+                                  className={`relative inline-flex h-8 w-15 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                    product.isPublished ? 'bg-primary' : 'bg-slate-300'
+                                  }`}
+                                >
+                                  <span
+                                    className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                                      product.isPublished ? 'translate-x-7' : 'translate-x-0'
+                                    }`}
+                                  />
+                                </button>
+                                <span className={`text-[10px] font-extrabold uppercase tracking-wider ${product.isPublished ? 'text-primary' : 'text-slate-400'}`}>
+                                  {product.isPublished ? 'Active' : 'Standby'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="pt-4 border-t border-slate-100 flex flex-col gap-3">
+                            <div>
+                              <p className="text-[9px] font-bold text-slate-450 uppercase tracking-widest mb-1">Available Weight</p>
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-2xl font-black text-slate-800 leading-none shrink-0">{product.stock} {product.unit}s</span>
+                                <div className="flex-1 h-3 bg-stone-100 rounded-full overflow-hidden border border-stone-200/50">
+                                  <div 
+                                    className={`h-full rounded-full transition-all duration-500 ${
+                                      product.stock > 50 ? 'bg-primary' : 
+                                      product.stock > 10 ? 'bg-amber-500' : 'bg-rose-500'
+                                    }`}
+                                    style={{ width: `${Math.min(100, (product.stock / 200) * 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex gap-2 mt-1">
+                              <button 
+                                type="button"
+                                onClick={() => { setEditingProduct(product); setShowAddModal(true); }}
+                                className="flex-1 py-3 text-slate-700 bg-slate-50 hover:bg-slate-100 font-bold text-xs uppercase tracking-widest rounded-xl border border-slate-200 transition-all flex items-center justify-center gap-2"
+                              >
+                                <Edit className="w-4 h-4" /> Edit Listing
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => deleteProduct(product.id)}
+                                className="px-4 py-3 text-rose-500 bg-rose-50 hover:bg-rose-100 font-bold rounded-xl border border-rose-200 transition-all"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
 
                     {totalProductPages > 1 && (
@@ -555,6 +657,54 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
                           </div>
                         ))}
                       </div>
+
+                      {/* Delivery & Logistics Sauté Recap */}
+                      <div className="mb-8 p-6 bg-slate-50 border border-slate-150 rounded-[2rem] space-y-4 text-xs">
+                        <div className="flex items-start gap-3">
+                          <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest leading-none mb-1">Destination Address</p>
+                            <p className="font-semibold text-slate-700 leading-snug">{order.deliveryAddress || 'No address provided'}</p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 pb-2 border-b border-slate-200/50">
+                          <div className="flex items-start gap-2.5">
+                            <Phone className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider leading-none mb-0.5">Contact</p>
+                              <p className="font-bold text-slate-700 truncate">{order.contactNumber || 'N/A'}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-2.5">
+                            <Truck className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider leading-none mb-0.5">Logistics Route</p>
+                              <p className="font-bold text-slate-700 truncate">{order.shippingMethod || 'Standard Route'}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-0.5">
+                          <div className="flex items-center gap-2">
+                            <CreditCard className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Payment Method</span>
+                          </div>
+                          <span className="font-bold text-slate-600 bg-white border border-slate-150 px-2.5 py-0.5 rounded-lg text-[10px]">
+                            {order.paymentMethod || 'Cash on Delivery'}
+                          </span>
+                        </div>
+
+                        {order.buyerMessage && (
+                          <div className="mt-2.5 pt-2.5 border-t border-dashed border-slate-200 flex items-start gap-2 bg-amber-50/40 -mx-6 -mb-6 p-4 rounded-b-[2rem]">
+                            <MessageSquare className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-[8px] font-black uppercase text-primary tracking-wider leading-none mb-1">Instruction from Chef</p>
+                              <p className="text-[11px] font-medium text-slate-700 italic leading-relaxed">"{order.buyerMessage}"</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                       
                       <div className="flex items-end justify-between">
                         <div>
@@ -677,17 +827,67 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
   const [aiLoading, setAiLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  const handleMultipleFiles = (files: FileList) => {
-    Array.from(files).forEach(file => {
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64String = reader.result as string;
-          setFormData(prev => ({ ...prev, images: [...prev.images, base64String] }));
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 800;
+          const MAX_HEIGHT = 800;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.60);
+            resolve(dataUrl);
+          } else {
+            resolve(event.target?.result as string);
+          }
         };
-        reader.readAsDataURL(file);
-      }
+        img.src = event.target?.result as string;
+      };
+      reader.onerror = error => reject(error);
+      reader.readAsDataURL(file);
     });
+  };
+
+  const handleMultipleFiles = async (files: FileList) => {
+    setLoading(true);
+    try {
+      const pImages: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.type.startsWith('image/')) {
+          const compressed = await compressImage(file);
+          pImages.push(compressed);
+        }
+      }
+      if (pImages.length > 0) {
+        setFormData(prev => ({ ...prev, images: [...prev.images, ...pImages] }));
+      }
+    } catch (err) {
+      console.error("Compression error:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getSmartPriceSuggestion = async () => {
@@ -795,18 +995,50 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
 
             <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-2 gap-6">
+              {/* Quick Crop Preset Shortcuts */}
+              <div className="col-span-2 bg-stone-50 p-4 border border-stone-200 rounded-2xl">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2 px-1">🌾 Quick Crop Presets (Tap to auto-fill)</span>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {[
+                    { name: 'Pechay', category: 'Vegetables', unit: 'kg', price: 90, desc: 'Freshly harvested local Pechay. Crispy green leaves, rich in iron.' },
+                    { name: 'Mangoes', category: 'Fruits', unit: 'kg', price: 180, desc: 'Sweet, juicy yellow mangoes of the Carabao variety.' },
+                    { name: 'Tomatoes', category: 'Vegetables', unit: 'kg', price: 120, desc: 'Fresh ripe red tomatoes, juicy and organic.' },
+                    { name: 'Onions', category: 'Root Crops', unit: 'kg', price: 155, desc: 'Local red onions, pungent and freshly dug.' },
+                    { name: 'Ginger', category: 'Root Crops', unit: 'kg', price: 210, desc: 'Organic ginger rhizomes, intense flavor.' },
+                  ].map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() => {
+                        setFormData({
+                          ...formData,
+                          name: preset.name,
+                          category: preset.category,
+                          unit: preset.unit as any,
+                          price: preset.price,
+                          description: preset.desc
+                        });
+                      }}
+                      className="px-3 py-2.5 bg-white hover:bg-primary/5 text-slate-700 hover:text-primary font-bold text-[9px] uppercase tracking-wider rounded-xl border border-stone-200 hover:border-primary/40 transition-all select-none active:scale-95"
+                    >
+                      +{preset.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="col-span-2 group">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-2 px-1">Product Name</label>
                 <input 
                   type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all font-medium" required
+                  className="w-full h-14 px-5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all font-medium" required
                 />
               </div>
               <div className="col-span-2">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-2 px-1">Description</label>
                 <textarea 
                   value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})}
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm h-32 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all font-medium"
+                  className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-200 rounded-2xl text-sm h-32 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all font-medium"
                 />
               </div>
               <div>
@@ -823,21 +1055,21 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
                 </div>
                 <input 
                   type="number" value={formData.price} onChange={e => setFormData({...formData, price: Number(e.target.value)})}
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all font-medium" required
+                  className="w-full h-14 px-5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all font-medium" required
                 />
               </div>
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-2 px-1">Stock</label>
                 <input 
                   type="number" value={formData.stock} onChange={e => setFormData({...formData, stock: Number(e.target.value)})}
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all font-medium" required
+                  className="w-full h-14 px-5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all font-medium" required
                 />
               </div>
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-2 px-1">Category</label>
                 <select 
                   value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all font-medium"
+                  className="w-full h-14 px-5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all font-medium"
                 >
                   <option>Vegetables</option>
                   <option>Fruits</option>
@@ -850,7 +1082,7 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-2 px-1">Unit</label>
                 <select 
                   value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value as any})}
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all font-medium"
+                  className="w-full h-14 px-5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all font-medium"
                 >
                   <option value="kg">kilogram (kg)</option>
                   <option value="unit">unit/piece</option>
@@ -867,7 +1099,7 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
                   type="datetime-local" 
                   value={formData.harvestDate} 
                   onChange={e => setFormData({...formData, harvestDate: e.target.value})}
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all font-medium" 
+                  className="w-full h-14 px-5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all font-medium" 
                   required
                 />
                 <p className="mt-2 text-[10px] text-slate-400 italic px-1">Transparency is key. Let buyers know exactly when this was harvested.</p>
@@ -877,6 +1109,27 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-2 px-1">Product Images</label>
                 
                 <div className="grid grid-cols-1 gap-4 mb-4">
+                  {/* Dedicated hardware-integrated camera release trigger */}
+                  <div className="relative h-14 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold rounded-2xl flex items-center justify-center gap-3 transition-all cursor-pointer border-2 border-white shadow-lg shadow-amber-500/10 select-none">
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      capture="environment" 
+                      onChange={(e) => {
+                        const files = e.target.files;
+                        if (files && files.length > 0) {
+                          handleMultipleFiles(files);
+                        }
+                      }}
+                      className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                    />
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.508 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.065-.75-1.995-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+                    </svg>
+                    <span className="text-xs uppercase tracking-widest font-black">Open Phone Camera</span>
+                  </div>
+
                   <div 
                     className={`flex flex-col gap-2 p-8 bg-slate-50 border-2 border-dashed rounded-3xl transition-all group relative ${
                       isDragging ? 'border-primary bg-primary/5 scale-[1.02]' : 'border-slate-200 hover:border-primary/40'

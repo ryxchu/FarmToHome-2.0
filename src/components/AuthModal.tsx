@@ -295,15 +295,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         className="bg-white w-full max-w-5xl rounded-[3rem] md:rounded-[4rem] shadow-2xl relative border-4 border-white forest-shadow my-auto overflow-hidden flex flex-col md:flex-row"
       >
-        <button onClick={onClose} className="absolute top-6 right-6 p-4 bg-white/10 backdrop-blur-md hover:bg-white hover:scale-110 active:scale-90 transition-all z-20 border border-white/20 shadow-xl group rounded-2xl">
-          <X className="w-5 h-5 text-white md:text-slate-400 group-hover:rotate-90 transition-transform duration-300" />
+        <button onClick={onClose} className="absolute top-4 right-4 sm:top-6 sm:right-6 p-3 sm:p-4 bg-slate-50 md:bg-white/10 hover:bg-slate-100 md:hover:bg-white hover:scale-110 active:scale-90 transition-all z-20 border border-slate-200/50 md:border-white/20 shadow-md md:shadow-xl group rounded-2xl">
+          <X className="w-5 h-5 text-slate-500 md:text-white group-hover:rotate-90 transition-transform duration-300" />
         </button>
  
         {/* Left Side: Toggle Panel */}
         <motion.div 
           layout
           transition={{ duration: 0.4, ease: "easeInOut" }}
-          className={`w-full md:w-[40%] p-12 md:p-20 flex flex-col items-center justify-center text-center relative overflow-hidden ${mode === 'register' ? 'bg-primary text-white font-sans' : 'bg-secondary text-white font-sans md:order-last'}`}
+          className={`hidden md:flex w-full md:w-[40%] p-12 md:p-20 flex-col items-center justify-center text-center relative overflow-hidden ${mode === 'register' ? 'bg-primary text-white font-sans' : 'bg-secondary text-white font-sans md:order-last'}`}
         >
           <div className="absolute inset-0 amakan-pattern opacity-10" />
           <div className="relative z-10 flex flex-col items-center">
@@ -324,6 +324,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
               </motion.div>
             </AnimatePresence>
             <button 
+              type="button"
               onClick={toggleMode}
               className="px-12 py-5 bg-transparent border-2 border-white/30 rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-white hover:text-primary transition-all active:scale-95 shadow-sm"
             >
@@ -336,7 +337,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         <motion.div 
           layout
           transition={{ duration: 0.4, ease: "easeInOut" }}
-          className="w-full md:w-[60%] p-12 md:p-20 bg-white"
+          className="w-full md:w-[60%] p-6 sm:p-12 md:p-20 bg-white"
         >
           <div className="max-w-md mx-auto">
             <AnimatePresence mode="wait">
@@ -528,36 +529,36 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
               ) : (
                 <>
                   {mode === 'register' && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div className="relative group">
                     <input 
                       type="text" placeholder="Full Name" value={fullName} onChange={(e) => setFullName(e.target.value)}
-                      className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
+                      className="w-full px-6 py-4 md:px-8 md:py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
                     />
                   </div>
                   <div className="relative group">
                     <input 
                       type="tel" placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)}
-                      className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
+                      className="w-full px-6 py-4 md:px-8 md:py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
                     />
                   </div>
                 </div>
               )}
-
+ 
               <div className="relative group">
                 <input 
                   type="email" placeholder="Email Address" value={email} onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
+                  className="w-full px-6 py-4 md:px-8 md:py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
                   required
                 />
               </div>
-
+ 
               {mode === 'login' && (
                 <div className="space-y-4">
                   <div className="relative group text-start">
                     <input 
                       type={showPassword ? "text" : "password"} placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
+                      className="w-full px-6 py-4 md:px-8 md:py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
                       required
                     />
                     <button 
@@ -582,13 +583,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                   </div>
                 </div>
               )}
-
+ 
               {mode === 'register' && (
-                <div className="grid grid-cols-2 gap-4 text-start">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-start">
                   <div className="relative group text-start">
                     <input 
                       type={showPassword ? "text" : "password"} placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
+                      className="w-full px-6 py-4 md:px-8 md:py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
                       required
                     />
                     <button 
@@ -599,11 +600,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-
+ 
                   <div className="relative group text-start">
                     <input 
                       type={showConfirmPassword ? "text" : "password"} placeholder="Confirm" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
+                      className="w-full px-6 py-4 md:px-8 md:py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
                       required
                     />
                     <button 
@@ -616,7 +617,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                   </div>
                 </div>
               )}
-
+ 
               {mode === 'register' && password && (
                 <div className="flex flex-wrap gap-x-4 gap-y-2 p-3 bg-slate-50 rounded-2xl border border-slate-100">
                   <div className={`flex items-center gap-1.5 ${passChecks.length ? 'text-primary' : 'text-slate-200'}`}>
@@ -641,8 +642,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                   </div>
                 </div>
               )}
-
-                  <div className="pt-4">
+ 
+                  <div className="pt-4 flex flex-col sm:flex-row sm:items-center sm:gap-6">
                     <button 
                       type="submit"
                       disabled={loading || !isFormValid}
@@ -654,11 +655,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                       <button 
                         type="button"
                         onClick={() => setMode('login')}
-                        className="ml-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-primary transition-colors"
+                        className="mt-4 sm:mt-0 text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-primary transition-colors text-center sm:text-left"
                       >
                         Back to Login
                       </button>
                     )}
+                  </div>
+
+                  {/* Elegant mobile-only switch helper */}
+                  <div className="md:hidden text-center mt-8 pt-6 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={toggleMode}
+                      className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-primary transition-colors py-2"
+                    >
+                      {mode === 'login' ? "New around here? Create Account" : "Registered? Welcome back - Sign In"}
+                    </button>
                   </div>
                 </>
               )}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingCart, User, Sprout, Search, MapPin, Home, History, LayoutDashboard, MessageSquare, Bell } from 'lucide-react';
+import { ShoppingCart, User, Sprout, Search, MapPin, Home, History, LayoutDashboard, MessageSquare, Bell, Menu, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { auth, db } from '../lib/firebase';
@@ -22,6 +22,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
   const [unreadCount, setUnreadCount] = React.useState(0);
   const [notifications, setNotifications] = React.useState<any[]>([]);
   const [scrolled, setScrolled] = React.useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   React.useEffect(() => {
     const handleScroll = () => {
@@ -70,7 +71,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
         !user 
           ? `h-24 fixed w-full ${scrolled ? 'bg-primary/95 backdrop-blur-2xl shadow-2xl h-20' : 'bg-transparent border-none'}` 
           : 'h-24 sticky top-0 bg-background/80 backdrop-blur-xl border-b border-white/40 shadow-sm'
-      } px-8 flex items-center`}>
+      } px-4 sm:px-8 flex items-center`}>
       <div className="max-w-[1600px] mx-auto w-full flex items-center justify-between">
         <div 
           className="flex items-center gap-3 cursor-pointer group"
@@ -110,39 +111,133 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
         </div>
 
         {!user ? (
-          <div className="hidden lg:flex items-center gap-10">
-            <button 
-              onClick={() => {
-                setView('landing');
-                setTimeout(() => {
-                  document.getElementById('our-story')?.scrollIntoView({ behavior: 'smooth' });
-                }, 100);
-              }} 
-              className="text-[10px] font-black text-white hover:text-accent-light uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px] active:scale-95"
-            >
-              Our Story
-            </button>
-            <button onClick={() => setView('home')} className="text-[10px] font-black text-white hover:text-accent-light uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px] active:scale-95">Marketplace</button>
-            <button 
-              onClick={() => {
-                setView('landing');
-                setTimeout(() => {
-                  document.getElementById('about-us')?.scrollIntoView({ behavior: 'smooth' });
-                }, 100);
-              }} 
-              className="text-[10px] font-black text-white hover:text-accent-light uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px] active:scale-95"
-            >
-              About Us
-            </button>
-            <div className="h-4 w-px bg-white/20 mx-2" />
-            <button onClick={onAuthClick} className="text-[10px] font-black text-white uppercase tracking-[0.4em] hover:text-accent-light transition-all hover:translate-y-[-2px] active:scale-95">Sign In</button>
-            <button 
-              onClick={onAuthClick}
-              className="px-8 py-3.5 bg-primary text-white rounded-full text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-primary/90 transition-all shadow-2xl active:scale-95 border-2 border-white/20"
-            >
-              Start Order
-            </button>
-          </div>
+          <>
+            <div className="hidden lg:flex items-center gap-10">
+              <button 
+                onClick={() => {
+                  setView('landing');
+                  setTimeout(() => {
+                    document.getElementById('our-story')?.scrollIntoView({ behavior: 'smooth' });
+                  }, 100);
+                }} 
+                className="text-[10px] font-black text-white hover:text-accent-light uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px] active:scale-95"
+              >
+                Our Story
+              </button>
+              <button onClick={() => setView('home')} className="text-[10px] font-black text-white hover:text-accent-light uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px] active:scale-95">Marketplace</button>
+              <button 
+                onClick={() => {
+                  setView('landing');
+                  setTimeout(() => {
+                    document.getElementById('about-us')?.scrollIntoView({ behavior: 'smooth' });
+                  }, 100);
+                }} 
+                className="text-[10px] font-black text-white hover:text-accent-light uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px] active:scale-95"
+              >
+                About Us
+              </button>
+              <div className="h-4 w-px bg-white/20 mx-2" />
+              <button onClick={onAuthClick} className="text-[10px] font-black text-white uppercase tracking-[0.4em] hover:text-accent-light transition-all hover:translate-y-[-2px] active:scale-95">Sign In</button>
+              <button 
+                onClick={onAuthClick}
+                className="px-8 py-3.5 bg-primary text-white rounded-full text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-primary/90 transition-all shadow-2xl active:scale-95 border-2 border-white/20"
+              >
+                Start Order
+              </button>
+            </div>
+
+            {/* Mobile hamburger menu toggle */}
+            <div className="flex lg:hidden items-center gap-3">
+              <button 
+                onClick={() => setView('home')}
+                className="px-3 py-1.5 text-white text-[9px] font-black uppercase tracking-[0.2em] hover:text-accent-light transition-all"
+              >
+                Market
+              </button>
+              <button 
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="p-2.5 bg-white text-primary rounded-xl transition-all shadow-md active:scale-95 border border-slate-100 flex items-center justify-center"
+                aria-label="Toggle navigation menu"
+              >
+                {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              </button>
+            </div>
+
+            {/* Premium mobile drawer dropdown for guest view */}
+            <AnimatePresence>
+              {mobileMenuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -15, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -15, scale: 0.95 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute top-24 left-4 right-4 bg-primary/95 backdrop-blur-2xl border border-white/20 shadow-2xl p-6 flex flex-col gap-6 z-50 rounded-[2rem] text-white"
+                >
+                  <div className="flex flex-col gap-1 text-center border-b border-white/10 pb-4">
+                    <p className="font-serif italic font-black text-2xl tracking-tighter text-accent">FarmToHome</p>
+                    <p className="text-[8px] text-white/50 uppercase tracking-[0.3em] font-bold">Philippines</p>
+                  </div>
+
+                  <div className="flex flex-col gap-2 text-center">
+                    <button 
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        setView('landing');
+                        setTimeout(() => {
+                          document.getElementById('our-story')?.scrollIntoView({ behavior: 'smooth' });
+                        }, 100);
+                      }} 
+                      className="py-3 text-[10px] font-black uppercase tracking-[0.3em] hover:text-accent transition-all hover:translate-x-1"
+                    >
+                      Our Story
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        setView('home');
+                      }} 
+                      className="py-3 text-[10px] font-black uppercase tracking-[0.3em] hover:text-accent transition-all hover:translate-x-1"
+                    >
+                      Marketplace
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        setView('landing');
+                        setTimeout(() => {
+                          document.getElementById('about-us')?.scrollIntoView({ behavior: 'smooth' });
+                        }, 100);
+                      }} 
+                      className="py-3 text-[10px] font-black uppercase tracking-[0.3em] hover:text-accent transition-all hover:translate-x-1"
+                    >
+                      About Us
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col gap-3 pt-4 border-t border-white/10">
+                    <button 
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        onAuthClick();
+                      }}
+                      className="w-full py-4 bg-white text-primary rounded-full text-[10px] font-black uppercase tracking-[0.3em] transition-all hover:bg-slate-100 active:scale-95 text-center shadow-lg"
+                    >
+                      Sign In
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        onAuthClick();
+                      }}
+                      className="w-full py-4 bg-accent text-white rounded-full text-[10px] font-black uppercase tracking-[0.3em] hover:bg-accent/90 transition-all active:scale-95 text-center shadow-inner border border-white/20"
+                    >
+                      Start Order
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
         ) : (
           <>
             <div className="hidden md:flex flex-1 max-w-xl mx-20 relative">
@@ -173,11 +268,29 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
                     )}
                   </button>
                 )}
+
+                {/* Mobile-Only direct Message icon above */}
+                {user && (
+                  <button 
+                    onClick={() => {
+                      if (profile?.role === 'farmer') {
+                        onDashboardTabChange?.('messages');
+                        setView('dashboard');
+                      } else {
+                        setView('messages');
+                      }
+                    }} 
+                    className="block md:hidden p-2.5 text-slate-400 hover:text-primary transition-all active:scale-95"
+                    aria-label="Messages"
+                  >
+                    <MessageSquare className="w-6 h-6" />
+                  </button>
+                )}
                 
-                <div className="h-8 w-px bg-border hidden sm:block" />
+                <div className="h-8 w-px bg-border hidden md:block" />
 
                 {(profile?.role === 'buyer' || profile?.role === 'farmer') && (
-                  <div className="relative">
+                  <div className="relative hidden md:block">
                     <button 
                       onClick={() => setShowNotifications(!showNotifications)}
                       className="p-2.5 text-slate-400 hover:text-primary transition-all hover:scale-110 relative"
@@ -281,9 +394,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
                   </div>
                 )}
                 
-                <div className="h-8 w-px bg-border hidden sm:block" />
+                <div className="h-8 w-px bg-border hidden md:block" />
 
-                <div className="relative group/profile">
+                <div className="relative group/profile hidden md:block">
                   <button className="flex items-center gap-4 group/btn">
                     <div className="text-right hidden sm:block">
                       <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Member</p>
@@ -358,64 +471,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
         )}
       </div>
     </nav>
-      {/* Mobile Bottom Navigation */}
-      {user && (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 p-4 pb-8 bg-gradient-to-t from-background via-background to-transparent">
-          <div className="bg-background/80 backdrop-blur-2xl border-4 border-white rounded-[2.5rem] shadow-[0_-20px_40px_rgba(45,79,30,0.1)] p-3 flex items-center justify-around clay-shadow">
-            <button 
-              onClick={() => setView('home')}
-              className="flex flex-col items-center gap-1.5 p-3 group transition-transform active:scale-90"
-            >
-              <div className="w-10 h-10 rounded-2xl bg-primary/5 flex items-center justify-center group-hover:bg-primary/20 transition-all group-hover:-translate-y-1">
-                <Home className="w-5 h-5 text-primary group-hover:scale-110 transition-transform" />
-              </div>
-              <span className="text-[8px] font-bold uppercase tracking-widest text-slate-400 group-hover:text-primary transition-colors">Home</span>
-            </button>
-            
-            {profile?.role === 'farmer' ? (
-              <button 
-                onClick={() => setView('dashboard')}
-                className="flex flex-col items-center gap-1.5 p-3 group transition-transform active:scale-90"
-              >
-                <div className="w-10 h-10 rounded-2xl bg-secondary/5 flex items-center justify-center group-hover:bg-secondary/20 transition-all group-hover:-translate-y-1">
-                  <LayoutDashboard className="w-5 h-5 text-secondary group-hover:scale-110 transition-transform" />
-                </div>
-                <span className="text-[8px] font-bold uppercase tracking-widest text-slate-400 group-hover:text-secondary transition-colors">Dashboard</span>
-              </button>
-            ) : (
-              <button 
-                onClick={() => setView('tracking')}
-                className="flex flex-col items-center gap-1.5 p-3 group transition-transform active:scale-90"
-              >
-                <div className="w-10 h-10 rounded-2xl bg-accent/5 flex items-center justify-center group-hover:bg-accent/20 transition-all group-hover:-translate-y-1">
-                  <History className="w-5 h-5 text-accent group-hover:scale-110 transition-transform" />
-                </div>
-                <span className="text-[8px] font-bold uppercase tracking-widest text-slate-400 group-hover:text-accent transition-colors">Orders</span>
-              </button>
-            )}
-
-            <button 
-              onClick={() => setView('messages')}
-              className="flex flex-col items-center gap-1.5 p-3 group transition-transform active:scale-90"
-            >
-              <div className="w-10 h-10 rounded-2xl bg-primary/5 flex items-center justify-center group-hover:bg-primary/20 transition-all group-hover:-translate-y-1">
-                <MessageSquare className="w-5 h-5 text-primary group-hover:scale-110 transition-transform" />
-              </div>
-              <span className="text-[8px] font-bold uppercase tracking-widest text-slate-400 group-hover:text-primary transition-colors">Chat</span>
-            </button>
-
-            <button 
-              onClick={() => setView('profile')}
-              className="flex flex-col items-center gap-1.5 p-3 group transition-transform active:scale-90"
-            >
-              <div className="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center group-hover:bg-slate-200 transition-all group-hover:-translate-y-1">
-                <User className="w-5 h-5 text-slate-500 group-hover:scale-110 transition-transform" />
-              </div>
-              <span className="text-[8px] font-bold uppercase tracking-widest text-slate-400 group-hover:text-slate-600 transition-colors">Profile</span>
-            </button>
-          </div>
-        </div>
-      )}
     </>
   );
 };

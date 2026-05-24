@@ -25,6 +25,7 @@ import { Sprout, Search, ShoppingBag, Radio, Lock, MapPin } from 'lucide-react';
 import { useCart } from './context/CartContext';
 import { seedProducts, cleanupDuplicates } from './lib/seed';
 import { UnifiedSidebar } from './components/UnifiedSidebar';
+import { MobileNavBar } from './components/MobileNavBar';
 
 const SideNavLink: React.FC<{ icon: string; label: string; active?: boolean; onClick?: () => void }> = ({ icon, label, active, onClick }) => (
   <button 
@@ -295,6 +296,16 @@ function AppContent() {
             <LandingPage 
               onShopClick={() => setCurrentView('home')} 
               onFarmerRegister={() => openAuth('register', 'farmer')}
+              onFeaturedProductClick={(id) => {
+                setSelectedProductId(id);
+                setCurrentView('product');
+              }}
+              onIngredientSearch={(name) => {
+                setSearchQuery(name);
+                setSelectedCategory('All');
+                setMarketViewMode('shop');
+                setCurrentView('home');
+              }}
             />
           ) : (
             <>
@@ -314,7 +325,7 @@ function AppContent() {
                 onNearMeToggle={handleNearMeClick}
               />
 
-              <main className="flex-1 p-8 lg:p-12 overflow-y-auto flex flex-col no-scrollbar">
+              <main className="flex-1 p-4 sm:p-8 lg:p-12 pb-28 md:pb-12 overflow-y-auto flex flex-col no-scrollbar">
                 {user && profile?.role === 'farmer' && currentView === 'dashboard' ? (
                   <FarmerDashboard onEditProfile={() => setCurrentView('profile')} activeTabProp={dashboardTab} onTabChange={setDashboardTab} />
                 ) : user && profile?.role === 'admin' && currentView === 'admin-dashboard' ? (
@@ -326,6 +337,7 @@ function AppContent() {
                         category={selectedCategory}
                         onCategoryChange={setSelectedCategory}
                         searchQuery={searchQuery}
+                        onSearch={setSearchQuery}
                         viewMode={marketViewMode}
                         onViewModeChange={setMarketViewMode}
                         userCoords={userCoords}
@@ -400,59 +412,72 @@ function AppContent() {
       <Cart isOpen={showCart} onClose={() => setShowCart(false)} />
       <AIChatbot />
       
-      <footer className="bg-primary text-white pt-16 pb-10 px-8 mt-auto relative overflow-hidden">
-        <div className="absolute bottom-0 left-0 w-[40vw] h-[40vw] bg-secondary/5 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/4" />
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 relative z-10">
-          <div className="col-span-1 md:col-span-2">
-            <div className="h-20 mb-6 cursor-pointer flex items-center" onClick={() => setCurrentView('landing')}>
+      <MobileNavBar 
+        currentView={currentView}
+        setView={setCurrentView}
+        marketViewMode={marketViewMode}
+        setMarketViewMode={setMarketViewMode}
+        farmerTab={dashboardTab}
+        setFarmerTab={setDashboardTab}
+        adminTab={adminTab}
+        setAdminTab={setAdminTab}
+        onCartClick={() => setShowCart(true)}
+        onAuthClick={() => openAuth('login', 'buyer')}
+      />
+      
+      <footer className="bg-stone-900 text-stone-100 pt-16 pb-28 md:pb-10 px-8 mt-auto relative overflow-hidden border-t border-stone-800">
+        <div className="absolute bottom-0 left-0 w-[40vw] h-[40vw] bg-primary/5 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/4" />
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 relative z-10 text-center md:text-left">
+          <div className="col-span-1 md:col-span-2 flex flex-col items-center md:items-start">
+            <div className="h-16 mb-4 cursor-pointer flex items-center justify-center md:justify-start" onClick={() => setCurrentView('landing')}>
               <img 
                 src="/logo.png" 
                 alt="FarmToHome Logo" 
-                className="h-full w-auto object-contain brightness-0 invert" 
+                className="h-full w-auto object-contain brightness-0 invert opacity-90" 
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                   const parent = e.currentTarget.parentElement;
-                  if (parent) {
+                  if (parent && !parent.querySelector('h3')) {
                     const h3 = document.createElement('h3');
-                    h3.className = "text-3xl font-bold tracking-tighter font-serif italic";
+                    h3.className = "text-2xl font-bold tracking-tighter font-serif italic text-accent";
                     h3.innerText = 'FarmToHome';
                     parent.appendChild(h3);
                   }
                 }}
               />
             </div>
-            <p className="text-white/60 max-w-sm leading-relaxed mb-8 text-sm">Connecting local farms directly to your home. Fresh produce, straight to your door.</p>
-            <div className="flex gap-4">
-              <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-secondary transition-all cursor-pointer group shadow-inner">
-                <Sprout className="w-4 h-4 group-hover:rotate-12 transition-transform text-accent-light" />
+            <p className="text-stone-400 max-w-sm leading-relaxed mb-6 text-xs md:text-sm">Connecting local farms directly to your home. Fresh produce, straight to your door.</p>
+            <div className="flex gap-4 justify-center md:justify-start">
+              <div className="w-10 h-10 rounded-xl bg-stone-800/80 border border-stone-700/50 flex items-center justify-center hover:bg-stone-700 transition-all cursor-pointer group shadow-inner">
+                <Sprout className="w-4 h-4 group-hover:rotate-12 transition-transform text-accent" />
               </div>
-              <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-secondary transition-all cursor-pointer group shadow-inner">
-                <Search className="w-4 h-4 group-hover:scale-110 transition-transform text-accent-light" />
+              <div className="w-10 h-10 rounded-xl bg-stone-800/80 border border-stone-700/50 flex items-center justify-center hover:bg-stone-700 transition-all cursor-pointer group shadow-inner">
+                <Search className="w-4 h-4 group-hover:scale-110 transition-transform text-accent" />
               </div>
             </div>
           </div>
-          <div>
-            <h4 className="text-[10px] font-bold uppercase tracking-[0.4em] mb-6 text-secondary">The Platform</h4>
-            <ul className="space-y-4 text-white/50 font-bold text-[10px] uppercase tracking-widest">
-              <li className="hover:text-secondary cursor-pointer transition-colors" onClick={() => { setInfoModalSection('stories'); setShowInfoModal(true); }}>Our Stories</li>
-              <li className="hover:text-secondary cursor-pointer transition-colors" onClick={() => { setInfoModalSection('care'); setShowInfoModal(true); }}>Product Care</li>
-              <li className="hover:text-secondary cursor-pointer transition-colors" onClick={() => { setInfoModalSection('impact'); setShowInfoModal(true); }}>Community Impact</li>
-              <li className="hover:text-secondary cursor-pointer transition-colors" onClick={() => { setInfoModalSection('map'); setShowInfoModal(true); }}>Farm Map</li>
+          <div className="flex flex-col items-center md:items-start">
+            <h4 className="text-[10px] font-bold uppercase tracking-[0.4em] mb-4 text-accent/80">The Platform</h4>
+            <ul className="space-y-3.5 text-stone-400 font-bold text-[9px] uppercase tracking-widest">
+              <li className="hover:text-accent cursor-pointer transition-colors" onClick={() => { setInfoModalSection('stories'); setShowInfoModal(true); }}>Our Stories</li>
+              <li className="hover:text-accent cursor-pointer transition-colors" onClick={() => { setInfoModalSection('care'); setShowInfoModal(true); }}>Product Care</li>
+              <li className="hover:text-accent cursor-pointer transition-colors" onClick={() => { setInfoModalSection('impact'); setShowInfoModal(true); }}>Community Impact</li>
+              <li className="hover:text-accent cursor-pointer transition-colors" onClick={() => { setInfoModalSection('map'); setShowInfoModal(true); }}>Farm Map</li>
             </ul>
           </div>
-          <div>
-            <h4 className="text-[10px] font-bold uppercase tracking-[0.4em] mb-6 text-secondary cursor-pointer hover:underline animate-pulse" onClick={() => { setInfoModalSection('contact'); setShowInfoModal(true); }}>Contact</h4>
-            <p className="text-white font-bold mb-2 tracking-tight text-sm cursor-pointer hover:text-secondary transition-colors" onClick={() => { setInfoModalSection('contact'); setShowInfoModal(true); }}>farmtohomee11@gmail.com</p>
-            <p className="text-white font-bold mb-6 tracking-tight text-sm cursor-pointer hover:text-secondary transition-colors" onClick={() => { setInfoModalSection('contact'); setShowInfoModal(true); }}>09193604094</p>
-            <p className="text-white/30 text-[9px] font-bold uppercase tracking-widest leading-relaxed">Manila Base • Support Network for Local Agriculture</p>
+          <div className="flex flex-col items-center md:items-start">
+            <h4 className="text-[10px] font-bold uppercase tracking-[0.4em] mb-4 text-accent/80 cursor-pointer hover:underline" onClick={() => { setInfoModalSection('contact'); setShowInfoModal(true); }}>Contact</h4>
+            <p className="text-stone-200 font-bold mb-1.5 tracking-tight text-sm cursor-pointer hover:text-accent transition-colors" onClick={() => { setInfoModalSection('contact'); setShowInfoModal(true); }}>farmtohomee11@gmail.com</p>
+            <p className="text-stone-200 font-bold mb-4 tracking-tight text-sm cursor-pointer hover:text-accent transition-colors" onClick={() => { setInfoModalSection('contact'); setShowInfoModal(true); }}>09193604094</p>
+            <p className="text-stone-500 text-[8.5px] font-bold uppercase tracking-widest leading-relaxed">Manila Base • Support Network for Local Agriculture</p>
           </div>
         </div>
-        <div className="max-w-7xl mx-auto border-t border-white/10 mt-16 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-white/30 text-[9px] font-bold uppercase tracking-[0.3em]">
+        <div className="max-w-7xl mx-auto border-t border-stone-800/80 mt-12 pt-6 flex flex-col md:flex-row justify-between items-center gap-4 text-stone-500 text-[8.5px] font-bold uppercase tracking-[0.3em]">
           <span>© 2026 Local Farmers Network.</span>
-          <div className="flex gap-8">
-            <span className="hover:text-white cursor-pointer transition-colors" onClick={() => { setInfoModalSection('about'); setShowInfoModal(true); }}>About Us</span>
-            <span className="hover:text-white cursor-pointer transition-colors" onClick={() => { setInfoModalSection('guidelines'); setShowInfoModal(true); }}>Guidelines</span>
-            <span className="hover:text-white cursor-pointer transition-colors" onClick={() => { setInfoModalSection('certifications'); setShowInfoModal(true); }}>Certification</span>
+          <div className="flex flex-wrap justify-center gap-6">
+            <span className="hover:text-stone-300 cursor-pointer transition-colors" onClick={() => { setInfoModalSection('about'); setShowInfoModal(true); }}>About Us</span>
+            <span className="hover:text-stone-300 cursor-pointer transition-colors" onClick={() => { setInfoModalSection('guidelines'); setShowInfoModal(true); }}>Guidelines</span>
+            <span className="hover:text-stone-300 cursor-pointer transition-colors" onClick={() => { setInfoModalSection('certifications'); setShowInfoModal(true); }}>Certification</span>
           </div>
         </div>
       </footer>

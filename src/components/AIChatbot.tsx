@@ -67,7 +67,7 @@ export const AIChatbot: React.FC = () => {
     <>
       <button 
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 p-4 bg-primary text-white rounded-full shadow-2xl hover:scale-110 active:scale-95 transition-all z-[100]"
+        className="fixed bottom-[90px] lg:bottom-8 right-4 lg:right-8 p-4 bg-primary text-white rounded-full shadow-2xl hover:scale-110 active:scale-95 transition-all z-[100]"
       >
         <MessageCircle className="w-6 h-6" />
       </button>
@@ -78,7 +78,7 @@ export const AIChatbot: React.FC = () => {
             initial={{ opacity: 0, scale: 0.9, y: 100 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 100 }}
-            className="fixed bottom-24 right-6 w-full max-w-[380px] h-[500px] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden z-[100] border border-zinc-100"
+            className="fixed bottom-[160px] lg:bottom-24 right-4 lg:right-8 w-full max-w-[calc(100%-2rem)] sm:max-w-[380px] h-[450px] sm:h-[500px] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden z-[100] border border-zinc-100"
           >
             <div className="p-4 bg-primary text-white flex justify-between items-center">
               <div className="flex items-center gap-2">

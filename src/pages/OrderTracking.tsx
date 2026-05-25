@@ -71,11 +71,11 @@ export const OrderTracking: React.FC = () => {
   const currentStatusIndex = selectedOrder ? statuses.findIndex(s => s.id === selectedOrder.status) : -1;
 
   return (
-    <div className="max-w-7xl mx-auto py-12 px-8">
+    <div className="max-w-7xl mx-auto py-6 sm:py-12 px-0 sm:px-4">
       <div className="flex items-center gap-6 mb-16">
         <div className="w-2 h-12 bg-secondary rounded-full" />
         <div>
-          <h1 className="text-5xl font-bold text-slate-800 tracking-tighter font-serif italic">Track Orders</h1>
+          <h1 className="text-3xl sm:text-5xl font-bold text-slate-800 tracking-tighter font-serif italic">Track Orders</h1>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.4em] mt-2">Tracking your recent purchases</p>
         </div>
       </div>
@@ -287,7 +287,7 @@ export const OrderTracking: React.FC = () => {
                       <div>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mb-4 border-b border-border pb-2 w-max">Payment Method</p>
                         <p className="font-bold text-slate-800 text-lg uppercase tracking-widest mb-2">{selectedOrder.paymentMethod}</p>
-                        <p className="text-primary font-bold text-5xl font-serif tracking-tighter">₱{selectedOrder.total}</p>
+                        <p className="text-primary font-bold text-3xl sm:text-5xl font-serif tracking-tighter">₱{selectedOrder.total}</p>
                       </div>
                     </div>
                   </div>
@@ -298,13 +298,13 @@ export const OrderTracking: React.FC = () => {
                   <motion.div 
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="bg-primary p-16 rounded-[5rem] text-white overflow-hidden relative shadow-2xl forest-shadow"
+                    className="bg-primary p-6 sm:p-16 rounded-[2.5rem] sm:rounded-[5rem] text-white overflow-hidden relative shadow-2xl forest-shadow"
                   >
                     <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-secondary/10 rounded-full blur-3xl" />
                     <div className="absolute top-10 right-16">
                        <Star className="w-20 h-20 text-accent-light opacity-10 rotate-12" />
                     </div>
-                    <h3 className="text-5xl font-bold mb-8 font-serif italic tracking-tighter leading-tight">Rate your <br /> <span className="text-accent-light">Recent Order</span></h3>
+                    <h3 className="text-3xl sm:text-5xl font-bold mb-8 font-serif italic tracking-tighter leading-tight">Rate your <br /> <span className="text-accent-light">Recent Order</span></h3>
                     <p className="text-white/60 text-lg mb-12 max-w-xl font-medium leading-relaxed">Share your feedback about the produce quality and delivery experience.</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {selectedOrder.items.map((item, idx) => (

@@ -125,14 +125,14 @@ export const InlineChat: React.FC<InlineChatProps> = ({ conversationId, recipien
       {/* Messages Area */}
       <div 
         ref={scrollRef}
-        className="flex-grow overflow-y-auto p-8 space-y-4 bg-slate-50/30"
+        className="flex-grow overflow-y-auto p-4 sm:p-6 md:p-8 space-y-4 bg-slate-50/30"
       >
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
-            <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-              <User className="w-8 h-8 text-slate-400" />
+            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+              <User className="w-6 h-6 text-slate-400" />
             </div>
-            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">No messages yet</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No messages yet</p>
           </div>
         ) : (
           messages.map((msg) => {
@@ -140,14 +140,14 @@ export const InlineChat: React.FC<InlineChatProps> = ({ conversationId, recipien
             return (
               <div key={msg.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
                 <div 
-                  className={`max-w-[75%] p-5 rounded-3xl text-base shadow-sm ${
+                  className={`max-w-[85%] md:max-w-[75%] p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl text-xs sm:text-base shadow-sm ${
                     isOwn 
                       ? 'bg-primary text-white rounded-tr-sm' 
                       : 'bg-white border border-slate-100 text-slate-700 rounded-tl-sm'
                   }`}
                 >
                   <p className="font-medium leading-relaxed">{msg.content}</p>
-                  <div className={`text-[10px] mt-1.5 opacity-60 font-bold uppercase tracking-widest ${isOwn ? 'text-right' : 'text-left'}`}>
+                  <div className={`text-[9px] mt-1 opacity-60 font-bold uppercase tracking-widest ${isOwn ? 'text-right' : 'text-left'}`}>
                     {msg.createdAt?.toDate ? new Date(msg.createdAt.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Sending...'}
                   </div>
                 </div>
@@ -158,22 +158,22 @@ export const InlineChat: React.FC<InlineChatProps> = ({ conversationId, recipien
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSendMessage} className="p-8 border-t border-slate-100 bg-white">
-        <div className="flex gap-4">
+      <form onSubmit={handleSendMessage} className="p-3 sm:p-6 md:p-8 border-t border-slate-100 bg-white">
+        <div className="flex gap-2 sm:gap-4">
           <input 
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             disabled={loading}
             placeholder="Write a message..."
-            className="flex-grow px-8 py-5 bg-slate-50 border border-slate-100 rounded-2xl text-base focus:outline-none focus:border-primary/20 transition-all font-medium"
+            className="flex-grow px-4 sm:px-6 md:px-8 py-3 sm:py-5 bg-slate-50 border border-slate-100 rounded-xl sm:rounded-2xl text-xs sm:text-base focus:outline-none focus:border-primary/20 transition-all font-medium"
           />
           <button 
             type="submit"
             disabled={!newMessage.trim() || loading}
-            className="w-16 h-16 bg-primary text-white rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center"
+            className="w-10 h-10 sm:w-16 sm:h-16 bg-primary text-white rounded-xl sm:rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center shrink-0"
           >
-            <Send className="w-6 h-6" />
+            <Send className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
           </button>
         </div>
       </form>

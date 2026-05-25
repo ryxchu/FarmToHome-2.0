@@ -4,7 +4,7 @@ import {
   ArrowRight, Leaf, Heart, CheckCircle2, ShoppingBag, Star, Quote, Sprout, 
   Calendar, Sparkles, ChefHat, BookOpen, Search, HelpCircle, Utensils
 } from 'lucide-react';
-import { db, isQuotaError } from '../lib/firebase';
+import { db, isQuotaError, safeSetItem } from '../lib/firebase';
 import { collection, query, where, limit, getDocs } from 'firebase/firestore';
 
 interface LandingPageProps {
@@ -106,7 +106,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         const snapshot = await getDocs(q);
         const products = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
         setFeaturedProducts(products);
-        localStorage.setItem('featured_products', JSON.stringify(products));
+        safeSetItem('featured_products', JSON.stringify(products));
       } catch (error) {
         if (!isQuotaError(error)) {
           console.error('Error fetching featured products:', error);
@@ -153,7 +153,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             transition={{ delay: 0.2 }}
             className="mb-10 w-full"
           >
-            <h1 className="text-6xl md:text-[8rem] font-bold text-white mb-6 tracking-tighter leading-[0.85] font-serif">
+            <h1 className="text-4xl sm:text-6xl md:text-[8rem] font-bold text-white mb-6 tracking-tighter leading-[0.85] font-serif">
               Fresh From <br /> 
               <span className="text-accent underline decoration-accent/30 underline-offset-[16px] italic">Farm To Home</span>
             </h1>
@@ -371,7 +371,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
             <div>
               <span className="text-primary font-bold uppercase tracking-[0.4em] text-[10px] mb-4 block">Get to Know Us</span>
-              <h2 className="text-5xl font-bold text-slate-800 tracking-tighter font-serif italic mb-8">What is Farm To Home</h2>
+              <h2 className="text-3xl sm:text-5xl font-bold text-slate-800 tracking-tighter font-serif italic mb-8">What is Farm To Home</h2>
               <p className="text-lg text-slate-600 leading-relaxed font-medium mb-10">
                 We are a team with one dream: to bring fresh food closer to every Filipino while supporting our local heroes—the farmers. We've removed middlemen to ensure higher income for farmers and lower prices for you.
               </p>
@@ -414,7 +414,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
               <div>
                 <span className="text-primary font-bold uppercase tracking-[0.4em] text-[10px] mb-4 block">This Season</span>
-                <h2 className="text-5xl font-bold text-slate-800 tracking-tighter font-serif italic">From Our Farm</h2>
+                <h2 className="text-3xl sm:text-5xl font-bold text-slate-800 tracking-tighter font-serif italic">From Our Farm</h2>
               </div>
               <button 
                 onClick={onShopClick}

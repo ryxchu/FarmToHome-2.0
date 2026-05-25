@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, setDoc, updateDoc, doc, deleteDoc, getDoc, getDocs } from 'firebase/firestore';
-import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { db, auth, handleFirestoreError, OperationType, isQuotaError, isOfflineError, safeSetItem } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Product, Order } from '../types';
 import { Plus, Package, ShoppingBag, TrendingUp, Edit, Trash2, X, Check, Image as ImageIcon, Star, User, Settings, MessageSquare, ArrowLeft, ChevronRight, MapPin, Phone, Truck, CreditCard } from 'lucide-react';
@@ -22,6 +22,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
   const [showAddModal, setShowAddModal] = useState(false);
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<any | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     if (activeTabProp) {
@@ -38,24 +39,53 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
     const currentUid = auth.currentUser?.uid;
     if (!currentUid) return;
 
+    // Load initial cached values from localStorage
+    try {
+      const cachedProds = localStorage.getItem(`farmer_products_${currentUid}`);
+      if (cachedProds) setProducts(JSON.parse(cachedProds));
+
+      const cachedOrders = localStorage.getItem(`farmer_orders_${currentUid}`);
+      if (cachedOrders) setOrders(JSON.parse(cachedOrders));
+
+      const cachedReviews = localStorage.getItem(`farmer_reviews_${currentUid}`);
+      if (cachedReviews) setReviews(JSON.parse(cachedReviews));
+
+      const cachedConvs = localStorage.getItem(`farmer_conversations_${currentUid}`);
+      if (cachedConvs) setConversations(JSON.parse(cachedConvs));
+    } catch (e) {
+      console.warn("Failed to parse cached farmer data:", e);
+    }
+
     const fetchData = async () => {
       try {
         // Fetch products once
         const qProds = query(collection(db, 'products'), where('farmerId', '==', currentUid));
         const prodsSnap = await getDocs(qProds);
-        setProducts(prodsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product)));
+        const fetchedProds = prodsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product));
+        setProducts(fetchedProds);
+        safeSetItem(`farmer_products_${currentUid}`, JSON.stringify(fetchedProds));
 
         // Fetch orders once
         const qOrders = query(collection(db, 'orders'), where('farmerId', '==', currentUid));
         const ordersSnap = await getDocs(qOrders);
-        setOrders(ordersSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order)));
+        const fetchedOrders = ordersSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order));
+        setOrders(fetchedOrders);
+        safeSetItem(`farmer_orders_${currentUid}`, JSON.stringify(fetchedOrders));
 
         // Fetch reviews once
         const qReviews = query(collection(db, 'reviews'), where('farmerId', '==', currentUid));
         const reviewsSnap = await getDocs(qReviews);
-        setReviews(reviewsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as any)));
+        const fetchedReviews = reviewsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as any));
+        setReviews(fetchedReviews);
+        safeSetItem(`farmer_reviews_${currentUid}`, JSON.stringify(fetchedReviews));
       } catch (error) {
-        handleFirestoreError(error, OperationType.LIST, 'farmer_dashboard_data');
+        if (!isQuotaError(error) && !isOfflineError(error)) {
+          handleFirestoreError(error, OperationType.LIST, 'farmer_dashboard_data');
+        } else {
+          console.warn("Using offline/cached dashboard data due to quota limits or offline status");
+          // Fire event for global banner notice
+          handleFirestoreError(error, OperationType.LIST, 'farmer_dashboard_data');
+        }
       }
     };
 
@@ -64,8 +94,17 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
     // Keep conversations real-time as messaging needs it
     const qConv = query(collection(db, 'conversations'), where('participants', 'array-contains', currentUid));
     const unsubscribeConv = onSnapshot(qConv, (snapshot) => {
-      setConversations(snapshot.docs.map(doc => ({ ...doc.data() })));
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'conversations'));
+      const fetchedConvs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      setConversations(fetchedConvs);
+      safeSetItem(`farmer_conversations_${currentUid}`, JSON.stringify(fetchedConvs));
+    }, (error) => {
+      if (!isQuotaError(error) && !isOfflineError(error)) {
+        handleFirestoreError(error, OperationType.LIST, 'conversations');
+      } else {
+        console.warn("Using cached conversations due to quota limit or offline status");
+        handleFirestoreError(error, OperationType.LIST, 'conversations');
+      }
+    });
 
     return () => unsubscribeConv();
   }, [auth.currentUser?.uid]);
@@ -124,10 +163,14 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
     }
   };
 
-  const deleteProduct = async (productId: string) => {
-    if (!confirm('Delete listing?')) return;
+  const deleteProduct = (productId: string) => {
+    setDeleteConfirmId(productId);
+  };
+
+  const deleteProductDirectly = async (productId: string) => {
     try {
       await deleteDoc(doc(db, 'products', productId));
+      setProducts(prev => prev.filter(p => p.id !== productId));
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `products/${productId}`);
     }
@@ -163,31 +206,37 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
     .slice((currentProductPage - 1) * productsPerPage, currentProductPage * productsPerPage);
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-12">
+    <div className="max-w-7xl mx-auto px-2 sm:px-6 py-4 sm:py-6 overflow-x-hidden w-full">
       {/* Header Area - Catalog & Stats only */}
       {activeTab === 'inventory' && (
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-10 mb-12">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
-            <div className="flex items-center gap-4 mb-3">
-              <div className="w-2 h-10 bg-primary rounded-full" />
-              <h1 className="text-4xl font-bold text-slate-800 tracking-tighter font-sans">Store <span className="italic text-primary font-serif">Management</span></h1>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-1.5 h-6 bg-primary rounded-full" />
+              <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight font-sans">Store <span className="italic text-primary font-serif">Management</span></h1>
             </div>
-            <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-[10px]">Real-time operational overview for {profile?.farmName || "Your Farm"}.</p>
+            <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-[8px]">Operational dashboard for {profile?.farmName || "Your Farm"}.</p>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <button 
+              onClick={() => { setEditingProduct(null); setShowAddModal(true); }}
+              className="flex-1 sm:flex-initial px-4 py-2 bg-primary hover:bg-primary/90 text-white font-bold text-[9px] uppercase tracking-widest rounded-xl transition-all shadow-md shadow-primary/10 active:scale-95 flex items-center justify-center gap-1.5 min-w-[95px]"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Item
+            </button>
             <button 
               onClick={onEditProfile}
-              className="px-6 py-3 bg-white text-slate-600 font-bold text-[10px] uppercase tracking-widest rounded-2xl transition-all border border-slate-100 shadow-sm hover:shadow-md active:scale-95 flex items-center gap-3"
+              className="px-3 py-2 bg-white text-slate-600 font-bold text-[9px] uppercase tracking-widest rounded-xl transition-all border border-slate-200 hover:bg-slate-50 active:scale-95 flex items-center justify-center gap-1.5 shadow-sm min-w-[75px]"
             >
-              <User className="w-4 h-4" /> Profile Settings
+              <User className="w-3.5 h-3.5 hover:text-primary" /> Profile
             </button>
             <button 
               onClick={() => handleTabChange('messages')}
-              className="px-6 py-3 bg-white text-slate-600 font-bold text-[10px] uppercase tracking-widest rounded-2xl transition-all border border-slate-100 shadow-sm hover:shadow-md active:scale-95 flex items-center gap-3 relative"
+              className="px-3 py-2 bg-white text-slate-600 font-bold text-[9px] uppercase tracking-widest rounded-xl transition-all border border-slate-200 hover:bg-slate-50 active:scale-95 flex items-center justify-center gap-1.5 relative shadow-sm min-w-[75px]"
             >
-              <MessageSquare className="w-4 h-4" /> Messages
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white" />
+              <MessageSquare className="w-3.5 h-3.5 hover:text-primary" /> Chat
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-rose-500 rounded-full border border-white" />
             </button>
           </div>
         </div>
@@ -195,95 +244,82 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
 
       {/* Title Specific Headers for Feedback and Client Inbox */}
       {activeTab === 'feedback' && (
-        <div className="flex items-center gap-4 mb-10">
-          <div className="w-2 h-10 bg-primary rounded-full" />
-          <h1 className="text-4xl font-bold text-slate-800 tracking-tighter font-sans">Customer <span className="italic text-primary font-serif">Feedback & Reviews</span></h1>
+        <div className="flex items-center gap-2.5 mb-6">
+          <div className="w-1.5 h-6 bg-primary rounded-full" />
+          <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight font-sans">Customer <span className="italic text-primary font-serif">Feedback & Reviews</span></h1>
         </div>
       )}
 
       {activeTab === 'messages' && (
-        <div className="flex items-center gap-4 mb-10">
-          <div className="w-2 h-10 bg-primary rounded-full" />
-          <h1 className="text-4xl font-bold text-slate-800 tracking-tighter font-sans">Client <span className="italic text-primary font-serif">Inbox</span></h1>
+        <div className="flex items-center gap-2.5 mb-6">
+          <div className="w-1.5 h-6 bg-primary rounded-full" />
+          <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight font-sans">Client <span className="italic text-primary font-serif">Inbox</span></h1>
         </div>
       )}
 
       {/* Stats Row - Catalog & Stats only */}
       {activeTab === 'inventory' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-16">
-          <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Active Products</p>
-            <div className="flex items-end gap-3">
-              <h3 className="text-4xl font-black text-slate-800 tracking-tighter">{products.length}</h3>
-              <span className="text-[10px] font-bold text-slate-400 mb-1.5 italic font-sans tracking-widest">Listed Products</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 w-full">
+          <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[90px]">
+            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-[0.15em]">Active Products</p>
+            <div className="flex items-baseline gap-1.5 mt-1">
+              <h3 className="text-2xl font-black text-slate-800 tracking-tight">{products.length}</h3>
+              <span className="text-[8px] font-medium text-slate-400 uppercase tracking-wider">Listed</span>
             </div>
-            <Package className="absolute right-6 bottom-6 w-12 h-12 text-slate-50 -mb-2 -mr-2" />
+            <Package className="absolute right-3 bottom-3 w-8 h-8 text-slate-100 opacity-20" />
           </div>
 
-          <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Top Performer</p>
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-500">
-                <Star className="w-5 h-5 fill-amber-500" />
-              </div>
-              <div className="overflow-hidden">
-                <h3 className="text-lg font-bold text-slate-800 tracking-tight truncate">
-                  {products.sort((a,b) => (b.rating || 0) - (a.rating || 0))[0]?.name || '---'}
-                </h3>
-                <p className="text-[10px] font-medium text-slate-400">Winning Item</p>
-              </div>
+          <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[90px]">
+            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-[0.15em]">Top Performer</p>
+            <div className="mt-1 overflow-hidden">
+              <h3 className="text-sm font-extrabold text-slate-800 tracking-tight truncate leading-tight">
+                {products.sort((a,b) => (b.rating || 0) - (a.rating || 0))[0]?.name || '---'}
+              </h3>
+              <p className="text-[8px] font-semibold text-amber-500 uppercase tracking-wide mt-0.5">Winning Crop</p>
             </div>
+            <Star className="absolute right-3 bottom-3 w-8 h-8 text-amber-200/40 fill-amber-200/20" />
           </div>
 
-          <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Performance</p>
-            <div className="flex items-center gap-4">
-              <div className="relative w-12 h-12 flex items-center justify-center">
+          <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[90px]">
+            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-[0.15em]">Quality Score</p>
+            <div className="flex items-center gap-2 mt-1">
+              <div className="relative w-8 h-8 flex items-center justify-center shrink-0">
                 <svg className="w-full h-full rotate-[-90deg] absolute">
-                  <circle cx="24" cy="24" r="20" fill="none" stroke="#f8fafc" strokeWidth="4" />
-                  <circle cx="24" cy="24" r="20" fill="none" stroke="#10b981" strokeWidth="4" strokeDasharray="125" strokeDashoffset="30" strokeLinecap="round" />
+                  <circle cx="16" cy="16" r="14" fill="none" stroke="#f1f5f9" strokeWidth="2.5" />
+                  <circle cx="16" cy="16" r="14" fill="none" stroke="#10b981" strokeWidth="2.5" strokeDasharray="88" strokeDashoffset="18" strokeLinecap="round" />
                 </svg>
-                <span className="text-[9px] font-bold text-emerald-600 relative z-10">82%</span>
+                <span className="text-[8px] font-black text-emerald-600 relative z-10">82%</span>
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-800 tracking-tight font-sans leading-none mb-1">Good!</h3>
-                <p className="text-[10px] font-medium text-slate-400">Quality Score</p>
-              </div>
+              <p className="text-[8.5px] font-bold text-emerald-500 uppercase tracking-wide leading-none">Good Performance</p>
             </div>
           </div>
 
-          <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Sales Value</p>
-            <div className="flex items-end gap-3">
-              <h3 className="text-4xl font-black text-primary tracking-tighter">₱{totalSales.toLocaleString()}</h3>
-              <span className="text-[10px] font-bold text-emerald-500 mb-1.5">+12.4%</span>
+          <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[90px]">
+            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-[0.15em]">Sales Value</p>
+            <div className="flex items-baseline gap-1 mt-1">
+              <h3 className="text-2xl font-black text-primary tracking-tight">₱{totalSales.toLocaleString()}</h3>
+              <span className="text-[8px] font-bold text-emerald-500 tracking-wide">+12.4%</span>
             </div>
           </div>
         </div>
       )}
 
-      <div className="space-y-16">
+      <div className="space-y-8">
         {/* Main Panel */}
         <div className="space-y-10">
           {activeTab === 'inventory' && (
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 px-4">
-              <h2 className="text-xl font-bold text-slate-800 tracking-tight font-sans">Produce & Crop Catalog</h2>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-2 mb-4">
+              <h2 className="text-lg font-bold text-slate-800 tracking-tight font-sans">Produce & Crop Catalog</h2>
 
-              <div className="flex items-center gap-4">
-                <div className="relative">
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="relative w-full sm:w-60">
                   <input 
                     type="text" 
                     placeholder="Search produce..." 
-                    className="pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-[2rem] text-xs focus:ring-2 focus:ring-primary/10 outline-none w-72 transition-all shadow-sm"
+                    className="pl-10 pr-4 py-2 bg-white border border-slate-250 rounded-xl text-xs focus:ring-1 focus:ring-primary/10 outline-none w-full transition-all shadow-sm h-10"
                   />
-                  <Package className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Package className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                 </div>
-                <button 
-                  onClick={() => { setEditingProduct(null); setShowAddModal(true); }}
-                  className="px-8 py-4 bg-primary text-white rounded-[2rem] text-xs font-bold uppercase tracking-widest hover:bg-primary-dark transition-all shadow-xl shadow-primary/20 flex items-center gap-3"
-                >
-                  <Plus className="w-4 h-4" /> Add Item
-                </button>
               </div>
             </div>
           )}
@@ -295,18 +331,18 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className="bg-white rounded-[4rem] p-6 shadow-2xl shadow-primary/5 border border-border divide-y divide-border/50"
+                className="bg-white rounded-3xl p-4 md:p-6 shadow-md border border-slate-100"
               >
                 {products.length === 0 ? (
-                  <div className="py-24 text-center">
-                    <Package className="w-16 h-16 text-slate-100 mx-auto mb-6" />
-                    <p className="text-slate-400 font-bold uppercase tracking-[0.4em] text-[10px]">No products in inventory</p>
+                  <div className="py-16 text-center">
+                    <Package className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                    <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-[9px]">No products in inventory</p>
                   </div>
                 ) : (
                   <>
                     {/* Desktop/Tablet Table Layout */}
-                    <div className="hidden md:block bg-white/50 border border-slate-100 rounded-[3.5rem] overflow-hidden">
-                      <div className="grid grid-cols-12 gap-4 px-10 py-6 border-b border-slate-100 bg-slate-50/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    <div className="hidden lg:block bg-white/50 border border-slate-100 rounded-2xl overflow-hidden">
+                      <div className="grid grid-cols-12 gap-3 px-6 py-4 border-b border-slate-100 bg-slate-50/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                         <div className="col-span-4">Product Info</div>
                         <div className="col-span-2">Performance</div>
                         <div className="col-span-3">Inventory Status</div>
@@ -394,18 +430,18 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
                     </div>
 
                     {/* Mobile Cards Layout */}
-                    <div className="md:hidden space-y-4">
+                    <div className="lg:hidden space-y-4">
                       {paginatedProducts.map(product => (
-                        <div key={product.id} className="bg-white border-2 border-stone-200 rounded-[2.5rem] p-6 shadow-md flex flex-col gap-4">
-                          <div className="flex items-center gap-4">
+                        <div key={product.id} className="bg-white border border-slate-150 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm flex flex-col gap-4">
+                          <div className="flex items-center gap-3 sm:gap-4">
                             <img 
                               src={product.images?.[0] || 'https://images.unsplash.com/photo-1615485290382-441e4d0c9cb5?auto=format&fit=crop&q=80&w=200'} 
-                              className="w-20 h-20 rounded-3xl object-cover shadow-sm border-2 border-white/80" 
+                              className="w-14 h-14 sm:w-20 sm:h-20 rounded-xl sm:rounded-3xl object-cover shadow-sm border border-slate-150 shrink-0" 
                               alt={product.name}
                             />
                             <div className="min-w-0 flex-1">
                               {/* Large Bold Crop Name */}
-                              <h4 className="font-extrabold text-slate-900 text-xl tracking-tight leading-tight mb-1 truncate">{product.name}</h4>
+                              <h4 className="font-extrabold text-slate-900 text-base sm:text-xl tracking-tight leading-tight mb-1 truncate">{product.name}</h4>
                               <p className="text-[9px] text-slate-400 font-mono">ID: {product.id.slice(0, 8).toUpperCase()}</p>
                               <div className="flex gap-2 mt-1">
                                 <span className="text-[8px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full uppercase tracking-widest border border-emerald-100">Quality Verified</span>
@@ -413,26 +449,26 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-100">
                             <div>
-                              <p className="text-[9px] font-bold text-slate-450 uppercase tracking-widest mb-1">Price per {product.unit}</p>
-                              <p className="text-xl font-black text-primary tracking-tight">₱{product.price.toLocaleString()}</p>
+                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Price per {product.unit}</p>
+                              <p className="text-lg sm:text-xl font-black text-primary tracking-tight">₱{product.price.toLocaleString()}</p>
                             </div>
                             <div>
-                              <p className="text-[9px] font-bold text-slate-450 uppercase tracking-widest mb-1">Listing Visibility</p>
+                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Listing Visibility</p>
                               <div className="flex items-center gap-2">
-                                {/* Massive physical switch button toggle */}
+                                {/* Standard responsive physical toggle */}
                                 <button 
                                   type="button"
                                   onClick={() => togglePublishStatus(product)}
                                   aria-label="Toggle visible state"
-                                  className={`relative inline-flex h-8 w-15 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                  className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                                     product.isPublished ? 'bg-primary' : 'bg-slate-300'
                                   }`}
                                 >
                                   <span
-                                    className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                                      product.isPublished ? 'translate-x-7' : 'translate-x-0'
+                                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                                      product.isPublished ? 'translate-x-5' : 'translate-x-0'
                                     }`}
                                   />
                                 </button>
@@ -445,10 +481,10 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
 
                           <div className="pt-4 border-t border-slate-100 flex flex-col gap-3">
                             <div>
-                              <p className="text-[9px] font-bold text-slate-450 uppercase tracking-widest mb-1">Available Weight</p>
+                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Available Weight</p>
                               <div className="flex items-center justify-between gap-4">
-                                <span className="text-2xl font-black text-slate-800 leading-none shrink-0">{product.stock} {product.unit}s</span>
-                                <div className="flex-1 h-3 bg-stone-100 rounded-full overflow-hidden border border-stone-200/50">
+                                <span className="text-xl sm:text-2xl font-black text-slate-800 leading-none shrink-0">{product.stock} {product.unit}s</span>
+                                <div className="flex-grow h-2.5 bg-slate-100 rounded-full overflow-hidden border border-slate-150">
                                   <div 
                                     className={`h-full rounded-full transition-all duration-500 ${
                                       product.stock > 50 ? 'bg-primary' : 
@@ -464,16 +500,16 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
                               <button 
                                 type="button"
                                 onClick={() => { setEditingProduct(product); setShowAddModal(true); }}
-                                className="flex-1 py-3 text-slate-700 bg-slate-50 hover:bg-slate-100 font-bold text-xs uppercase tracking-widest rounded-xl border border-slate-200 transition-all flex items-center justify-center gap-2"
+                                className="flex-1 py-2.5 text-slate-700 bg-slate-50 hover:bg-slate-100 font-bold text-xs uppercase tracking-widest rounded-xl border border-slate-200 transition-all flex items-center justify-center gap-2"
                               >
-                                <Edit className="w-4 h-4" /> Edit Listing
+                                <Edit className="w-3.5 h-3.5" /> Edit Listing
                               </button>
                               <button 
                                 type="button"
                                 onClick={() => deleteProduct(product.id)}
-                                className="px-4 py-3 text-rose-500 bg-rose-50 hover:bg-rose-100 font-bold rounded-xl border border-rose-200 transition-all"
+                                className="px-3 py-2.5 text-rose-500 bg-rose-50 hover:bg-rose-100 font-bold rounded-xl border border-rose-200 transition-all"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           </div>
@@ -522,7 +558,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
                 className="space-y-8"
               >
                 {reviews.length === 0 ? (
-                  <div className="bg-white rounded-[4rem] py-32 text-center border-2 border-border shadow-2xl shadow-primary/5">
+                  <div className="bg-white rounded-3xl py-12 text-center border border-slate-200">
                     <motion.div 
                       animate={{ rotate: [0, 10, -10, 0] }}
                       transition={{ repeat: Infinity, duration: 4 }}
@@ -534,7 +570,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
                   </div>
                 ) : (
                   reviews.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(review => (
-                    <div key={review.id} className="bg-white p-10 rounded-[4rem] border-2 border-border shadow-2xl shadow-primary/5 hover:border-primary/20 transition-all group">
+                    <div key={review.id} className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border border-slate-150 hover:border-primary/20 transition-all group shadow-sm hover:shadow-md">
                       <div className="flex justify-between items-start mb-8">
                         <div className="flex items-center gap-6">
                           <div className="w-14 h-14 bg-accent-light rounded-2xl flex items-center justify-center text-primary font-bold text-xl font-serif italic border border-primary/10 shadow-inner">
@@ -573,7 +609,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className="bg-white rounded-[4rem] p-6 shadow-2xl shadow-primary/5 border border-border divide-y divide-border/50"
+                className="bg-white rounded-2xl sm:rounded-3xl p-3 sm:p-6 shadow-sm border border-slate-150 divide-y divide-slate-100"
               >
                 {conversations.length === 0 ? (
                   <div className="py-24 text-center">
@@ -585,21 +621,21 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
                     <div 
                       key={conv.id} 
                       onClick={() => handleOpenConversation(conv)}
-                      className="p-10 group flex items-center justify-between hover:bg-background transition-all first:rounded-t-[3.5rem] last:rounded-b-[3.5rem] cursor-pointer"
+                      className="p-4 sm:p-6 group flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50 transition-all first:rounded-t-xl last:rounded-b-xl cursor-pointer"
                     >
-                      <div className="flex items-center gap-10">
-                        <div className="w-16 h-16 rounded-[1.5rem] bg-accent-light flex items-center justify-center overflow-hidden border border-primary/5">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-accent-light flex items-center justify-center overflow-hidden border border-primary/5 shrink-0">
                           <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${conv.participants.find((id: string) => id !== profile?.uid)}`} className="w-full h-full object-contain bg-accent-light" />
                         </div>
-                        <div>
-                          <div className="flex items-center gap-4 mb-2">
-                            <p className="font-bold text-xl text-slate-800 tracking-tighter">{conv.buyerName === profile?.fullName ? conv.farmerName : conv.buyerName}</p>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-bold text-base text-slate-800 tracking-tight truncate">{conv.buyerName === profile?.fullName ? conv.farmerName : conv.buyerName}</p>
                           </div>
-                          <p className="text-sm text-slate-500 line-clamp-1">{conv.lastMessage || 'No messages yet'}</p>
+                          <p className="text-xs text-slate-500 line-clamp-1">{conv.lastMessage || 'No messages yet'}</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">{conv.lastMessageAt ? new Date(conv.lastMessageAt?.toDate?.() || conv.lastMessageAt).toLocaleDateString() : ''}</p>
+                      <div className="text-left sm:text-right shrink-0">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{conv.lastMessageAt ? new Date(conv.lastMessageAt?.toDate?.() || conv.lastMessageAt).toLocaleDateString() : ''}</p>
                       </div>
                     </div>
                   ))
@@ -610,36 +646,36 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
         </div>
 
         {/* Recent Orders - Bottom Business Panel */}
-        <div className="space-y-12">
-          <div className="px-6 flex items-center justify-between">
+        <div className="space-y-6">
+          <div className="px-4 flex items-center justify-between">
             <div>
-              <h2 className="text-3xl font-bold text-slate-800 tracking-tighter font-sans italic">Operational Log</h2>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Transaction History & Fulfillment</p>
+              <h2 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight font-sans italic">Operational Log</h2>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Transaction History & Fulfillment</p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 py-2 bg-slate-100 rounded-full border border-slate-200">
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-3 py-1 bg-slate-100 rounded-full border border-slate-200">
                 Page {currentPage} of {totalPages || 1}
               </span>
             </div>
           </div>
           
-          <div className="bg-slate-50 border border-slate-200 rounded-[4rem] p-16 shadow-inner min-h-[400px] relative overflow-hidden">
+          <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 shadow-inner min-h-[300px] relative overflow-hidden">
              {orders.length === 0 ? (
-               <div className="h-full flex flex-col items-center justify-center opacity-30 relative z-10 py-20">
-                 <ShoppingBag className="w-16 h-16 mb-6 text-slate-400" />
-                 <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-slate-400">Inventory is standby...</p>
+               <div className="h-full flex flex-col items-center justify-center opacity-30 relative z-10 py-12">
+                 <ShoppingBag className="w-12 h-12 mb-4 text-slate-400" />
+                 <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400">Inventory is standby...</p>
                </div>
              ) : (
                <div className="relative z-10">
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                    {paginatedOrders.map(order => (
-                    <div key={order.id} className="p-10 bg-white border border-slate-200 rounded-[3.5rem] hover:shadow-xl hover:shadow-slate-200/50 transition-all border-l-8 border-l-primary flex flex-col h-full group">
-                      <div className="flex justify-between items-start mb-8 gap-4">
+                    <div key={order.id} className="p-4 sm:p-6 bg-white border border-slate-150 rounded-2xl hover:shadow-lg transition-all border-l-4 border-l-primary flex flex-col h-full group">
+                      <div className="flex justify-between items-start mb-4 gap-4">
                         <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mb-1">Receipt ID</p>
-                          <p className="font-mono text-sm text-slate-800 font-bold opacity-80">#{order.id.slice(0, 10).toUpperCase()}</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-0.5">Receipt ID</p>
+                           <p className="font-mono text-xs text-slate-800 font-bold opacity-80">#{order.id.slice(0, 10).toUpperCase()}</p>
                         </div>
-                        <span className={`px-5 py-2 rounded-full text-[9px] font-bold uppercase tracking-[0.3em] border flex-shrink-0 ${
+                        <span className={`px-3 py-1 rounded-full text-[8px] font-bold uppercase tracking-wider border flex-shrink-0 ${
                           order.status === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-200' :
                           order.status === 'delivered' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 
                           order.status === 'cancelled' ? 'bg-rose-50 text-rose-600 border-rose-200' :
@@ -649,28 +685,28 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
                         </span>
                       </div>
                       
-                      <div className="space-y-4 mb-8 opacity-90 border-y border-slate-100 py-8 flex-grow">
+                      <div className="space-y-2 mb-4 opacity-90 border-y border-slate-100 py-3 flex-grow">
                         {order.items.map((item, idx) => (
-                          <div key={idx} className="flex justify-between items-center text-sm">
-                            <span className="font-bold text-slate-700 tracking-tight">{item.name} <span className="text-[10px] text-slate-400 font-medium italic ml-2">x {item.quantity}</span></span>
-                            <span className="font-mono text-[11px] font-bold text-slate-800">₱{(item.price * item.quantity).toLocaleString()}</span>
+                           <div key={idx} className="flex justify-between items-center text-xs">
+                             <span className="font-bold text-slate-700 tracking-tight">{item.name} <span className="text-[9px] text-slate-450 font-medium italic ml-1.5">x {item.quantity}</span></span>
+                             <span className="font-mono text-[10px] font-bold text-slate-800">₱{(item.price * item.quantity).toLocaleString()}</span>
                           </div>
                         ))}
                       </div>
 
                       {/* Delivery & Logistics Sauté Recap */}
-                      <div className="mb-8 p-6 bg-slate-50 border border-slate-150 rounded-[2rem] space-y-4 text-xs">
-                        <div className="flex items-start gap-3">
-                          <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                      <div className="mb-4 p-4 bg-slate-50 border border-slate-150 rounded-xl space-y-3 text-xs">
+                        <div className="flex items-start gap-2.5">
+                          <MapPin className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
                           <div className="min-w-0 flex-1">
-                            <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest leading-none mb-1">Destination Address</p>
+                            <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest leading-none mb-0.5">Destination Address</p>
                             <p className="font-semibold text-slate-700 leading-snug">{order.deliveryAddress || 'No address provided'}</p>
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4 pb-2 border-b border-slate-200/50">
-                          <div className="flex items-start gap-2.5">
-                            <Phone className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+                        <div className="grid grid-cols-2 gap-3 pb-1.5 border-b border-slate-200/50">
+                          <div className="flex items-start gap-2">
+                            <Phone className="w-3 h-3 text-primary shrink-0 mt-0.5" />
                             <div className="min-w-0">
                               <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider leading-none mb-0.5">Contact</p>
                               <p className="font-bold text-slate-700 truncate">{order.contactNumber || 'N/A'}</p>
@@ -696,7 +732,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
                         </div>
 
                         {order.buyerMessage && (
-                          <div className="mt-2.5 pt-2.5 border-t border-dashed border-slate-200 flex items-start gap-2 bg-amber-50/40 -mx-6 -mb-6 p-4 rounded-b-[2rem]">
+                          <div className="mt-2.5 pt-2.5 border-t border-dashed border-slate-200 flex items-start gap-2 bg-amber-50/40 -mx-4 -mb-4 sm:-mx-6 sm:-mb-6 p-4 rounded-b-xl sm:rounded-b-[2rem]">
                             <MessageSquare className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
                             <div>
                               <p className="text-[8px] font-black uppercase text-primary tracking-wider leading-none mb-1">Instruction from Chef</p>
@@ -706,17 +742,17 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
                         )}
                       </div>
                       
-                      <div className="flex items-end justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mt-auto">
                         <div>
                           <p className="text-[10px] opacity-40 font-bold uppercase mb-2 tracking-[0.2em]">Settled Amount</p>
-                          <p className="text-4xl font-black tracking-tighter text-slate-800 italic font-sans">₱{order.total.toLocaleString()}</p>
+                          <p className="text-3xl sm:text-4xl font-black tracking-tighter text-slate-800 italic font-sans">₱{order.total.toLocaleString()}</p>
                         </div>
-                        <div className="flex flex-col items-end gap-6">
-                          <div className="flex gap-2">
+                        <div className="flex flex-col items-stretch sm:items-end w-full sm:w-auto mt-2 sm:mt-0">
+                          <div className="flex gap-2 w-full sm:w-auto">
                             {order.status === 'pending' && (
                               <button 
                                 onClick={() => updateOrderStatus(order.id, 'preparing')}
-                                className="px-6 py-3 bg-primary text-white text-[9px] font-bold uppercase rounded-xl transition-all shadow-lg shadow-primary/20 tracking-widest hover:scale-105 active:scale-95"
+                                className="w-full sm:w-auto px-6 py-3 bg-primary text-white text-[9px] font-bold uppercase rounded-xl transition-all shadow-lg shadow-primary/20 tracking-widest hover:scale-105 active:scale-95 text-center flex items-center justify-center"
                               >
                                 Accept
                               </button>
@@ -724,7 +760,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
                             {order.status === 'preparing' && (
                               <button 
                                 onClick={() => updateOrderStatus(order.id, 'shipped')}
-                                className="px-6 py-3 bg-primary text-white text-[9px] font-bold uppercase rounded-xl transition-all shadow-lg shadow-primary/20 tracking-widest hover:scale-105 active:scale-95"
+                                className="w-full sm:w-auto px-6 py-3 bg-primary text-white text-[9px] font-bold uppercase rounded-xl transition-all shadow-lg shadow-primary/20 tracking-widest hover:scale-105 active:scale-95 text-center flex items-center justify-center"
                               >
                                 Ship Order
                               </button>
@@ -732,7 +768,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
                             {order.status === 'shipped' && (
                               <button 
                                 onClick={() => updateOrderStatus(order.id, 'delivered')}
-                                className="px-6 py-3 bg-secondary text-white text-[9px] font-bold uppercase rounded-xl transition-all shadow-lg shadow-secondary/20 tracking-widest hover:scale-105 active:scale-95"
+                                className="w-full sm:w-auto px-6 py-3 bg-secondary text-white text-[9px] font-bold uppercase rounded-xl transition-all shadow-lg shadow-secondary/20 tracking-widest hover:scale-105 active:scale-95 text-center flex items-center justify-center"
                               >
                                 Complete
                               </button>
@@ -779,6 +815,9 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
         </div>
       </div>
 
+      {/* Spacing widget to prevent floating button overlapping tap targets */}
+      <div className="h-24" />
+
       <AnimatePresence>
         {selectedConversation && (
           <Chat 
@@ -795,6 +834,49 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
             initialData={editingProduct} 
             onClose={() => { setShowAddModal(false); setEditingProduct(null); }} 
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {deleteConfirmId && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4 z-50"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100/85"
+            >
+              <h3 className="text-base font-bold text-slate-900 tracking-tight font-sans mb-1.5 flex items-center gap-2">
+                <Trash2 className="w-4 h-4 text-rose-500" /> Delete Listing?
+              </h3>
+              <p className="text-xs text-slate-500 mb-6 leading-relaxed">Are you sure you want to delete this listing? Registered chefs won't be able to buy it anymore.</p>
+              <div className="flex gap-2.5 justify-end">
+                <button 
+                  type="button"
+                  onClick={() => setDeleteConfirmId(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button"
+                  onClick={async () => {
+                    const id = deleteConfirmId;
+                    setDeleteConfirmId(null);
+                    await deleteProductDirectly(id);
+                  }}
+                  className="px-4 py-2 bg-rose-500 hover:bg-rose-600 active:scale-95 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all shadow-md shadow-rose-500/10"
+                >
+                  Delete Listing
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
@@ -987,7 +1069,7 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
         className="bg-white w-full max-w-lg rounded-[2.5rem] overflow-hidden shadow-2xl relative border border-emerald-50"
       >
         <div className="max-h-[90vh] overflow-y-auto no-scrollbar">
-          <div className="p-10">
+          <div className="p-5 sm:p-10">
             <div className="flex justify-between items-center mb-10">
               <h2 className="text-2xl font-bold text-slate-800 tracking-tight">{initialData ? 'Edit Product' : 'Add New Product'}</h2>
               <button onClick={onClose} className="p-2.5 bg-slate-50 hover:bg-slate-100 hover:text-slate-600 text-slate-400 rounded-full transition-all border border-slate-100"><X className="w-5 h-5" /></button>

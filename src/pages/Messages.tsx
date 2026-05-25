@@ -73,8 +73,8 @@ export const Messages: React.FC = () => {
   });
 
   return (
-    <div className="w-full h-[calc(100vh-73px)] flex flex-col bg-slate-50/30">
-      <div className="px-6 py-4 sm:px-8 sm:py-6 bg-white border-b border-slate-100">
+    <div className="w-full h-full flex flex-col bg-slate-50/30">
+      <div className="px-4 py-3 sm:px-6 bg-white border-b border-slate-100">
         <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tighter font-serif italic">Messages</h1>
         <p className="text-slate-400 font-bold uppercase tracking-widest text-[8px] mt-1">Real-time Trading Communication</p>
       </div>

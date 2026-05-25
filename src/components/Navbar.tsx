@@ -69,8 +69,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
     <>
       <nav className={`z-50 transition-all duration-500 ${
         !user 
-          ? `h-24 fixed w-full ${scrolled ? 'bg-primary/95 backdrop-blur-2xl shadow-2xl h-20' : 'bg-transparent border-none'}` 
-          : 'h-24 sticky top-0 bg-background/80 backdrop-blur-xl border-b border-white/40 shadow-sm'
+          ? `h-16 md:h-20 fixed w-full ${scrolled ? 'bg-primary/95 backdrop-blur-2xl shadow-2xl' : 'bg-transparent border-none'}` 
+          : 'h-16 md:h-20 sticky top-0 bg-background/80 backdrop-blur-xl border-b border-white/40 shadow-sm'
       } px-4 sm:px-8 flex items-center`}>
       <div className="max-w-[1600px] mx-auto w-full flex items-center justify-between">
         <div 
@@ -89,7 +89,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
         >
           <motion.div
             whileHover={{ scale: 1.05 }}
-            className="h-16 flex items-center"
+            className="h-10 md:h-12 flex items-center"
           >
             <img 
               src="/logo.png" 
@@ -171,7 +171,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -15, scale: 0.95 }}
                   transition={{ duration: 0.2 }}
-                  className="absolute top-24 left-4 right-4 bg-primary/95 backdrop-blur-2xl border border-white/20 shadow-2xl p-6 flex flex-col gap-6 z-50 rounded-[2rem] text-white"
+                  className="absolute top-16 md:top-20 left-4 right-4 bg-primary/95 backdrop-blur-2xl border border-white/20 shadow-2xl p-6 flex flex-col gap-6 z-50 rounded-[2rem] text-white"
                 >
                   <div className="flex flex-col gap-1 text-center border-b border-white/10 pb-4">
                     <p className="font-serif italic font-black text-2xl tracking-tighter text-accent">FarmToHome</p>

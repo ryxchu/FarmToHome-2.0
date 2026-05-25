@@ -16,12 +16,17 @@ This document tracks the features, progress, and architectural decisions made si
   - Choice between **Email** and **Phone** (Simulated) verification.
   - 6-digit security code with cooldown timers and resend logic.
 
-### 2.2 Security Architecture
+### 2.2 Security & Resiliency Architecture
 - **Firestore Security Rules**: Implemented "Fortress" rules with:
   - **Schema Validation**: Strict key and type checking.
   - **Identity Verification**: Ensuring owners can only modify their own data.
   - **Transactional Integrity**: Atomic writes and state-locking for terminal statuses.
 - **Server-side Security**: API keys are kept server-side in `server.ts` to prevent exposure.
+- **Resiliency & Offline Fallbacks**:
+  - Automatically intercepts Firestore API quota limit exhaustion errors (`resource-exhausted` or string references).
+  - Automatically intercepts connection dropouts, preventing application crashes.
+  - Switches gracefully to localized replication caches (persisted securely under user namespaces in `localStorage`).
+  - Emits real-time CustomEvents to present dismissible warning status banners in the central `App.tsx` layout.
 
 ### 2.3 User Interface
 - **Swiss-Modern Aesthetic**: A polished, "Farm-to-Table" design using:

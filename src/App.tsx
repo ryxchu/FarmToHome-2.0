@@ -42,7 +42,7 @@ const SideNavLink: React.FC<{ icon: string; label: string; active?: boolean; onC
 );
 
 import { SystemConfig } from './types';
-import { db, handleFirestoreError, OperationType, isQuotaError, isOfflineError } from './lib/firebase';
+import { db, handleFirestoreError, OperationType, isQuotaError, isOfflineError, safeSetItem } from './lib/firebase';
 import { doc, getDoc, collection, getDocs, query, limit } from 'firebase/firestore';
 
 function AppContent() {
@@ -81,6 +81,21 @@ function AppContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [nearMeEnabled, setNearMeEnabled] = useState(false);
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [dbInterrupted, setDbInterrupted] = useState<{ isQuota: boolean; isOffline: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    const handleInterrupt = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setDbInterrupted({
+        isQuota: detail?.isQuota ?? false,
+        isOffline: detail?.isOffline ?? false,
+        message: detail?.message ?? ''
+      });
+    };
+
+    window.addEventListener('firestore-service-interrupted', handleInterrupt);
+    return () => window.removeEventListener('firestore-service-interrupted', handleInterrupt);
+  }, []);
 
   const handleNearMeClick = () => {
     if (nearMeEnabled) {
@@ -185,7 +200,7 @@ function AppContent() {
         if (docSnap.exists()) {
           const config = docSnap.data() as SystemConfig;
           setSystemConfig(config);
-          localStorage.setItem('system_config', JSON.stringify(config));
+          safeSetItem('system_config', JSON.stringify(config));
         } else {
           // If config doc doesn't exist, use a basic default
           const defaultConfig: SystemConfig = {
@@ -281,6 +296,29 @@ function AppContent() {
             <span>{systemConfig.broadcastMessage}</span>
           </motion.div>
         )}
+        {dbInterrupted && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className={`bg-[#ffefe6]/95 text-[#6c3a1e] border-b-2 border-accent-light px-6 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-[10px] sm:text-[10.5px] font-bold uppercase tracking-wider relative z-[100]`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Radio className="w-4 h-4 animate-pulse text-accent shrink-0" />
+              <span className="text-center sm:text-left leading-snug">
+                {dbInterrupted.isQuota 
+                  ? "Cooperative Hub Sandbox: Demonstration server quota limits reached. Viewing cached catalogs and active ledgers." 
+                  : "Agrarian Hub Lanes: Sourced route operating in cached offline lane. Activities will validate once connection restabilizes."}
+              </span>
+            </div>
+            <button 
+              onClick={() => setDbInterrupted(null)}
+              className="px-3.5 py-1.5 bg-accent-light text-primary hover:bg-white rounded-xl tracking-widest text-[8.5px] uppercase border border-primary/5 shadow-sm transition-all text-xs shrink-0 cursor-pointer active:scale-95"
+            >
+              Dismiss Notice
+            </button>
+          </motion.div>
+        )}
       </AnimatePresence>
       <Navbar 
         onAuthClick={() => openAuth('login', 'buyer')} 
@@ -290,7 +328,7 @@ function AppContent() {
         onSearch={setSearchQuery}
       />
 
-      <main className="flex-grow">
+      <main className={`flex-grow flex flex-col ${currentView === 'landing' ? '' : 'overflow-hidden'}`}>
         <AnimatePresence mode="wait">
           {currentView === 'landing' ? (
             <LandingPage 
@@ -309,7 +347,7 @@ function AppContent() {
             />
           ) : (
             <>
-            <div className="flex flex-1 overflow-hidden min-h-[calc(100vh-80px)]">
+            <div className="flex flex-1 overflow-hidden min-h-[calc(100vh-64px)] md:min-h-[calc(100vh-80px)] h-[calc(100vh-64px)] md:h-[calc(100vh-80px)]">
               <UnifiedSidebar
                 currentView={currentView}
                 setView={setCurrentView}
@@ -325,7 +363,11 @@ function AppContent() {
                 onNearMeToggle={handleNearMeClick}
               />
 
-              <main className="flex-1 p-4 sm:p-8 lg:p-12 pb-28 md:pb-12 overflow-y-auto flex flex-col no-scrollbar">
+              <main className={`flex-1 flex flex-col no-scrollbar ${
+                currentView === 'messages' 
+                  ? 'h-full overflow-hidden p-0' 
+                  : 'p-4 sm:p-8 lg:p-12 pb-28 md:pb-12 overflow-y-auto'
+              }`}>
                 {user && profile?.role === 'farmer' && currentView === 'dashboard' ? (
                   <FarmerDashboard onEditProfile={() => setCurrentView('profile')} activeTabProp={dashboardTab} onTabChange={setDashboardTab} />
                 ) : user && profile?.role === 'admin' && currentView === 'admin-dashboard' ? (
@@ -412,24 +454,38 @@ function AppContent() {
       <Cart isOpen={showCart} onClose={() => setShowCart(false)} />
       <AIChatbot />
       
-      <MobileNavBar 
-        currentView={currentView}
-        setView={setCurrentView}
-        marketViewMode={marketViewMode}
-        setMarketViewMode={setMarketViewMode}
-        farmerTab={dashboardTab}
-        setFarmerTab={setDashboardTab}
-        adminTab={adminTab}
-        setAdminTab={setAdminTab}
-        onCartClick={() => setShowCart(true)}
-        onAuthClick={() => openAuth('login', 'buyer')}
-      />
+      {user && (
+        <MobileNavBar 
+          currentView={currentView}
+          setView={setCurrentView}
+          marketViewMode={marketViewMode}
+          setMarketViewMode={setMarketViewMode}
+          farmerTab={dashboardTab}
+          setFarmerTab={setDashboardTab}
+          adminTab={adminTab}
+          setAdminTab={setAdminTab}
+          onCartClick={() => setShowCart(true)}
+          onAuthClick={() => openAuth('login', 'buyer')}
+        />
+      )}
       
-      <footer className="bg-stone-900 text-stone-100 pt-16 pb-28 md:pb-10 px-8 mt-auto relative overflow-hidden border-t border-stone-800">
+      <footer className={`bg-stone-900 text-stone-100 pt-16 ${user ? 'pb-28' : 'pb-10'} md:pb-10 px-8 mt-auto relative overflow-hidden border-t border-stone-800`}>
         <div className="absolute bottom-0 left-0 w-[40vw] h-[40vw] bg-primary/5 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/4" />
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 relative z-10 text-center md:text-left">
           <div className="col-span-1 md:col-span-2 flex flex-col items-center md:items-start">
-            <div className="h-16 mb-4 cursor-pointer flex items-center justify-center md:justify-start" onClick={() => setCurrentView('landing')}>
+            <div 
+              className="h-16 mb-4 cursor-pointer flex items-center justify-center md:justify-start" 
+              onClick={() => {
+                if (user) {
+                  if (profile?.role === 'admin') setCurrentView('admin-dashboard');
+                  else if (profile?.role === 'farmer') setCurrentView('dashboard');
+                  else setCurrentView('home');
+                } else {
+                  setCurrentView('landing');
+                }
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            >
               <img 
                 src="/logo.png" 
                 alt="FarmToHome Logo" 
@@ -448,10 +504,34 @@ function AppContent() {
             </div>
             <p className="text-stone-400 max-w-sm leading-relaxed mb-6 text-xs md:text-sm">Connecting local farms directly to your home. Fresh produce, straight to your door.</p>
             <div className="flex gap-4 justify-center md:justify-start">
-              <div className="w-10 h-10 rounded-xl bg-stone-800/80 border border-stone-700/50 flex items-center justify-center hover:bg-stone-700 transition-all cursor-pointer group shadow-inner">
+              <div 
+                className="w-10 h-10 rounded-xl bg-stone-800/80 border border-stone-700/50 flex items-center justify-center hover:bg-stone-700 transition-all cursor-pointer group shadow-inner"
+                onClick={() => {
+                  if (user) {
+                    if (profile?.role === 'admin') setCurrentView('admin-dashboard');
+                    else if (profile?.role === 'farmer') setCurrentView('dashboard');
+                    else setCurrentView('home');
+                  } else {
+                    setCurrentView('landing');
+                  }
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              >
                 <Sprout className="w-4 h-4 group-hover:rotate-12 transition-transform text-accent" />
               </div>
-              <div className="w-10 h-10 rounded-xl bg-stone-800/80 border border-stone-700/50 flex items-center justify-center hover:bg-stone-700 transition-all cursor-pointer group shadow-inner">
+              <div 
+                className="w-10 h-10 rounded-xl bg-stone-800/80 border border-stone-700/50 flex items-center justify-center hover:bg-stone-700 transition-all cursor-pointer group shadow-inner"
+                onClick={() => {
+                  setCurrentView('home');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  setTimeout(() => {
+                    const searchBox = document.querySelector('input[placeholder*="Search"]');
+                    if (searchBox) {
+                      (searchBox as HTMLInputElement).focus();
+                    }
+                  }, 150);
+                }}
+              >
                 <Search className="w-4 h-4 group-hover:scale-110 transition-transform text-accent" />
               </div>
             </div>

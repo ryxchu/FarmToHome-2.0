@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, limit, getDocs } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType, isQuotaError, isOfflineError } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType, isQuotaError, isOfflineError, safeSetItem } from '../lib/firebase';
 import { Product } from '../types';
 import { Star, Clock, MapPin, Plus, Filter, MessageSquare, ShoppingBag, Sun, Search } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -104,7 +104,7 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({
         
         // Cache if it's the 'All' landing
         if (activeCategory === 'All' && !searchQuery) {
-          localStorage.setItem('shop_products_all', JSON.stringify(prods));
+          safeSetItem('shop_products_all', JSON.stringify(prods));
         }
 
         processProducts(prods);
@@ -165,24 +165,24 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({
     <div className="space-y-4 md:space-y-8">
       {/* Sticky Top Header with Search & Horizontally Scrollable Pills on Mobile */}
       {viewMode === 'shop' ? (
-        <div className="lg:hidden sticky top-0 bg-white/95 backdrop-blur-md z-30 py-4 px-4 -mx-4 -mt-8 border-b border-slate-100 flex flex-col gap-3 shadow-sm">
-          {/* Header & Mode Switcher */}
+        <div className="lg:hidden sticky top-0 bg-white/95 backdrop-blur-md z-30 py-2.5 px-4 -mx-4 -mt-4 border-b border-slate-100 flex flex-col gap-2 shadow-sm animate-fade-in">
+          {/* Header & Mode Switcher combined */}
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-xl font-bold text-primary tracking-tighter font-sans italic">Marketplace</h1>
-              <p className="text-secondary font-bold uppercase tracking-[0.2em] text-[7px]">Sourced directly from farms</p>
+              <h1 className="text-base font-extrabold text-primary tracking-tighter font-sans italic">Marketplace</h1>
+              <p className="text-secondary font-semibold uppercase tracking-[0.2em] text-[6.5px]">Sourced directly from local farms</p>
             </div>
             
-            <div className="bg-accent-light p-0.5 rounded-full flex items-center border border-primary/5">
+            <div className="bg-accent-light p-0.5 rounded-full flex items-center border border-primary/5 scale-90 origin-right">
               <button 
                 onClick={() => onViewModeChange?.('shop')}
-                className="flex items-center gap-1.5 py-1 px-3 rounded-full font-bold text-[8px] uppercase tracking-widest transition-all bg-primary text-white shadow-sm"
+                className="flex items-center gap-1 py-0.5 px-2.5 rounded-full font-bold text-[8px] uppercase tracking-widest transition-all bg-primary text-white shadow-sm"
               >
                 <ShoppingBag className="w-2.5 h-2.5" /> Shop
               </button>
               <button 
                 onClick={() => onViewModeChange?.('community')}
-                className="flex items-center gap-1.5 py-1 px-3 rounded-full font-bold text-[8px] uppercase tracking-widest transition-all text-slate-400"
+                className="flex items-center gap-1 py-0.5 px-2.5 rounded-full font-bold text-[8px] uppercase tracking-widest transition-all text-slate-400"
               >
                 <MessageSquare className="w-2.5 h-2.5" /> Feed
               </button>
@@ -192,27 +192,27 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({
           {/* Shopee-style Search bar */}
           {onSearch && (
             <div className="relative w-full">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               <input 
                 type="text" 
                 value={searchQuery}
                 onChange={(e) => onSearch?.(e.target.value)}
                 placeholder="Search fresh crops..." 
-                className="block w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-medium placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-primary/10 transition-all text-slate-800"
+                className="block w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-[11px] placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-primary/10 transition-all font-medium text-slate-800"
               />
             </div>
           )}
 
           {/* Horizontally scrollable Pills layout */}
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth whitespace-nowrap pt-1">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth whitespace-nowrap pt-0.5">
             {categories.map((cat) => (
               <button
                 key={cat.name}
                 onClick={() => handleCategoryClick(cat.name)}
-                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[9px] font-bold uppercase tracking-widest transition-all border ${
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[8.5px] font-bold uppercase tracking-wider transition-all border ${
                   activeCategory === cat.name 
-                    ? 'bg-primary text-white border-primary shadow-sm' 
-                    : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'
+                    ? 'bg-primary text-white border-primary shadow-sm animate-pulse-once' 
+                    : 'bg-white text-slate-400 border-slate-100'
                 }`}
               >
                 <span>{cat.icon}</span>

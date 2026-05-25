@@ -73,33 +73,37 @@ export const InfoModal: React.FC<InfoModalProps> = ({ isOpen, onClose, initialSe
   ] as const;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 bg-black/60 backdrop-blur-md overflow-y-auto">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 bg-black/60 backdrop-blur-md overflow-hidden">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative bg-white w-full max-w-6xl h-full max-h-[85vh] md:max-h-[80vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col md:flex-row border border-slate-100"
+        className="relative bg-white w-full max-w-6xl h-[90vh] md:h-[80vh] rounded-3xl md:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col md:flex-row border border-slate-100 min-h-0"
       >
         {/* Close Button */}
         <button 
           onClick={onClose}
-          className="absolute top-6 right-6 z-50 w-10 h-10 bg-slate-50 hover:bg-slate-100 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-800 transition-all border border-slate-100 hover:rotate-90 active:scale-90"
+          className="absolute top-4 right-4 md:top-6 md:right-6 z-50 w-10 h-10 bg-white/90 hover:bg-slate-100 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-800 transition-all border border-slate-100 hover:rotate-90 active:scale-90 shadow-sm"
         >
           <X className="w-4 h-4" />
         </button>
 
-        {/* Sidebar / Left Column */}
-        <div className="w-full md:w-64 bg-slate-50/50 border-b md:border-b-0 md:border-r border-slate-100 p-6 md:p-8 shrink-0 flex flex-col justify-between overflow-y-auto">
-          <div>
-            <div className="flex items-center gap-3 mb-8">
+        {/* Sidebar / Left Column (Desktop) and Horizontal Navigation Bar (Mobile) */}
+        <div className="w-full md:w-64 bg-slate-50/50 border-b md:border-b-0 md:border-r border-slate-100 p-4 md:p-8 shrink-0 flex flex-col justify-between overflow-x-auto md:overflow-y-auto min-h-0">
+          <div className="w-full flex md:block flex-col">
+            {/* Brand container - Hidden on mobile, shown on desktop */}
+            <div className="hidden md:flex items-center gap-3 mb-8">
               <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center text-primary shadow-inner">
                 <Sprout className="w-5 h-5 animate-pulse" />
               </div>
               <span className="font-serif italic font-black text-xl tracking-tight text-slate-800">FarmToHome</span>
             </div>
             
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Information Hub</p>
-            <nav className="space-y-1 mb-8">
+            {/* Title - Hidden on mobile, shown on desktop */}
+            <p className="hidden md:block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Information Hub</p>
+            
+            {/* Tab buttons - Horizontal scroll on mobile, vertical stack on desktop */}
+            <nav className="flex md:flex-col gap-2 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 scrollbar-none w-full max-w-[calc(100%-3rem)] md:max-w-none">
               {menuItems.map((item) => {
                 const isActive = activeTab === item.id;
                 return (
@@ -109,10 +113,10 @@ export const InfoModal: React.FC<InfoModalProps> = ({ isOpen, onClose, initialSe
                       setActiveTab(item.id);
                       setSubmitStatus(null);
                     }}
-                    className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-[11px] font-bold uppercase tracking-wider transition-all text-left ${
+                    className={`flex items-center gap-2 md:gap-3 px-3.5 md:px-4 py-2.5 md:py-3.5 rounded-xl md:rounded-2xl text-[10px] md:text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap text-left ${
                       isActive 
-                        ? 'bg-primary text-white shadow-lg shadow-primary/20 translate-x-1' 
-                        : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
+                        ? 'bg-primary text-white shadow-lg shadow-primary/20 md:translate-x-1' 
+                        : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70 bg-slate-100/40 md:bg-transparent'
                     }`}
                   >
                     <span className={isActive ? 'scale-110' : 'opacity-75'}>{item.icon}</span>

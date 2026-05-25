@@ -130,8 +130,18 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
       id: 'home',
       label: 'Home',
       icon: Home,
-      active: currentView === 'landing',
-      onClick: () => setView('landing')
+      active: user 
+        ? ((role === 'admin' && currentView === 'admin-dashboard') || (role === 'farmer' && currentView === 'dashboard') || (role === 'buyer' && currentView === 'home'))
+        : currentView === 'landing',
+      onClick: () => {
+        if (user) {
+          if (role === 'admin') setView('admin-dashboard');
+          else if (role === 'farmer') setView('dashboard');
+          else setView('home');
+        } else {
+          setView('landing');
+        }
+      }
     },
     {
       id: 'marketplace',
@@ -161,12 +171,10 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
       id: 'profile',
       label: 'Profile',
       icon: User,
-      active: currentView === 'profile' || currentView === 'dashboard' || currentView === 'admin-dashboard',
+      active: currentView === 'profile',
       onClick: () => {
         if (user) {
-          if (role === 'admin') setView('admin-dashboard');
-          else if (role === 'farmer') setView('dashboard');
-          else setView('profile');
+          setView('profile');
         } else if (onAuthClick) {
           onAuthClick();
         }

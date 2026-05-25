@@ -72,16 +72,22 @@ export function isQuotaError(error: unknown): boolean {
   // Case: Error object
   if (error instanceof Error) {
     const msg = error.message.toLowerCase();
-    if (msg.includes('quota') || msg.includes('limit reached') || msg.includes('exhausted')) return true;
+    if (msg.includes('quota') || msg.includes('limit reached') || msg.includes('exhausted') || msg.includes('exceeded')) return true;
   }
 
   // Case: Firestore error object with code
   const errObj = error as any;
   if (errObj.code === 'resource-exhausted' || errObj.code === 'quota-exceeded') return true;
   
-  // Case: Stringified JSON error from handleFirestoreError
+  // Case: Stringified/JSON structures or raw string
   const errStr = String(error).toLowerCase();
-  if (errStr.includes('quota') || errStr.includes('limit reached') || errStr.includes('exhausted') || errStr.includes('resource-exhausted')) return true;
+  if (
+    errStr.includes('quota') || 
+    errStr.includes('limit reached') || 
+    errStr.includes('exhausted') || 
+    errStr.includes('resource-exhausted') ||
+    errStr.includes('exceeded')
+  ) return true;
 
   return false;
 }
@@ -104,6 +110,107 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   };
   const jsonError = JSON.stringify(errInfo);
-  console.error('Firestore Error: ', jsonError);
+  console.error('Firestore Error (Logged): ', jsonError);
+
+  const isQuota = isQuotaError(error);
+  const isOffline = isOfflineError(error);
+
+  if (typeof window !== 'undefined' && (isQuota || isOffline)) {
+    // Notify components via standard CustomEvent system
+    const event = new CustomEvent('firestore-service-interrupted', {
+      detail: {
+        isQuota,
+        isOffline,
+        message: error instanceof Error ? error.message : String(error),
+        operationType,
+        path
+      }
+    });
+    window.dispatchEvent(event);
+    
+    // We intentionally return without throwing to prevent uncaught system dashboard failures,
+    // allowing the app to switch to cached fallbacks.
+    return;
+  }
+
   throw new Error(jsonError);
 }
+
+// Safe recursive function to strip huge base64 data URLs from cached images to prevent localStorage quota errors
+function pruneHeavyBase64(value: string): string {
+  // Safe limit: if total string is small, fast path bypass (highly performant)
+  if (value.length < 50000) {
+    return value;
+  }
+  try {
+    const data = JSON.parse(value);
+    
+    const cleanObject = (obj: any): any => {
+      if (obj === null || typeof obj !== 'object') {
+        if (typeof obj === 'string' && obj.startsWith('data:image/') && obj.length > 30000) {
+          // Replace with a lightweight, inline SVG offline placeholder
+          return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><rect width='100%' height='100%' fill='%23f1f5f9'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='8' fill='%2394a3b8'>Offline Cache</text></svg>";
+        }
+        return obj;
+      }
+      
+      if (Array.isArray(obj)) {
+        return obj.map(item => cleanObject(item));
+      }
+      
+      const newObj: any = {};
+      for (const [k, v] of Object.entries(obj)) {
+        newObj[k] = cleanObject(v);
+      }
+      return newObj;
+    };
+    
+    return JSON.stringify(cleanObject(data));
+  } catch (_) {
+    return value;
+  }
+}
+
+export function safeSetItem(key: string, value: string): void {
+  try {
+    const prunedValue = pruneHeavyBase64(value);
+    localStorage.setItem(key, prunedValue);
+  } catch (error) {
+    console.warn(`localStorage.setItem exceeded quota or failed for key "${key}". Cleaning up space...`, error);
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k !== key) {
+          if (k === 'demo_user_session' || k === 'demo_profile_session') {
+            continue;
+          }
+          if (
+            k.startsWith('admin_') || 
+            k.startsWith('farmer_') || 
+            k.startsWith('buyer_') || 
+            k.startsWith('user_profile_') || 
+            k === 'social_feed_posts' || 
+            k === 'shop_products_all' ||
+            k === 'featured_products'
+          ) {
+            keysToRemove.push(k);
+          }
+        }
+      }
+      
+      keysToRemove.forEach(k => {
+        try {
+          localStorage.removeItem(k);
+        } catch (_) {}
+      });
+      
+      const prunedValueRetry = pruneHeavyBase64(value);
+      localStorage.setItem(key, prunedValueRetry);
+      console.log(`Successfully recovered and set key "${key}" after pruning old caches.`);
+    } catch (innerError) {
+      console.error(`Critically failed to save "${key}" even after full cache pruning:`, innerError);
+    }
+  }
+}
+

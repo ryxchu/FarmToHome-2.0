@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, orderBy, onSnapshot, getDocs, doc, getDoc, limit, where } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, safeSetItem } from '../lib/firebase';
 import { Post, UserProfile } from '../types';
 import { Heart, MessageCircle, Share2, MoreHorizontal } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -58,7 +58,7 @@ export const SocialFeed: React.FC = () => {
             farmerSnapshot.docs.forEach(d => {
               const data = { ...d.data(), uid: d.id } as UserProfile;
               farmerCache[d.id] = data;
-              localStorage.setItem(`user_profile_${d.id}`, JSON.stringify(data));
+              safeSetItem(`user_profile_${d.id}`, JSON.stringify(data));
             });
           }
         }
@@ -69,7 +69,7 @@ export const SocialFeed: React.FC = () => {
         }));
 
         setPosts(enrichedPosts);
-        localStorage.setItem('social_feed_posts', JSON.stringify(enrichedPosts));
+        safeSetItem('social_feed_posts', JSON.stringify(enrichedPosts));
       } catch (err) {
         console.error("Social feed error:", err);
       } finally {

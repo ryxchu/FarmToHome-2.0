@@ -84,7 +84,7 @@ export const FarmerProfile: React.FC<FarmerProfileProps> = ({ farmerId, onBack, 
   if (!farmer) return <div className="h-screen flex items-center justify-center">Farm Profile Not Found</div>;
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-12">
+    <div className="max-w-7xl mx-auto px-0 sm:px-6 py-6 sm:py-12">
       <div className="flex justify-between items-center mb-12">
         <button 
           onClick={onBack} 

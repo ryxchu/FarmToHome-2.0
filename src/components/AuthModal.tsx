@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from '../lib/firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, browserPopupRedirectResolver, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { useAuth } from '../context/AuthContext';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode = 'login', initialRole = 'buyer' }) => {
+  const { loginSimulatedDemo } = useAuth();
   const [mode, setMode] = useState<'login' | 'register' | 'otp' | 'forgot-password'>(initialMode);
   const [role, setRole] = useState<'buyer' | 'farmer' | 'admin'>(initialRole);
   const [email, setEmail] = useState('');
@@ -55,8 +57,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         if (userDoc.exists()) {
           const profileData = userDoc.data();
           if (profileData && profileData.status === 'unverified') {
+            const userEmail = profileData.email || '';
+            const userPhone = profileData.phone || '';
+            setEmail(userEmail);
+            setPhone(userPhone);
             setMode('otp');
-            sendOtp(otpMethod);
+            sendOtp(otpMethod, userEmail, userPhone);
           } else {
             onClose();
           }
@@ -117,6 +123,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         setError('ALREADY_REGISTERED');
       } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
         setError('Invalid email or password. Please try again.');
+      } else if (err.code === 'auth/network-request-failed' || err.message?.includes('network-request-failed') || err.message?.includes('network-failed') || err.message?.includes('network')) {
+        setError('NETWORK_FAILED_SANDBOX');
       } else {
         setError(err.message);
       }
@@ -165,16 +173,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     }
   };
 
-  const sendOtp = async (method: 'email' | 'phone') => {
+  const sendOtp = async (method: 'email' | 'phone', overrideEmail?: string, overridePhone?: string) => {
     setLoading(true);
     setDevOtp('');
+    const targetEmail = overrideEmail || email;
+    const targetPhone = overridePhone || phone;
     try {
       const response = await fetch('/api/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email,
-          phone,
+          email: targetEmail,
+          phone: targetPhone,
           type: method
         })
       });
@@ -182,7 +192,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       if (data.success) {
         setResendCooldown(60);
         setOtp(['', '', '', '', '', '']);
-        if (data.dev) {
+        if (data.otp) {
+          console.info(`[DEV] OTP sent: ${data.otp}`);
+          setDevOtp(data.otp);
+        } else if (data.dev && data.otp) {
           console.info(`[DEV] OTP sent: ${data.otp}`);
           setDevOtp(data.otp);
         }
@@ -684,8 +697,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                 </div>
               )}
 
-              {error && (
-                <div className="p-4 bg-secondary/5 border border-secondary/10 rounded-2xl text-secondary text-[10px] font-bold uppercase tracking-tight flex flex-col gap-2">
+               {error && (
+                <div className="p-4 bg-secondary/5 border border-secondary/10 rounded-2xl text-secondary text-[10px] font-bold uppercase tracking-tight flex flex-col gap-2 text-start">
                   {error === 'ALREADY_REGISTERED' ? (
                     <>
                       <span>This email is already registered.</span>
@@ -701,7 +714,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                       </button>
                     </>
                   ) : error === 'PASSWORD_RESET_SENT' ? (
-                    <div className="text-emerald-600 flex flex-col gap-2">
+                    <div className="text-emerald-600 flex flex-col gap-2 text-start">
                       <div className="flex items-center gap-2">
                         <Check className="w-3 h-3" />
                         <span>Reset link sent! Please check your email inbox.</span>
@@ -717,12 +730,68 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                         Back to Login
                       </button>
                     </div>
+                  ) : error === 'NETWORK_FAILED_SANDBOX' ? (
+                    <div className="flex flex-col gap-3 text-start">
+                      <p className="text-[11px] leading-relaxed text-secondary-dark font-semibold">
+                        ⚠️ <strong>Network Connect Failed (Sandbox Blocked):</strong> Standard Auth Servers are unreachable on your mobile device or current cellular network.
+                      </p>
+                      <div className="p-3 bg-white/90 rounded-xl border border-secondary/10 flex flex-col gap-2">
+                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Tactile Offline Sandbox Lane</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (role === 'farmer') {
+                              loginSimulatedDemo('farmer', 'mangjuandeal@gmail.com', 'Mang Juan (Demo Farmer)');
+                            } else if (role === 'admin') {
+                              loginSimulatedDemo('admin', 'ryzabasas16@gmail.com', 'Ryza Basas (Demo Admin)');
+                            } else {
+                              loginSimulatedDemo('buyer', 'salvadorbuyer@gmail.com', 'Patricia Salvador (Demo Buyer)');
+                            }
+                          }}
+                          className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-lg text-[9px] uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-1.5"
+                        >
+                          <Sprout className="w-3.5 h-3.5" /> Continue in Offline {role.toUpperCase()} Sandbox
+                        </button>
+                      </div>
+                    </div>
                   ) : (
                     error
                   )}
                 </div>
               )}
             </form>
+
+            {/* Quick Demo Sandbox Lanes (Always available for testing high accessibility on limited mobile viewports) */}
+            <div className="mt-8 pt-6 border-t border-slate-100 bg-slate-50/50 p-4 rounded-3xl border border-dashed text-left">
+              <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block mb-3">⚡ Dry Run / Mobile Sandbox Lanes</span>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => loginSimulatedDemo('buyer', 'salvadorbuyer@gmail.com', 'Patricia Salvador (Demo Buyer)')}
+                  className="py-2.5 px-1 bg-white hover:bg-emerald-50 active:scale-95 text-slate-700 font-black rounded-xl text-[8px] uppercase tracking-wider transition-all border border-slate-200/65 flex flex-col items-center gap-1 shadow-sm"
+                >
+                  <UserCircle className="w-4 h-4 text-slate-500" />
+                  <span>Buyer Lane</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => loginSimulatedDemo('farmer', 'mangjuandeal@gmail.com', 'Mang Juan (Demo Farmer)')}
+                  className="py-2.5 px-1 bg-white hover:bg-emerald-50 active:scale-95 text-slate-700 font-black rounded-xl text-[8px] uppercase tracking-wider transition-all border border-slate-200/65 flex flex-col items-center gap-1 shadow-sm"
+                >
+                  <Sprout className="w-4 h-4 text-emerald-600" />
+                  <span>Farmer Lane</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => loginSimulatedDemo('admin', 'ryzabasas16@gmail.com', 'Ryza Basas (Demo Admin)')}
+                  className="py-2.5 px-1 bg-white hover:bg-emerald-50 active:scale-95 text-slate-700 font-black rounded-xl text-[8px] uppercase tracking-wider transition-all border border-slate-200/65 flex flex-col items-center gap-1 shadow-sm"
+                >
+                  <Lock className="w-4 h-4 text-amber-500" />
+                  <span>Admin Lane</span>
+                </button>
+              </div>
+            </div>
+
           </div>
         </motion.div>
       </motion.div>

@@ -173,7 +173,7 @@ export const AIChatbot: React.FC = () => {
                   </div>
                 )}
                 
-                {!isAdminPanelActive && (
+                {(profile?.role !== 'admin' || !isAdminPanelActive) && (
                   <div className="flex bg-white/10 rounded-lg p-0.5 mr-1 shrink-0">
                     <button 
                       onClick={() => setLanguage('english')}

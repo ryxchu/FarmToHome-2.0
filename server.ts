@@ -395,8 +395,8 @@ async function startServer() {
     const { identifier, otp } = req.body;
     const storedOtp = otps.get(identifier);
 
-    // Accept either the correctly stored OTP, OR '123456' as a universal bypass on localhost/dev mode
-    if ((storedOtp && storedOtp === otp) || otp === '123456') {
+    // Strictly require the correctly stored OTP
+    if (storedOtp && storedOtp === otp) {
       otps.delete(identifier);
       res.json({ success: true, message: "OTP verified" });
     } else {
@@ -406,26 +406,37 @@ async function startServer() {
 
   // Gemini AI Chatbot support-chat endpoint
   app.post("/api/gemini/support-chat", async (req, res) => {
+    let fallbackText = "Sorry, I'm having trouble understanding. Please ask again.";
+    let userMessage = "";
+    let userLanguage = "english";
     try {
-      const { message, language, history } = req.body;
+      const { message, language, history } = req.body || {};
+      userMessage = message || "";
+      userLanguage = language || "english";
+      fallbackText = generateMockResponse(userMessage, userLanguage);
+
       const client = getGeminiClient();
-      
       if (!client) {
         console.warn("GEMINI_API_KEY is missing or client failed to initialize. Using responsive local fallback.");
-        const fallbackText = generateMockResponse(message, language);
         return res.json({ success: true, text: fallbackText });
       }
 
-      // Map simple message history to the structure the newer @google/genai SDK expects
-      const chatHistory = (history || []).map((msg: any) => ({
+      // Filter and map simple message history to the structure the newer @google/genai SDK expects
+      // High correctness: Gemini multi-turn chats MUST start with a 'user' turn
+      const filteredHistory = (history || []).filter((msg: any, idx: number) => {
+        if (idx === 0 && msg.role === 'bot') return false;
+        return true;
+      });
+
+      const chatHistory = filteredHistory.map((msg: any) => ({
         role: msg.role === 'bot' ? 'model' : 'user',
-        parts: [{ text: msg.text }]
+        parts: [{ text: msg.text || "" }]
       }));
 
       // Add the latest user message
       chatHistory.push({
         role: 'user',
-        parts: [{ text: message }]
+        parts: [{ text: userMessage }]
       });
 
       const response = await client.models.generateContent({
@@ -436,38 +447,34 @@ async function startServer() {
 You assist users with order status, farming techniques, and platform navigation. 
 Be warm, professional, and knowledgeable about organic farming.
 IMPORTANT: 
-- Always respond in ${language === 'tagalog' ? 'Tagalog' : 'English'}.
+- Always respond in ${userLanguage === 'tagalog' ? 'Tagalog' : 'English'}.
 - If you are providing steps, instructions, or lists, MUST use bullet points or numbered lists.
 - Use Markdown formatting for better readability (bold, italic, lists).
 - Keep responses concise but helpful.`
         }
       });
 
-      res.json({ success: true, text: response.text });
+      return res.json({ success: true, text: response.text });
     } catch (error: any) {
-      console.error("Gemini support chat error, falling back to local simulation:", error);
-      try {
-        const { message, language } = req.body;
-        const fallbackText = generateMockResponse(message || '', language || 'english');
-        res.json({ success: true, text: fallbackText });
-      } catch (innerErr) {
-        res.status(500).json({ success: false, error: error.message || "An error occurred with the AI service. Please try again." });
-      }
+      console.error("Gemini support chat error, falling back securely to local simulation:", error);
+      return res.json({ success: true, text: fallbackText });
     }
   });
 
   // Gemini Smart Price Suggestion endpoint
   app.post("/api/gemini/price-suggestion", async (req, res) => {
+    let cat = "";
     try {
-      const { name, category } = req.body;
+      const { name, category } = req.body || {};
+      cat = category || "";
       const client = getGeminiClient();
       
       if (!client) {
         console.warn("GEMINI_API_KEY is missing or client failed to initialize. Using realistic price generator.");
         let price = 50 + Math.floor(Math.random() * 120);
-        if (category?.toLowerCase().includes('fruit')) {
+        if (cat.toLowerCase().includes('fruit')) {
           price = 80 + Math.floor(Math.random() * 150);
-        } else if (category?.toLowerCase().includes('rice') || category?.toLowerCase().includes('grain')) {
+        } else if (cat.toLowerCase().includes('rice') || cat.toLowerCase().includes('grain')) {
           price = 45 + Math.floor(Math.random() * 40);
         }
         return res.json({ success: true, text: JSON.stringify({ recommendedPrice: price }) });
@@ -488,15 +495,14 @@ IMPORTANT:
         }
       });
 
-      res.json({ success: true, text: response.text });
+      return res.json({ success: true, text: response.text });
     } catch (error: any) {
       console.error("Gemini price suggestion error, falling back to local simulation:", error);
-      const category = req.body.category || '';
       let price = 50 + Math.floor(Math.random() * 120);
-      if (category?.toLowerCase().includes('fruit')) {
+      if (cat.toLowerCase().includes('fruit')) {
         price = 80 + Math.floor(Math.random() * 150);
       }
-      res.json({ success: true, text: JSON.stringify({ recommendedPrice: price }) });
+      return res.json({ success: true, text: JSON.stringify({ recommendedPrice: price }) });
     }
   });
 

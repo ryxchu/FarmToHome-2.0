@@ -67,11 +67,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
 
   return (
     <>
-      <nav className={`z-50 transition-all duration-500 ${
-        !user 
-          ? `h-16 md:h-20 fixed w-full ${scrolled ? 'bg-primary/95 backdrop-blur-2xl shadow-2xl' : 'bg-transparent border-none'}` 
-          : 'h-16 md:h-20 sticky top-0 bg-background/80 backdrop-blur-xl border-b border-white/40 shadow-sm'
-      } px-4 sm:px-8 flex items-center`}>
+      <nav className="h-16 md:h-20 fixed top-0 w-full z-50 bg-primary/95 backdrop-blur-xl border-b border-primary/20 shadow-lg px-4 sm:px-8 flex items-center">
       <div className="max-w-[1600px] mx-auto w-full flex items-center justify-between">
         <div 
           className="flex items-center gap-3 cursor-pointer group"
@@ -88,25 +84,20 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
           }}
         >
           <motion.div
-            whileHover={{ scale: 1.05 }}
-            className="h-10 md:h-12 flex items-center"
+            whileHover={{ scale: 1.02 }}
+            className="flex items-center gap-2.5"
           >
             <img 
-              src="/logo.png" 
+               src="/logo.png" 
               alt="FarmToHome Logo" 
-              className="h-full w-auto object-contain"
+              className="h-9 w-9 md:h-11 md:w-11 object-contain rounded-xl shadow-inner border border-white/10"
               onError={(e) => {
-                // Fallback if logo.png is not yet uploaded
                 e.currentTarget.style.display = 'none';
-                const parent = e.currentTarget.parentElement;
-                if (parent) {
-                  const span = document.createElement('span');
-                  span.className = `text-2xl font-bold tracking-tighter font-serif ${!user ? 'text-white' : 'text-slate-900'}`;
-                  span.innerText = 'FarmToHome';
-                  parent.appendChild(span);
-                }
               }}
             />
+            <span className="text-xl md:text-2xl font-serif italic font-bold tracking-tight text-white">
+              FarmToHome
+            </span>
           </motion.div>
         </div>
 
@@ -120,11 +111,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
                     document.getElementById('our-story')?.scrollIntoView({ behavior: 'smooth' });
                   }, 100);
                 }} 
-                className="text-[10px] font-black text-white hover:text-accent-light uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px] active:scale-95"
+                className="text-[10px] font-black text-white/80 hover:text-white uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px] active:scale-95"
               >
                 Our Story
               </button>
-              <button onClick={() => setView('home')} className="text-[10px] font-black text-white hover:text-accent-light uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px] active:scale-95">Marketplace</button>
+              <button onClick={() => setView('home')} className="text-[10px] font-black text-white/80 hover:text-white uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px] active:scale-95">Marketplace</button>
               <button 
                 onClick={() => {
                   setView('landing');
@@ -132,15 +123,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
                     document.getElementById('about-us')?.scrollIntoView({ behavior: 'smooth' });
                   }, 100);
                 }} 
-                className="text-[10px] font-black text-white hover:text-accent-light uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px] active:scale-95"
+                className="text-[10px] font-black text-white/80 hover:text-white uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px] active:scale-95"
               >
                 About Us
               </button>
               <div className="h-4 w-px bg-white/20 mx-2" />
-              <button onClick={onAuthClick} className="text-[10px] font-black text-white uppercase tracking-[0.4em] hover:text-accent-light transition-all hover:translate-y-[-2px] active:scale-95">Sign In</button>
+              <button onClick={onAuthClick} className="text-[10px] font-black text-white/80 hover:text-white uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px] active:scale-95">Sign In</button>
               <button 
                 onClick={onAuthClick}
-                className="px-8 py-3.5 bg-primary text-white rounded-full text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-primary/90 transition-all shadow-2xl active:scale-95 border-2 border-white/20"
+                className="px-8 py-3.5 bg-accent text-white rounded-full text-[10px] font-bold uppercase tracking-[0.3em] hover:scale-105 active:scale-95 transition-all shadow-md border border-white/15"
               >
                 Start Order
               </button>
@@ -241,28 +232,28 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
         ) : (
           <>
             <div className="hidden md:flex flex-1 max-w-xl mx-20 relative">
-              <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
               <input 
                 type="text" 
                 value={searchValue}
                 onChange={handleSearchChange}
                 placeholder="Search harvests e.g. 'Heirloom Rice'..." 
-                className="block w-full pl-14 pr-4 py-4 bg-slate-50 border border-border rounded-3xl text-[11px] font-bold uppercase tracking-widest placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-4 focus:ring-primary/5 transition-all"
+                className="block w-full pl-14 pr-4 py-4 bg-white/10 border border-white/10 rounded-3xl text-[11px] text-white font-bold uppercase tracking-widest placeholder-white/50 focus:outline-none focus:bg-white/15 focus:ring-4 focus:ring-white/5 transition-all"
               />
             </div>
 
             <div className="flex items-center gap-4 sm:gap-8">
-              <div className="hidden lg:flex items-center gap-2 px-5 py-2.5 bg-accent-light rounded-2xl border border-primary/10">
-                <MapPin className="w-4 h-4 text-primary" />
-                <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Metro Manila, PH</span>
+              <div className="hidden lg:flex items-center gap-2 px-5 py-2.5 bg-white/10 rounded-2xl border border-white/10">
+                <MapPin className="w-4 h-4 text-accent" />
+                <span className="text-[10px] font-bold text-white uppercase tracking-widest">Metro Manila, PH</span>
               </div>
 
               <div className="flex items-center gap-4 sm:gap-6">
                 {profile?.role === 'buyer' && (
-                  <button className="relative p-2.5 text-slate-400 hover:text-secondary transition-all hover:scale-110" onClick={onCartClick}>
+                  <button className="relative p-2.5 text-white/80 hover:text-white transition-all hover:scale-110" onClick={onCartClick}>
                     <ShoppingCart className="w-6 h-6" />
                     {items.length > 0 && (
-                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-secondary text-white text-[9px] font-bold flex items-center justify-center rounded-full ring-4 ring-white">
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-secondary text-white text-[9px] font-bold flex items-center justify-center rounded-full ring-4 ring-primary">
                         {items.length}
                       </span>
                     )}
@@ -280,24 +271,24 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
                         setView('messages');
                       }
                     }} 
-                    className="block md:hidden p-2.5 text-slate-400 hover:text-primary transition-all active:scale-95"
+                    className="block md:hidden p-2.5 text-white/80 hover:text-white transition-all active:scale-95"
                     aria-label="Messages"
                   >
                     <MessageSquare className="w-6 h-6" />
                   </button>
                 )}
                 
-                <div className="h-8 w-px bg-border hidden md:block" />
+                <div className="h-8 w-px bg-white/20 hidden md:block" />
 
                 {(profile?.role === 'buyer' || profile?.role === 'farmer') && (
                   <div className="relative hidden md:block">
                     <button 
                       onClick={() => setShowNotifications(!showNotifications)}
-                      className="p-2.5 text-slate-400 hover:text-primary transition-all hover:scale-110 relative"
+                      className="p-2.5 text-white/80 hover:text-white transition-all hover:scale-110 relative"
                     >
                       <Bell className="w-6 h-6" />
                       {unreadCount > 0 && (
-                        <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 border-2 border-white rounded-full" />
+                        <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 border-2 border-primary rounded-full" />
                       )}
                     </button>
                     
@@ -394,13 +385,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
                   </div>
                 )}
                 
-                <div className="h-8 w-px bg-border hidden md:block" />
+                <div className="h-8 w-px bg-white/20 hidden md:block" />
 
                 <div className="relative group/profile hidden md:block">
                   <button className="flex items-center gap-4 group/btn">
                     <div className="text-right hidden sm:block">
-                      <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Member</p>
-                      <p className="text-sm font-bold text-slate-900">{profile?.fullName.split(' ')[0]}</p>
+                      <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-0.5">Member</p>
+                      <p className="text-sm font-bold text-white">{profile?.fullName.split(' ')[0]}</p>
                     </div>
                     <div className="w-12 h-12 rounded-[1.25rem] bg-accent-light p-1 group-hover/btn:scale-110 transition-all duration-500 shadow-sm border border-primary/5">
                       <div className="w-full h-full rounded-[1rem] bg-primary/20 flex items-center justify-center overflow-hidden">
@@ -425,7 +416,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
                       </button>
                       
                       <button 
-                        onClick={() => setView('messages')}
+                        onClick={() => {
+                          if (profile?.role === 'farmer') {
+                            onDashboardTabChange?.('messages');
+                            setView('dashboard');
+                          } else {
+                            setView('messages');
+                          }
+                        }}
                         className="w-full px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-slate-600 hover:bg-accent-light hover:text-primary flex items-center gap-4 rounded-2xl transition-all group/item hover:translate-x-2"
                       >
                         <MessageSquare className="w-4 h-4 text-primary group-hover/item:scale-110 group-hover/item:rotate-12 transition-transform" />

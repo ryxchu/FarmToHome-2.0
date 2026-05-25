@@ -181,9 +181,10 @@ export const UnifiedSidebar: React.FC<UnifiedSidebarProps> = ({
           id: 'farmer-buyer-market',
           label: 'Open Market',
           icon: Globe,
-          active: currentView === 'home',
+          active: currentView === 'home' && marketViewMode === 'shop',
           onClick: () => {
             setView('home');
+            setMarketViewMode('shop');
           }
         },
         {

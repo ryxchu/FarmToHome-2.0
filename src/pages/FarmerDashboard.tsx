@@ -56,40 +56,38 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
       console.warn("Failed to parse cached farmer data:", e);
     }
 
-    const fetchData = async () => {
-      try {
-        // Fetch products once
-        const qProds = query(collection(db, 'products'), where('farmerId', '==', currentUid));
-        const prodsSnap = await getDocs(qProds);
-        const fetchedProds = prodsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product));
-        setProducts(fetchedProds);
-        safeSetItem(`farmer_products_${currentUid}`, JSON.stringify(fetchedProds));
-
-        // Fetch orders once
-        const qOrders = query(collection(db, 'orders'), where('farmerId', '==', currentUid));
-        const ordersSnap = await getDocs(qOrders);
-        const fetchedOrders = ordersSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order));
-        setOrders(fetchedOrders);
-        safeSetItem(`farmer_orders_${currentUid}`, JSON.stringify(fetchedOrders));
-
-        // Fetch reviews once
-        const qReviews = query(collection(db, 'reviews'), where('farmerId', '==', currentUid));
-        const reviewsSnap = await getDocs(qReviews);
-        const fetchedReviews = reviewsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as any));
-        setReviews(fetchedReviews);
-        safeSetItem(`farmer_reviews_${currentUid}`, JSON.stringify(fetchedReviews));
-      } catch (error) {
-        if (!isQuotaError(error) && !isOfflineError(error)) {
-          handleFirestoreError(error, OperationType.LIST, 'farmer_dashboard_data');
-        } else {
-          console.warn("Using offline/cached dashboard data due to quota limits or offline status");
-          // Fire event for global banner notice
-          handleFirestoreError(error, OperationType.LIST, 'farmer_dashboard_data');
-        }
+    const qProds = query(collection(db, 'products'), where('farmerId', '==', currentUid));
+    const unsubscribeProds = onSnapshot(qProds, (snapshot) => {
+      const fetchedProds = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product));
+      setProducts(fetchedProds);
+      safeSetItem(`farmer_products_${currentUid}`, JSON.stringify(fetchedProds));
+    }, (error) => {
+      if (!isQuotaError(error) && !isOfflineError(error)) {
+        handleFirestoreError(error, OperationType.LIST, 'products');
       }
-    };
+    });
 
-    fetchData();
+    const qOrders = query(collection(db, 'orders'), where('farmerId', '==', currentUid));
+    const unsubscribeOrders = onSnapshot(qOrders, (snapshot) => {
+      const fetchedOrders = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order));
+      setOrders(fetchedOrders);
+      safeSetItem(`farmer_orders_${currentUid}`, JSON.stringify(fetchedOrders));
+    }, (error) => {
+      if (!isQuotaError(error) && !isOfflineError(error)) {
+        handleFirestoreError(error, OperationType.LIST, 'orders');
+      }
+    });
+
+    const qReviews = query(collection(db, 'reviews'), where('farmerId', '==', currentUid));
+    const unsubscribeReviews = onSnapshot(qReviews, (snapshot) => {
+      const fetchedReviews = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as any));
+      setReviews(fetchedReviews);
+      safeSetItem(`farmer_reviews_${currentUid}`, JSON.stringify(fetchedReviews));
+    }, (error) => {
+      if (!isQuotaError(error) && !isOfflineError(error)) {
+        handleFirestoreError(error, OperationType.LIST, 'reviews');
+      }
+    });
 
     // Keep conversations real-time as messaging needs it
     const qConv = query(collection(db, 'conversations'), where('participants', 'array-contains', currentUid));
@@ -106,7 +104,12 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
       }
     });
 
-    return () => unsubscribeConv();
+    return () => {
+      unsubscribeProds();
+      unsubscribeOrders();
+      unsubscribeReviews();
+      unsubscribeConv();
+    };
   }, [auth.currentUser?.uid]);
 
   const fetchRecipientProfile = async (conv: any) => {
@@ -244,16 +247,32 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
 
       {/* Title Specific Headers for Feedback and Client Inbox */}
       {activeTab === 'feedback' && (
-        <div className="flex items-center gap-2.5 mb-6">
-          <div className="w-1.5 h-6 bg-primary rounded-full" />
-          <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight font-sans">Customer <span className="italic text-primary font-serif">Feedback & Reviews</span></h1>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div className="flex items-center gap-2.5">
+            <div className="w-1.5 h-6 bg-primary rounded-full" />
+            <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight font-sans">Customer <span className="italic text-primary font-serif">Feedback & Reviews</span></h1>
+          </div>
+          <button
+            onClick={() => handleTabChange('inventory')}
+            className="px-4 py-2 bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 font-bold text-[9px] uppercase tracking-widest rounded-xl transition-all active:scale-95 flex items-center gap-1.5 shadow-sm cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-primary" /> Back to Dashboard
+          </button>
         </div>
       )}
 
       {activeTab === 'messages' && (
-        <div className="flex items-center gap-2.5 mb-6">
-          <div className="w-1.5 h-6 bg-primary rounded-full" />
-          <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight font-sans">Client <span className="italic text-primary font-serif">Inbox</span></h1>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div className="flex items-center gap-2.5">
+            <div className="w-1.5 h-6 bg-primary rounded-full" />
+            <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight font-sans">Client <span className="italic text-primary font-serif">Inbox</span></h1>
+          </div>
+          <button
+            onClick={() => handleTabChange('inventory')}
+            className="px-4 py-2 bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 font-bold text-[9px] uppercase tracking-widest rounded-xl transition-all active:scale-95 flex items-center gap-1.5 shadow-sm cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-primary" /> Back to Dashboard
+          </button>
         </div>
       )}
 

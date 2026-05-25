@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, ShoppingBag, Trash2, Plus, Minus, ArrowRight, CreditCard, CheckCircle2, Ticket, MapPin, Truck, MessageSquare, ChevronLeft, ShieldCheck } from 'lucide-react';
+import { X, ShoppingBag, Trash2, Plus, Minus, ArrowRight, CreditCard, CheckCircle2, Ticket, MapPin, Truck, MessageSquare, ChevronLeft, ShieldCheck, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
-import { collection, doc, setDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, updateDoc, getDoc } from 'firebase/firestore';
 
 interface CartProps {
   isOpen: boolean;
@@ -107,6 +107,26 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
       };
 
       await setDoc(orderRef, orderData);
+
+      // Subtract stock in real-time for each purchased crop
+      for (const item of selectedItems) {
+        try {
+          const productRef = doc(db, 'products', item.id);
+          const productSnap = await getDoc(productRef);
+          if (productSnap.exists()) {
+            const currentStock = productSnap.data().stock || 0;
+            const newStock = Math.max(0, currentStock - item.quantity);
+            await updateDoc(productRef, { stock: newStock });
+            console.log(`Deducted stock for ${item.id}: current=${currentStock}, new=${newStock}`);
+          }
+        } catch (stockErr) {
+          console.error(`Failed to deduct stock for product ${item.id}`, stockErr);
+        }
+      }
+
+      // Flush local caches to ensure immediate frontend reactivity
+      localStorage.removeItem('shop_products_all');
+      localStorage.removeItem('featured_products');
 
       // Create notification for farmer
       const notificationRef = doc(collection(db, 'notifications'));
@@ -442,7 +462,7 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
                       }`}
                     >
                       <h4 className="text-xs font-extrabold uppercase tracking-wider mb-1">Standard</h4>
-                      <p className="text-[10px] font-bold text-slate-700">₱50 • 2-3 Days</p>
+                      <p className="text-[10px] font-bold text-slate-700">₱50 • 3-5 Days</p>
                       <span className="text-[8px] text-slate-400 leading-none mt-1.5 block">Default cooperative fleet</span>
                     </button>
                     <button 
@@ -454,7 +474,7 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
                       }`}
                     >
                       <h4 className="text-xs font-extrabold uppercase tracking-wider mb-1">Express Dispatch</h4>
-                      <p className="text-[10px] font-bold text-slate-700">₱95 • Next Day</p>
+                      <p className="text-[10px] font-bold text-slate-700">₱95 • 1-3 Days</p>
                       <span className="text-[8px] text-emerald-600 font-bold leading-none mt-1.5 block">Sourced express van</span>
                     </button>
                   </div>
@@ -475,39 +495,61 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
                   />
                 </div>
 
-                {/* PAYMENT OPTIONS SELECTION PANEL */}
-                <div className="bg-white p-4 rounded-2.5xl border border-stone-200 shadow-sm space-y-3">
-                  <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest block">Payment Method</span>
-                  <div className="space-y-2">
-                    {[
-                      { id: 'cod', label: 'Cash on Delivery (COD)', desc: 'Pay directly on arrival at your address' },
-                      { id: 'gcash', label: 'GCash Fast Transfer', desc: 'Settle instantly to cooperative wallet' },
-                      { id: 'card', label: 'Credit or Debit Card', desc: 'Secure online payment processing' }
-                    ].map(payment => (
-                      <label 
-                        key={payment.id}
-                        className={`flex items-start gap-3 p-3 border rounded-2xl cursor-pointer transition-all ${
-                          paymentOption === payment.id
-                            ? 'border-accent bg-accent-light'
-                            : 'border-stone-200 bg-white hover:bg-stone-50'
-                        }`}
-                      >
-                        <input 
-                          type="radio" 
-                          name="payment" 
-                          value={payment.id} 
-                          checked={paymentOption === payment.id}
-                          onChange={() => setPaymentOption(payment.id as any)}
-                          className="mt-1 text-accent border-stone-300 focus:ring-accent accent-accent"
-                        />
-                        <div>
-                          <p className="text-xs font-black text-slate-800">{payment.label}</p>
-                          <p className="text-[10px] text-slate-400 mt-0.5 leading-normal">{payment.desc}</p>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                </div>
+                 {/* PAYMENT OPTIONS SELECTION PANEL */}
+                 <div className="bg-white p-4 rounded-2.5xl border border-stone-200 shadow-sm space-y-3">
+                   <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest block">Payment Method</span>
+                   <div className="space-y-2">
+                     {[
+                       { id: 'cod', label: 'Cash on Delivery (COD)', desc: 'Pay directly on arrival at your address' },
+                       { id: 'gcash', label: 'GCash Fast Transfer', desc: 'Settle instantly to cooperative wallet' },
+                       { id: 'card', label: 'Credit or Debit Card', desc: 'Secure online payment processing' }
+                     ].map(payment => (
+                       <label 
+                         key={payment.id}
+                         className={`flex items-start gap-3 p-3 border rounded-2xl cursor-pointer transition-all ${
+                           paymentOption === payment.id
+                             ? 'border-accent bg-accent-light'
+                             : 'border-stone-200 bg-white hover:bg-stone-50'
+                         }`}
+                       >
+                         <input 
+                           type="radio" 
+                           name="payment" 
+                           value={payment.id} 
+                           checked={paymentOption === payment.id}
+                           onChange={() => setPaymentOption(payment.id as any)}
+                           className="mt-1 text-accent border-stone-300 focus:ring-accent accent-accent"
+                         />
+                         <div>
+                           <p className="text-xs font-black text-slate-800">{payment.label}</p>
+                           <p className="text-[10px] text-slate-400 mt-0.5 leading-normal">{payment.desc}</p>
+                         </div>
+                       </label>
+                     ))}
+                   </div>
+
+                   {/* Dynamic What's Next? instruction panel */}
+                   <div className="mt-4 p-4.5 bg-amber-50/60 border border-amber-200/50 rounded-2xl text-[11px] leading-relaxed">
+                     <p className="font-extrabold text-amber-900 uppercase tracking-wider mb-2 flex items-center gap-1.5 ms-1">
+                       <HelpCircle className="w-3.5 h-3.5 text-amber-700 animate-pulse" /> What's Next?
+                     </p>
+                     {paymentOption === 'cod' && (
+                       <p className="text-amber-800 font-medium">
+                         No upfront payment is required! Simply prepare <span className="font-black text-amber-950">Exact Cash</span> for the cooperative courier upon cargo arrival. You can track your rider's logistics timeline live under your <span className="font-bold">My Orders</span> page.
+                       </p>
+                     )}
+                     {paymentOption === 'gcash' && (
+                       <p className="text-amber-800 font-medium">
+                         Send GCash transfer of the exact total to <span className="font-black text-amber-950">0917-888-FARM (FarmToHome Co-op)</span>. Note your Order ID in the transaction note, and upload the receipt screenshot in <span className="font-bold">Seller Chats</span> or present it to the delivery courier.
+                       </p>
+                     )}
+                     {paymentOption === 'card' && (
+                       <p className="text-amber-800 font-medium">
+                         Upon clicking <span className="font-bold text-amber-950">Complete Order</span>, you will be redirected to our accredited secure bank gateway. Complete your 3D-Secure mobile OTP validation to process the payment instantly and safely.
+                       </p>
+                     )}
+                   </div>
+                 </div>
               </motion.div>
             )}
           </AnimatePresence>

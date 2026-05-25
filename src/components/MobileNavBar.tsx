@@ -131,13 +131,18 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
       label: 'Home',
       icon: Home,
       active: user 
-        ? ((role === 'admin' && currentView === 'admin-dashboard') || (role === 'farmer' && currentView === 'dashboard') || (role === 'buyer' && currentView === 'home'))
+        ? ((role === 'admin' && currentView === 'admin-dashboard') || (role === 'farmer' && currentView === 'dashboard') || (role === 'buyer' && currentView === 'home' && marketViewMode === 'community'))
         : currentView === 'landing',
       onClick: () => {
         if (user) {
-          if (role === 'admin') setView('admin-dashboard');
-          else if (role === 'farmer') setView('dashboard');
-          else setView('home');
+          if (role === 'admin') {
+            setView('admin-dashboard');
+          } else if (role === 'farmer') {
+            setView('dashboard');
+          } else {
+            setView('home');
+            setMarketViewMode('community');
+          }
         } else {
           setView('landing');
         }
@@ -147,7 +152,7 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
       id: 'marketplace',
       label: 'Marketplace',
       icon: ShoppingBag,
-      active: currentView === 'home',
+      active: currentView === 'home' && marketViewMode === 'shop',
       onClick: () => {
         setView('home');
         setMarketViewMode('shop');

@@ -6,7 +6,11 @@ import { InlineChat } from '../components/InlineChat';
 import { MessageSquare, User, Calendar, ChevronRight, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-export const Messages: React.FC = () => {
+interface MessagesProps {
+  setView?: (view: 'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages') => void;
+}
+
+export const Messages: React.FC<MessagesProps> = ({ setView }) => {
   const { profile } = useAuth();
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<any | null>(null);
@@ -74,9 +78,27 @@ export const Messages: React.FC = () => {
 
   return (
     <div className="w-full h-full flex flex-col bg-slate-50/30">
-      <div className="px-4 py-3 sm:px-6 bg-white border-b border-slate-100">
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tighter font-serif italic">Messages</h1>
-        <p className="text-slate-400 font-bold uppercase tracking-widest text-[8px] mt-1">Real-time Trading Communication</p>
+      <div className="px-4 py-3 sm:px-6 bg-white border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tighter font-serif italic">Messages</h1>
+          <p className="text-slate-400 font-bold uppercase tracking-widest text-[8px] mt-1">Real-time Trading Communication</p>
+        </div>
+        {setView && (
+          <button 
+            onClick={() => {
+              if (profile?.role === 'farmer') {
+                setView('dashboard');
+              } else if (profile?.role === 'admin') {
+                setView('admin-dashboard');
+              } else {
+                setView('home');
+              }
+            }}
+            className="px-4 py-2 bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 font-bold text-[9px] uppercase tracking-widest rounded-xl transition-all active:scale-95 flex items-center gap-1.5 shadow-sm cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-primary" /> Back to Dashboard
+          </button>
+        )}
       </div>
 
       <div className="flex flex-grow overflow-hidden">

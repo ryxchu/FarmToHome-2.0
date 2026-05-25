@@ -423,7 +423,7 @@ function AppContent() {
                   <Profile />
                 )}
                 {currentView === 'messages' && (
-                  <Messages />
+                  <Messages setView={setCurrentView} />
                 )}
               </main>
             </div>

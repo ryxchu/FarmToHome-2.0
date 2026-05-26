@@ -73,7 +73,7 @@ function AppContent() {
   
   const [currentView, setCurrentView] = useState<'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages'>('landing');
   const [marketViewMode, setMarketViewMode] = useState<'shop' | 'community'>('shop');
-  const [dashboardTab, setDashboardTab] = useState<'inventory' | 'feedback' | 'messages' | 'community'>('inventory');
+  const [dashboardTab, setDashboardTab] = useState<'inventory' | 'feedback' | 'messages' | 'community' | 'logs'>('inventory');
   const [adminTab, setAdminTab] = useState<'users' | 'marketplace' | 'logistics' | 'analytics' | 'system'>('users');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedFarmerId, setSelectedFarmerId] = useState<string | null>(null);
@@ -82,6 +82,8 @@ function AppContent() {
   const [nearMeEnabled, setNearMeEnabled] = useState(false);
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [dbInterrupted, setDbInterrupted] = useState<{ isQuota: boolean; isOffline: boolean; message: string } | null>(null);
+  const [highlightedOrderId, setHighlightedOrderId] = useState<string | null>(null);
+  const [farmerProfileModalOpen, setFarmerProfileModalOpen] = useState(false);
 
   useEffect(() => {
     const handleInterrupt = (e: Event) => {
@@ -323,9 +325,16 @@ function AppContent() {
       <Navbar 
         onAuthClick={() => openAuth('login', 'buyer')} 
         onCartClick={() => setShowCart(true)}
-        setView={setCurrentView}
+        setView={(view) => {
+          if (view === 'profile' && profile?.role === 'farmer') {
+            setFarmerProfileModalOpen(true);
+          } else {
+            setCurrentView(view);
+          }
+        }}
         onDashboardTabChange={setDashboardTab}
         onSearch={setSearchQuery}
+        onOrderNotificationClick={setHighlightedOrderId}
       />
 
       <main className={`flex-grow flex flex-col ${currentView === 'landing' ? '' : 'overflow-hidden'}`}>
@@ -369,7 +378,15 @@ function AppContent() {
                   : 'p-4 sm:p-8 lg:p-12 pb-28 md:pb-12 overflow-y-auto'
               }`}>
                 {user && profile?.role === 'farmer' && currentView === 'dashboard' ? (
-                  <FarmerDashboard onEditProfile={() => setCurrentView('profile')} activeTabProp={dashboardTab} onTabChange={setDashboardTab} />
+                  <FarmerDashboard 
+                    onEditProfile={() => setFarmerProfileModalOpen(true)} 
+                    showProfileFormProp={farmerProfileModalOpen}
+                    onCloseProfileForm={() => setFarmerProfileModalOpen(false)}
+                    activeTabProp={dashboardTab} 
+                    onTabChange={setDashboardTab}
+                    highlightedOrderId={highlightedOrderId}
+                    onClearHighlightedOrder={() => setHighlightedOrderId(null)}
+                  />
                 ) : user && profile?.role === 'admin' && currentView === 'admin-dashboard' ? (
                   <AdminDashboard activeTabProp={adminTab} onTabChange={setAdminTab} />
                 ) : (
@@ -457,7 +474,13 @@ function AppContent() {
       {user && (
         <MobileNavBar 
           currentView={currentView}
-          setView={setCurrentView}
+          setView={(view) => {
+            if (view === 'profile' && profile?.role === 'farmer') {
+              setFarmerProfileModalOpen(true);
+            } else {
+              setCurrentView(view);
+            }
+          }}
           marketViewMode={marketViewMode}
           setMarketViewMode={setMarketViewMode}
           farmerTab={dashboardTab}
@@ -466,6 +489,7 @@ function AppContent() {
           setAdminTab={setAdminTab}
           onCartClick={() => setShowCart(true)}
           onAuthClick={() => openAuth('login', 'buyer')}
+          onOrderNotificationClick={setHighlightedOrderId}
         />
       )}
       

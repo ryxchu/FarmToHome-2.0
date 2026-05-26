@@ -325,268 +325,285 @@ export const SocialFeed: React.FC = () => {
         </motion.div>
       )}
 
-      {/* Community Posts */}
-      {posts.map(post => {
-        const hasLiked = user ? (post.likes || []).includes(user.uid) : false;
-        const isAuthorOrAdmin = user && (post.farmerId === user.uid || profile?.role === 'admin');
+      {/* Community Posts - Divided Modern Timeline Layout */}
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden divide-y divide-slate-100">
+        {posts.map(post => {
+          const hasLiked = user ? (post.likes || []).includes(user.uid) : false;
+          const isAuthorOrAdmin = user && (post.farmerId === user.uid || profile?.role === 'admin');
 
-        return (
-          <motion.div 
-            key={post.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-3xl border border-zinc-100 shadow-sm overflow-hidden"
-          >
-            {/* Post Header */}
-            <div className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center font-bold text-primary italic font-serif">
-                  {post.farmer?.farmName?.[0] || post.farmer?.fullName?.[0] || 'U'}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-bold text-sm text-zinc-900">{post.farmer?.farmName || post.farmer?.fullName || 'Community Member'}</p>
-                    {post.farmer?.role === 'buyer' && (
-                      <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[8.5px] font-black uppercase rounded-md tracking-wider">Buyer</span>
-                    )}
-                    {post.farmer?.role === 'farmer' && (
-                      <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 text-[8.5px] font-black uppercase rounded-md tracking-wider">Farmer</span>
-                    )}
-                    {post.farmer?.role === 'admin' && (
-                      <span className="px-1.5 py-0.5 bg-rose-50 text-rose-650 text-[8.5px] font-black uppercase rounded-md tracking-wider">Admin</span>
-                    )}
-                  </div>
-                  <p className="text-[10px] text-zinc-400 font-medium uppercase tracking-widest">{new Date(post.createdAt).toLocaleDateString()}</p>
-                </div>
+          return (
+            <motion.div 
+              key={post.id}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="p-4 bg-white flex items-start gap-3 text-left w-full transition-colors hover:bg-slate-50/40"
+            >
+              {/* Left Column: Fixed-size Circular Avatar Badge */}
+              <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-700 font-extrabold flex items-center justify-center shrink-0 border border-emerald-100/50 select-none text-sm uppercase">
+                {post.farmer?.farmName?.[0] || post.farmer?.fullName?.[0] || 'U'}
               </div>
 
-              {/* 3 Dots Menu Button & Dropdown */}
-              <div className="relative">
-                <button 
-                  onClick={() => setActiveMenuPostId(activeMenuPostId === post.id ? null : post.id)}
-                  className="p-2 text-zinc-400 hover:bg-zinc-50 rounded-full cursor-pointer transition-colors"
-                >
-                  <MoreHorizontal className="w-5 h-5" />
-                </button>
+              {/* Right Column: Full content stacking vertically */}
+              <div className="flex-1 min-w-0">
                 
-                {activeMenuPostId === post.id && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setActiveMenuPostId(null)} />
-                    <div className="absolute right-0 mt-1 w-44 bg-white border border-slate-100 rounded-xl shadow-xl py-1.5 z-20 text-[11px] font-bold">
-                      {isAuthorOrAdmin ? (
-                        <>
-                          <button
-                            onClick={() => handleStartEdit(post)}
-                            className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-700 transition-colors flex items-center gap-2"
-                          >
-                            <span>✏️ Edit Post</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              setActiveMenuPostId(null);
-                              handleDeletePost(post.id);
-                            }}
-                            className="w-full text-left px-4 py-2 hover:bg-rose-50 text-rose-600 transition-colors flex items-center gap-2"
-                          >
-                            <span>🗑️ Delete Post</span>
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(post.content);
-                              alert("Post content copied to clipboard!");
-                              setActiveMenuPostId(null);
-                            }}
-                            className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-705 transition-colors flex items-center gap-2 animate-none"
-                          >
-                            <span>📋 Copy Text</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              alert("Thank you! Our moderators will review this post shortly.");
-                              setActiveMenuPostId(null);
-                            }}
-                            className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-705 transition-colors flex items-center gap-2"
-                          >
-                            <span>⚠️ Report Post</span>
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
+                {/* Metadata Header with 3-Dots Menu */}
+                <div className="flex items-center justify-between mb-1.5 gap-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-bold text-sm text-slate-800 leading-tight">
+                      {post.farmer?.farmName || post.farmer?.fullName || 'Community Member'}
+                    </span>
+                    
+                    {/* Persona Badge Compact Pill Next to Name */}
+                    {post.farmer?.role === 'buyer' ? (
+                      <span className="bg-blue-50 text-blue-700 text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wide border border-blue-100">
+                        BUYER
+                      </span>
+                    ) : post.farmer?.role === 'admin' ? (
+                      <span className="bg-rose-50 text-rose-700 text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wide border border-rose-100">
+                        ADMIN
+                      </span>
+                    ) : (
+                      <span className="bg-emerald-50 text-emerald-700 text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wide border border-emerald-100">
+                        FARMER
+                      </span>
+                    )}
 
-            {/* Post Content */}
-            <div className="px-4 pb-4">
-              {editingPostId === post.id ? (
-                <div className="mb-4 space-y-3">
-                  <textarea
-                    value={editContent}
-                    onChange={(e) => setEditContent(e.target.value)}
-                    className="w-full text-sm font-medium border border-slate-200 focus:border-primary rounded-xl p-3 focus:ring-4 focus:ring-primary/5 outline-none resize-none"
-                    rows={3}
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleSaveEdit(post.id)}
-                      disabled={isSavingEdit || !editContent.trim()}
-                      className="px-4 py-2 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-lg flex items-center justify-center gap-1.5 shadow-sm hover:bg-primary/95 transition-all cursor-pointer"
+                    <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap">
+                      • {new Date(post.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+
+                  {/* Options Menu Button & Overlay */}
+                  <div className="relative shrink-0">
+                    <button 
+                      onClick={() => setActiveMenuPostId(activeMenuPostId === post.id ? null : post.id)}
+                      className="p-1 px-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full cursor-pointer transition-colors"
                     >
-                      {isSavingEdit ? (
-                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      ) : 'Save'}
+                      <MoreHorizontal className="w-4 h-4" />
                     </button>
-                    <button
-                      onClick={() => setEditingPostId(null)}
-                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-505 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer"
-                    >
-                      Cancel
-                    </button>
+                    
+                    {activeMenuPostId === post.id && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setActiveMenuPostId(null)} />
+                        <div className="absolute right-0 mt-1 w-44 bg-white border border-slate-100 rounded-xl shadow-xl py-1.5 z-20 text-[11px] font-bold">
+                          {isAuthorOrAdmin ? (
+                            <>
+                              <button
+                                onClick={() => handleStartEdit(post)}
+                                className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-705 transition-colors flex items-center gap-2"
+                              >
+                                <span>✏️ Edit Post</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setActiveMenuPostId(null);
+                                  handleDeletePost(post.id);
+                                }}
+                                className="w-full text-left px-4 py-2 hover:bg-rose-50 text-rose-600 transition-colors flex items-center gap-2"
+                              >
+                                <span>🗑️ Delete Post</span>
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(post.content);
+                                  alert("Post content copied to clipboard!");
+                                  setActiveMenuPostId(null);
+                                }}
+                                className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-705 transition-colors flex items-center gap-2"
+                              >
+                                <span>📋 Copy Text</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  alert("Thank you! Our moderators will review this post shortly.");
+                                  setActiveMenuPostId(null);
+                                }}
+                                className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-705 transition-colors flex items-center gap-2"
+                              >
+                                <span>⚠️ Report Post</span>
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
-              ) : (
-                <p className="text-sm text-zinc-650 leading-relaxed mb-4 whitespace-pre-wrap">{post.content}</p>
-              )}
 
-              {post.media && post.media.length > 0 && (
-                <div className="aspect-video rounded-2xl overflow-hidden mb-4">
-                  <img src={post.media[0]} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                </div>
-              )}
-
-              {/* Interactions Toolbar */}
-              <div className="flex items-center gap-6 pt-4 border-t border-zinc-50 relative">
-                {/* Like Button */}
-                <button 
-                  onClick={() => handleToggleLike(post.id)}
-                  disabled={!user}
-                  className={`flex items-center gap-2 transition-all active:scale-90 ${
-                    hasLiked ? 'text-rose-500 font-bold' : 'text-zinc-450 hover:text-rose-550'
-                  }`}
-                >
-                  <Heart className={`w-5 h-5 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
-                  <span className="text-xs font-bold">{post.likes?.length || 0}</span>
-                </button>
-
-                {/* Comment Button */}
-                <button 
-                  onClick={() => handleToggleComments(post.id)}
-                  className={`flex items-center gap-2 transition-colors ${
-                    openCommentsPostId === post.id ? 'text-primary font-bold' : 'text-zinc-450 hover:text-primary/90'
-                  }`}
-                >
-                  <MessageCircle className="w-5 h-5" />
-                  <span className="text-xs font-bold">
-                    Comment {post.comments && post.comments.length > 0 ? `(${post.comments.length})` : ''}
-                  </span>
-                </button>
-
-                {/* Share Button with Custom Float Toast */}
-                <div className="relative ml-auto">
-                  <button 
-                    onClick={() => handleShare(post)}
-                    className="flex items-center gap-1.5 text-zinc-450 hover:text-zinc-650 transition-colors p-1"
-                    title="Copy update link to share"
-                  >
-                    <Share2 className="w-5 h-5" />
-                    {post.sharesCount ? (
-                      <span className="text-[10px] font-bold text-slate-400">{post.sharesCount}</span>
-                    ) : null}
-                  </button>
-
-                  <AnimatePresence>
-                    {showShareToast === post.id && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: 15, scale: 0.9 }}
-                        animate={{ opacity: 1, y: -45, scale: 1 }}
-                        exit={{ opacity: 0, y: -15, scale: 0.9 }}
-                        className="absolute right-0 bg-slate-900 text-white text-[9.5px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl whitespace-nowrap z-50 flex items-center gap-1.5"
-                      >
-                        <Check className="w-3.5 h-3.5 text-accent" /> Copied link!
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
-
-              {/* Collapsible Comments Section */}
-              <AnimatePresence>
-                {openCommentsPostId === post.id && (
-                  <motion.div 
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="mt-4 pt-4 border-t border-slate-100 space-y-4 overflow-hidden"
-                  >
-                    {/* Comments List */}
-                    <div className="space-y-3 max-h-60 overflow-y-auto pr-1 no-scrollbar">
-                      {(post.comments || []).map((comment) => (
-                        <div key={comment.id} className="flex items-start gap-3 bg-slate-50/50 p-3 rounded-2xl border border-slate-100">
-                          <div className="w-8 h-8 rounded-lg bg-primary/5 flex items-center justify-center font-bold text-primary font-serif italic text-xs shrink-0 select-none">
-                            {comment.farmName?.[0] || comment.userName?.[0] || 'U'}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-bold text-xs text-slate-800">{comment.farmName || comment.userName}</span>
-                              {comment.userRole === 'farmer' && (
-                                <span className="px-1.5 py-0.2 bg-emerald-50 text-emerald-600 text-[7px] font-black uppercase rounded">Farmer</span>
-                              )}
-                              {comment.userRole === 'admin' && (
-                                <span className="px-1.5 py-0.2 bg-rose-50 text-rose-600 text-[7px] font-black uppercase rounded">Admin</span>
-                              )}
-                              <span className="text-[8px] text-slate-400 font-medium ml-auto">
-                                {new Date(comment.createdAt).toLocaleDateString()}
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-600 mt-1 whitespace-pre-wrap leading-relaxed font-medium">{comment.content}</p>
-                          </div>
-                        </div>
-                      ))}
-                      {(post.comments || []).length === 0 && (
-                        <p className="text-center text-[10px] text-slate-400 font-serif italic py-2">No comments yet. Start the conversation!</p>
-                      )}
-                    </div>
-
-                    {/* Write Comment Bar */}
-                    {user && (
-                      <div className="flex gap-2.5 items-center mt-2">
-                        <input
-                          type="text"
-                          value={commentTextMap[post.id] || ''}
-                          onChange={(e) => setCommentTextMap(prev => ({ ...prev, [post.id]: e.target.value }))}
-                          placeholder="Write a supportive comment..."
-                          className="flex-1 text-xs px-4 py-2.5 bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-150 focus:border-primary focus:outline-none rounded-xl font-medium transition-all"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleSubmitComment(post.id);
-                            }
-                          }}
-                        />
+                {/* Post Content message text */}
+                <div className="mb-3.5 pr-1">
+                  {editingPostId === post.id ? (
+                    <div className="space-y-3">
+                      <textarea
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        className="w-full text-xs font-medium border border-slate-200 focus:border-primary rounded-xl p-3 focus:ring-4 focus:ring-primary/5 outline-none resize-none"
+                        rows={3}
+                      />
+                      <div className="flex gap-2">
                         <button
-                          onClick={() => handleSubmitComment(post.id)}
-                          disabled={submittingCommentId === post.id || !(commentTextMap[post.id] || '').trim()}
-                          className="p-2.5 bg-primary text-white rounded-xl hover:bg-primary/95 transition-all text-xs font-bold disabled:opacity-50 shrink-0 shadow-sm cursor-pointer"
+                          onClick={() => handleSaveEdit(post.id)}
+                          disabled={isSavingEdit || !editContent.trim()}
+                          className="px-3.5 py-1.5 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-lg flex items-center justify-center gap-1.5 shadow-sm hover:bg-primary/95 transition-all cursor-pointer"
                         >
-                          {submittingCommentId === post.id ? (
-                            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          ) : (
-                            <Send className="w-4 h-4" />
-                          )}
+                          {isSavingEdit ? (
+                            <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          ) : 'Save'}
+                        </button>
+                        <button
+                          onClick={() => setEditingPostId(null)}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-500 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer"
+                        >
+                          Cancel
                         </button>
                       </div>
-                    )}
-                  </motion.div>
+                    </div>
+                  ) : (
+                    <p className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap font-medium">{post.content}</p>
+                  )}
+                </div>
+
+                {/* Media Image Attachment */}
+                {post.media && post.media.length > 0 && (
+                  <div className="aspect-video rounded-xl overflow-hidden mb-3 border border-slate-100">
+                    <img src={post.media[0]} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  </div>
                 )}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        );
-      })}
+
+                {/* Borderless Action Toolbar */}
+                <div className="flex items-center gap-6 pt-2 border-t border-slate-50/60 relative">
+                  {/* Like Action */}
+                  <button 
+                    onClick={() => handleToggleLike(post.id)}
+                    disabled={!user}
+                    className={`flex items-center gap-1.5 transition-all text-xs font-semibold focus:outline-none cursor-pointer ${
+                      hasLiked ? 'text-rose-500' : 'text-slate-400 hover:text-rose-500'
+                    }`}
+                  >
+                    <Heart className={`w-4 h-4 ${hasLiked ? 'fill-rose-500 text-rose-500' : 'text-slate-400'}`} />
+                    <span>{post.likes?.length || 0}</span>
+                  </button>
+
+                  {/* Comment Action */}
+                  <button 
+                    onClick={() => handleToggleComments(post.id)}
+                    className={`flex items-center gap-1.5 transition-all text-xs font-semibold focus:outline-none cursor-pointer ${
+                      openCommentsPostId === post.id ? 'text-emerald-600' : 'text-slate-400 hover:text-emerald-500'
+                    }`}
+                  >
+                    <MessageCircle className={`w-4 h-4 ${openCommentsPostId === post.id ? 'text-emerald-600 fill-emerald-50' : 'text-slate-400'}`} />
+                    <span>
+                      {post.comments && post.comments.length > 0 ? post.comments.length : 'Comment'}
+                    </span>
+                  </button>
+
+                  {/* Share Action with Float Toast */}
+                  <div className="relative ml-auto shrink-0 flex items-center">
+                    <button 
+                      onClick={() => handleShare(post)}
+                      className="flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors p-1"
+                      title="Copy update link to share"
+                    >
+                      <Share2 className="w-4 h-4" />
+                      {post.sharesCount ? (
+                        <span className="text-[10px] font-bold text-slate-400">{post.sharesCount}</span>
+                      ) : null}
+                    </button>
+
+                    <AnimatePresence>
+                      {showShareToast === post.id && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                          animate={{ opacity: 1, y: -35, scale: 1 }}
+                          exit={{ opacity: 0, y: -10, scale: 0.9 }}
+                          className="absolute right-0 bg-slate-950 text-white text-[8px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-lg shadow-xl whitespace-nowrap z-50 flex items-center gap-1"
+                        >
+                          <Check className="w-2.5 h-2.5 text-emerald-400" /> Copied link!
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+
+                {/* Collapsible Comments Section with matching timeline padding */}
+                <AnimatePresence>
+                  {openCommentsPostId === post.id && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="mt-3.5 pt-3.5 border-t border-slate-50 space-y-3.5 overflow-hidden w-full"
+                    >
+                      {/* Comments Feed */}
+                      <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1 no-scrollbar">
+                        {(post.comments || []).map((comment) => (
+                          <div key={comment.id} className="flex items-start gap-2.5 bg-slate-50/55 p-2.5 rounded-xl border border-slate-100">
+                            <div className="w-7 h-7 rounded-full bg-[#ecf3ea] text-emerald-800 font-extrabold flex items-center justify-center font-serif text-[10px] shrink-0 select-none uppercase">
+                              {comment.farmName?.[0] || comment.userName?.[0] || 'U'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-xs text-slate-800">{comment.farmName || comment.userName}</span>
+                                {comment.userRole === 'farmer' && (
+                                  <span className="px-1 py-0.2 bg-emerald-50 text-emerald-700 text-[7px] font-bold uppercase rounded border border-emerald-100">Farmer</span>
+                                )}
+                                {comment.userRole === 'admin' && (
+                                  <span className="px-1 py-0.2 bg-rose-50 text-rose-700 text-[7px] font-bold uppercase rounded border border-rose-100">Admin</span>
+                                )}
+                                <span className="text-[8px] text-slate-400 font-medium ml-auto">
+                                  {new Date(comment.createdAt).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-600 mt-0.5 whitespace-pre-wrap leading-relaxed font-medium">{comment.content}</p>
+                            </div>
+                          </div>
+                        ))}
+                        {(post.comments || []).length === 0 && (
+                          <p className="text-center text-[10px] text-slate-400 font-serif italic py-1">No comments yet. Start the conversation!</p>
+                        )}
+                      </div>
+
+                      {/* Comment Input Field */}
+                      {user && (
+                        <div className="flex gap-2 items-center mt-2.5">
+                          <input
+                            type="text"
+                            value={commentTextMap[post.id] || ''}
+                            onChange={(e) => setCommentTextMap(prev => ({ ...prev, [post.id]: e.target.value }))}
+                            placeholder="Write a supportive comment..."
+                            className="flex-1 text-xs px-3.5 py-2 bg-slate-50 hover:bg-slate-100/50 focus:bg-white border border-slate-150 focus:border-primary focus:outline-none rounded-xl font-medium transition-all"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleSubmitComment(post.id);
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => handleSubmitComment(post.id)}
+                            disabled={submittingCommentId === post.id || !(commentTextMap[post.id] || '').trim()}
+                            className="p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all disabled:opacity-40 shrink-0 shadow-sm cursor-pointer"
+                          >
+                            {submittingCommentId === post.id ? (
+                              <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                              <Send className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
       
       {posts.length === 0 && (
          <div className="p-20 text-center bg-white rounded-3xl border border-dashed border-zinc-100">

@@ -10,11 +10,12 @@ interface NavbarProps {
   onAuthClick: () => void;
   onCartClick: () => void;
   setView: (view: 'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages') => void;
-  onDashboardTabChange?: (tab: 'inventory' | 'feedback' | 'messages') => void;
+  onDashboardTabChange?: (tab: 'inventory' | 'feedback' | 'messages' | 'community' | 'logs') => void;
   onSearch?: (query: string) => void;
+  onOrderNotificationClick?: (orderId: string) => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setView, onDashboardTabChange, onSearch }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setView, onDashboardTabChange, onSearch, onOrderNotificationClick }) => {
   const { user, profile, logout } = useAuth();
   const { items } = useCart();
   const [searchValue, setSearchValue] = React.useState('');
@@ -256,20 +257,38 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
 
                 {/* Mobile-Only direct Message icon above */}
                 {user && (
-                  <button 
-                    onClick={() => {
-                      if (profile?.role === 'farmer') {
-                        onDashboardTabChange?.('messages');
-                        setView('dashboard');
-                      } else {
-                        setView('messages');
-                      }
-                    }} 
-                    className="block md:hidden p-2.5 text-white/80 hover:text-white transition-all active:scale-95"
-                    aria-label="Messages"
-                  >
-                    <MessageSquare className="w-6 h-6" />
-                  </button>
+                  <div className="flex items-center gap-2 md:gap-4 md:hidden">
+                    <button 
+                      onClick={() => {
+                        if (profile?.role === 'farmer') {
+                          onDashboardTabChange?.('messages');
+                          setView('dashboard');
+                        } else {
+                          setView('messages');
+                        }
+                      }} 
+                      className="p-2 text-white/80 hover:text-white transition-all active:scale-95 relative cursor-pointer"
+                      aria-label="Messages"
+                    >
+                      <MessageSquare className="w-6 h-6" />
+                    </button>
+
+                    {profile?.role === 'farmer' && (
+                      <button 
+                        onClick={() => setView('profile')}
+                        className="w-8 h-8 rounded-xl overflow-hidden bg-white/10 p-0.5 border border-white/20 active:scale-95 transition-all cursor-pointer focus:outline-none shrink-0"
+                        aria-label="Edit Profile"
+                      >
+                        <div className="w-full h-full rounded-lg overflow-hidden bg-primary/20 flex items-center justify-center">
+                          {user.photoURL || profile.photoURL ? (
+                            <img src={user.photoURL || profile.photoURL} alt="Avatar" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          ) : (
+                            <User className="w-4 h-4 text-white" />
+                          )}
+                        </div>
+                      </button>
+                    )}
+                  </div>
                 )}
                 
                 <div className="h-8 w-px bg-white/20 hidden md:block" />
@@ -338,7 +357,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
                                         }
                                       } else if (nType === 'order') {
                                         if (profile?.role === 'farmer') {
-                                          onDashboardTabChange?.('inventory');
+                                          if (notif.relatedId) {
+                                            onOrderNotificationClick?.(notif.relatedId);
+                                          }
+                                          onDashboardTabChange?.('logs');
                                           setView('dashboard');
                                         } else if (profile?.role === 'buyer') {
                                           setView('tracking');

@@ -12,7 +12,7 @@ import {
   ArrowLeft, AlertCircle, Loader2, ChevronDown, ChevronUp, Store, Star, X
 } from 'lucide-react';
 import {
-  collection, query, where, onSnapshot, updateDoc, doc, orderBy, setDoc
+  collection, query, where, onSnapshot, updateDoc, doc, orderBy, setDoc, getDoc
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
@@ -158,33 +158,76 @@ const RatingModal: React.FC<RatingModalProps> = ({ order, onClose, onSubmitted, 
 
     try {
       const avgRating = Math.round((productRating + deliveryRating) / 2);
-      const firstItem = order.items[0];
       const now = new Date().toISOString();
 
-      // 1. Write review doc
-      const reviewRef = doc(collection(db, 'reviews'));
-      await setDoc(reviewRef, {
-        id: reviewRef.id,
-        orderId: order.id,
-        productId: firstItem?.id || '',
-        buyerId: user.uid,
-        farmerId: order.farmerId,
-        rating: avgRating,
-        productRating,
-        deliveryRating,
-        comment: comment.trim(),
-        images: [],
-        createdAt: now,
-      });
+      // Loop through all items in the order and rate/review them individually
+      for (const item of order.items) {
+        if (!item.id) continue;
 
-      // 2. Mark order as rated
+        // 1. Write review doc for this specific product
+        const reviewRef = doc(collection(db, 'reviews'));
+        await setDoc(reviewRef, {
+          id: reviewRef.id,
+          orderId: order.id,
+          productId: item.id,
+          buyerId: user.uid,
+          farmerId: order.farmerId,
+          rating: avgRating,
+          productRating,
+          deliveryRating,
+          comment: comment.trim(),
+          images: [],
+          createdAt: now,
+        });
+
+        // 2. Fetch and update the product aggregate rating automatically
+        try {
+          const productRef = doc(db, 'products', item.id);
+          const prodSnap = await getDoc(productRef);
+          if (prodSnap.exists()) {
+            const prodData = prodSnap.data();
+            const currentCount = prodData.reviewCount || 0;
+            const currentRating = prodData.rating || 0;
+            
+            const newReviewCount = currentCount + 1;
+            const newRating = ((currentRating * currentCount) + productRating) / newReviewCount;
+            
+            await updateDoc(productRef, {
+              rating: Number(newRating.toFixed(1)),
+              reviewCount: newReviewCount
+            });
+          }
+        } catch (err) {
+          console.error(`Error updating rating for product ${item.id}`, err);
+        }
+
+        // 3. Notify the farmer about this specific product rating
+        try {
+          const farmerItemNotifRef = doc(collection(db, 'notifications'));
+          await setDoc(farmerItemNotifRef, {
+            id: farmerItemNotifRef.id,
+            userId: order.farmerId,
+            title: 'New Product Review ⭐',
+            message: `Your product "${item.name}" was rated ${productRating}/5 stars. ${
+              comment.trim() ? `Comment: "${comment.slice(0, 50)}${comment.length > 50 ? '…' : ''}"` : ''
+            }`,
+            type: 'system',
+            relatedId: item.id,
+            read: false,
+            createdAt: now,
+          });
+        } catch (err) {
+          console.error(`Error sending farmer notification for product ${item.id}`, err);
+        }
+      }
+
+      // 4. Mark general order as rated
       await updateDoc(doc(db, 'orders', order.id), {
         hasRated: true,
-        ratingId: reviewRef.id,
         updatedAt: now,
       });
 
-      // 3. Notify farmer about new review
+      // 5. General Order Notification to Farmer
       const farmerNotifRef = doc(collection(db, 'notifications'));
       await setDoc(farmerNotifRef, {
         id: farmerNotifRef.id,
@@ -199,7 +242,7 @@ const RatingModal: React.FC<RatingModalProps> = ({ order, onClose, onSubmitted, 
         createdAt: now,
       });
 
-      // 4. Confirm to buyer that their review was recorded
+      // 6. Confirm to buyer that their review was recorded
       const buyerNotifRef = doc(collection(db, 'notifications'));
       await setDoc(buyerNotifRef, {
         id: buyerNotifRef.id,
@@ -226,18 +269,18 @@ const RatingModal: React.FC<RatingModalProps> = ({ order, onClose, onSubmitted, 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center"
+      className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <motion.div
-        initial={{ y: 60, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 60, opacity: 0 }}
+        initial={{ y: 30, scale: 0.95, opacity: 0 }}
+        animate={{ y: 0, scale: 1, opacity: 1 }}
+        exit={{ y: 30, scale: 0.95, opacity: 0 }}
         transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-        className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl"
+        className="bg-white w-full max-w-md rounded-3xl p-5 sm:p-6 shadow-2xl max-h-[90vh] sm:max-h-[85vh] flex flex-col"
       >
         {/* Header */}
-        <div className="flex items-start justify-between mb-5">
+        <div className="flex items-start justify-between mb-4 shrink-0">
           <div>
             <h3 className="text-base font-black text-slate-900 tracking-tight">Rate Your Order</h3>
             <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
@@ -252,53 +295,58 @@ const RatingModal: React.FC<RatingModalProps> = ({ order, onClose, onSubmitted, 
           </button>
         </div>
 
-        {/* Items preview */}
-        <div className="flex gap-2 mb-5 overflow-x-auto no-scrollbar pb-1">
-          {order.items.map((item, i) => (
-            <div key={i} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 shrink-0">
-              {item.image && (
-                <img src={item.image} alt={item.name} className="w-8 h-8 rounded-lg object-cover" />
-              )}
-              <span className="text-xs font-bold text-slate-700">{item.name}</span>
-            </div>
-          ))}
+        {/* Scrollable Middle Content */}
+        <div className="flex-1 overflow-y-auto space-y-4 py-1 pr-1 no-scrollbar min-h-0">
+          {/* Items preview */}
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+            {order.items.map((item, i) => (
+              <div key={i} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 shrink-0">
+                {item.image && (
+                  <img src={item.image} alt={item.name} className="w-8 h-8 rounded-lg object-cover" />
+                )}
+                <span className="text-xs font-bold text-slate-700">{item.name}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Star pickers */}
+          <div className="space-y-3.5 bg-slate-50/50 p-3 rounded-2xl border border-slate-100">
+            <StarPicker label="Product Quality" value={productRating} onChange={setProductRating} />
+            <StarPicker label="Delivery Experience" value={deliveryRating} onChange={setDeliveryRating} />
+          </div>
+
+          {/* Comment */}
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Comment (optional)</p>
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Share your experience with this order…"
+              rows={2}
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-300 resize-none"
+            />
+          </div>
         </div>
 
-        {/* Star pickers */}
-        <div className="space-y-5 mb-5">
-          <StarPicker label="Product Quality" value={productRating} onChange={setProductRating} />
-          <StarPicker label="Delivery Experience" value={deliveryRating} onChange={setDeliveryRating} />
+        {/* Fixed Footer */}
+        <div className="pt-4 mt-2 border-t border-slate-100 shrink-0">
+          {error && (
+            <p className="text-xs text-rose-500 font-medium mb-3 flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5" /> {error}
+            </p>
+          )}
+
+          <button
+            onClick={handleSubmit}
+            disabled={loading || productRating === 0 || deliveryRating === 0}
+            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
+          >
+            {loading
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting…</>
+              : <><Star className="w-4 h-4 fill-white" /> Submit Review</>
+            }
+          </button>
         </div>
-
-        {/* Comment */}
-        <div className="mb-5">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Comment (optional)</p>
-          <textarea
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="Share your experience with this order…"
-            rows={3}
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-300 resize-none"
-          />
-        </div>
-
-        {error && (
-          <p className="text-xs text-rose-500 font-medium mb-4 flex items-center gap-1.5">
-            <AlertCircle className="w-3.5 h-3.5" /> {error}
-          </p>
-        )}
-
-        {/* Submit */}
-        <button
-          onClick={handleSubmit}
-          disabled={loading || productRating === 0 || deliveryRating === 0}
-          className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
-        >
-          {loading
-            ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting…</>
-            : <><Star className="w-4 h-4 fill-white" /> Submit Review</>
-          }
-        </button>
       </motion.div>
     </motion.div>
   );

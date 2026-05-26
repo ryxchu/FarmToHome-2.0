@@ -91,7 +91,8 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
           productId: i.id,
           name: i.name,
           quantity: i.quantity,
-          price: i.price
+          price: i.price,
+          image: i.images?.[0] || ""
         })),
         total: finalTotal,
         discount: discount,

@@ -217,7 +217,23 @@ export const Profile: React.FC = () => {
                 Edit Profile
               </button>
               <button 
-                onClick={() => logout()}
+                onClick={async () => {
+                  try {
+                    // Synchronously purge active local demo sessions
+                    localStorage.removeItem('demo_user_session');
+                    localStorage.removeItem('demo_profile_session');
+                    
+                    // Await standard and demo logout processes completely
+                    await logout();
+                    
+                    // Instantly redirect to the landing page to tear down and reset JS heap
+                    window.location.href = '/';
+                  } catch (e) {
+                    console.error("Sign out handling error:", e);
+                    // Clear state via state setter as safety fallback
+                    logout();
+                  }
+                }}
                 className="group flex items-center justify-center gap-3 w-full sm:w-auto px-8 py-4 sm:px-10 sm:py-5 bg-rose-50 text-rose-600 rounded-full font-bold border-2 border-rose-100 hover:border-rose-200 transition-all active:scale-95 text-[10px] uppercase tracking-widest shadow-sm shrink-0"
               >
                 <LogOut className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />

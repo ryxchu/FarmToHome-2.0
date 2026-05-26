@@ -17,6 +17,7 @@ export interface UserProfile {
   farmStory?: string;
   farmingMethods?: string;
   certifications?: string[];
+  primaryCrops?: string;
   isApproved?: boolean;
   rewardsPoints?: number;
   ecoMetrics?: {
@@ -64,6 +65,7 @@ export interface OrderItem {
   name: string;
   quantity: number;
   price: number;
+  image?: string;
 }
 
 export interface Order {
@@ -83,6 +85,9 @@ export interface Order {
   platformFee?: number;
   discount?: number;
   discountType?: string;
+  buyerName?: string;
+  buyerAddress?: string;
+  buyerPhone?: string;
   createdAt: string;
   updatedAt: string;
   riderLocation?: {

@@ -39,6 +39,9 @@ service cloud.firestore {
              (!('status' in data) || (data.status in ['verified', 'unverified', 'pending', 'banned'])) &&
              (!('coordinates' in data) || (data.coordinates is map || data.coordinates == null)) &&
              (!('photoURL' in data) || (data.photoURL is string)) &&
+             (!('primaryCrops' in data) || (data.primaryCrops is string && data.primaryCrops.size() <= 1000)) &&
+             (!('contactNumber' in data) || (data.contactNumber is string && data.contactNumber.size() <= 50)) &&
+             (!('deliveryAddress' in data) || (data.deliveryAddress is string && data.deliveryAddress.size() <= 1000)) &&
              (!('uid' in data) || (data.uid == request.auth.uid || isAdmin()));
     }
 
@@ -98,7 +101,7 @@ service cloud.firestore {
       allow list: if isHardcodedAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
       allow create: if isOwner(userId) && isValidUser(incoming()) && incoming().uid == request.auth.uid;
       allow update: if (isOwner(userId) || isAdmin()) && isValidUser(incoming()) && 
-                    (isAdmin() || (incoming().uid == existing().uid && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'phone', 'address', 'photoURL', 'status', 'farmName', 'farmAddress', 'farmStory', 'farmingMethods', 'certifications', 'rewardsPoints', 'ecoMetrics', 'isApproved', 'coordinates'])));
+                    (isAdmin() || (incoming().uid == existing().uid && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'phone', 'address', 'photoURL', 'status', 'farmName', 'farmAddress', 'farmStory', 'farmingMethods', 'certifications', 'rewardsPoints', 'ecoMetrics', 'isApproved', 'coordinates', 'primaryCrops', 'contactNumber', 'deliveryAddress'])));
     }
 
     match /products/{productId} {
@@ -123,6 +126,8 @@ service cloud.firestore {
           ( (isOwner(existing().buyerId) && incoming().status == 'cancelled' && incoming().diff(existing()).affectedKeys().hasOnly(['status'])) ||
             (isOwner(existing().farmerId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'riderLocation', 'eta', 'updatedAt']))
           ) && (existing().status != 'delivered' && existing().status != 'cancelled')
+        ) || (
+          isOwner(existing().buyerId) && existing().status == 'delivered' && incoming().diff(existing()).affectedKeys().hasOnly(['hasRated', 'updatedAt'])
         )
       );
     }

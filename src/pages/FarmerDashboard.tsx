@@ -3,27 +3,50 @@ import { collection, query, where, onSnapshot, setDoc, updateDoc, doc, deleteDoc
 import { db, auth, handleFirestoreError, OperationType, isQuotaError, isOfflineError, safeSetItem } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Product, Order } from '../types';
-import { Plus, Package, ShoppingBag, TrendingUp, Edit, Trash2, X, Check, Image as ImageIcon, Star, User, Settings, MessageSquare, ArrowLeft, ChevronRight, MapPin, Phone, Truck, CreditCard, Radio } from 'lucide-react';
+import { Plus, Package, ShoppingBag, TrendingUp, Edit, Trash2, X, Check, Image as ImageIcon, Star, User, Settings, MessageSquare, ArrowLeft, ChevronRight, MapPin, Phone, Truck, CreditCard, Radio, ClipboardList, Sprout, Camera, Sparkles, RefreshCw, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Chat } from '../components/Chat';
 import { SocialFeed } from '../components/SocialFeed';
 
 interface FarmerDashboardProps {
   onEditProfile?: () => void;
-  activeTabProp?: 'inventory' | 'feedback' | 'messages' | 'community';
-  onTabChange?: (tab: 'inventory' | 'feedback' | 'messages' | 'community') => void;
+  activeTabProp?: 'inventory' | 'feedback' | 'messages' | 'community' | 'logs';
+  onTabChange?: (tab: 'inventory' | 'feedback' | 'messages' | 'community' | 'logs') => void;
+  highlightedOrderId?: string | null;
+  onClearHighlightedOrder?: () => void;
+  showProfileFormProp?: boolean;
+  onCloseProfileForm?: () => void;
 }
 
-export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile, activeTabProp, onTabChange }) => {
-  const { user, profile } = useAuth();
+export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ 
+  onEditProfile, 
+  activeTabProp, 
+  onTabChange,
+  highlightedOrderId,
+  onClearHighlightedOrder,
+  showProfileFormProp,
+  onCloseProfileForm
+}) => {
+  const { user, profile, refreshProfile, logout } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'inventory' | 'feedback' | 'messages' | 'community'>(activeTabProp || 'inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'feedback' | 'messages' | 'community' | 'logs'>(activeTabProp || 'inventory');
   const [showAddModal, setShowAddModal] = useState(false);
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<any | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [selectedDetailedOrder, setSelectedDetailedOrder] = useState<Order | null>(null);
+
+  useEffect(() => {
+    if (highlightedOrderId && orders.length > 0) {
+      const matchedOrder = orders.find(o => o.id === highlightedOrderId);
+      if (matchedOrder) {
+        setSelectedDetailedOrder(matchedOrder);
+        setActiveTab('logs');
+      }
+    }
+  }, [highlightedOrderId, orders]);
 
   useEffect(() => {
     if (activeTabProp) {
@@ -31,10 +54,21 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
     }
   }, [activeTabProp]);
 
-  const handleTabChange = (tab: 'inventory' | 'feedback' | 'messages' | 'community') => {
+  const handleTabChange = (tab: 'inventory' | 'feedback' | 'messages' | 'community' | 'logs') => {
     setActiveTab(tab);
     onTabChange?.(tab);
   };
+
+  useEffect(() => {
+    const handleOpenModal = () => {
+      setEditingProduct(null);
+      setShowAddModal(true);
+    };
+    window.addEventListener('open-add-product-modal', handleOpenModal);
+    return () => {
+      window.removeEventListener('open-add-product-modal', handleOpenModal);
+    };
+  }, []);
 
   useEffect(() => {
     const currentUid = auth.currentUser?.uid;
@@ -136,10 +170,160 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
     message: 'Heavy rainfall expected tomorrow in your region. Consider harvesting early.'
   });
 
+  // Account Settings states
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [showPresetsInForm, setShowPresetsInForm] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    farmName: profile?.farmName || '',
+    contactNumber: profile?.phone || '',
+    address: profile?.address || '',
+    primaryCrops: profile?.primaryCrops || '',
+    photoURL: profile?.photoURL || '',
+    farmStory: profile?.farmStory || '',
+  });
+
+  const presetFarmerAvatars = [
+    "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200&h=200", 
+    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200&h=200", 
+    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200&h=200", 
+    "https://images.unsplash.com/photo-1628157582853-a796fa650a6a?auto=format&fit=crop&q=80&w=200&h=200"
+  ];
+
+  const profileFileInputRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (showProfileFormProp !== undefined) {
+      setShowEditProfileModal(showProfileFormProp);
+    }
+  }, [showProfileFormProp]);
+
+  const handleCloseModal = () => {
+    setShowEditProfileModal(false);
+    if (onCloseProfileForm) {
+      onCloseProfileForm();
+    }
+  };
+
+  useEffect(() => {
+    if (profile) {
+      setProfileForm({
+        farmName: profile.farmName || '',
+        contactNumber: profile.phone || '',
+        address: profile.address || '',
+        primaryCrops: profile.primaryCrops || '',
+        photoURL: profile.photoURL || '',
+        farmStory: profile.farmStory || '',
+      });
+    }
+  }, [profile]);
+
+  const handleFormFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Image size must be less than 2MB.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setProfileForm(v => ({ ...v, photoURL: reader.result as string }));
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user?.uid) return;
+    setIsSavingProfile(true);
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        farmName: profileForm.farmName,
+        contactNumber: profileForm.contactNumber,
+        phone: profileForm.contactNumber,
+        address: profileForm.address,
+        deliveryAddress: profileForm.address,
+        primaryCrops: profileForm.primaryCrops,
+        photoURL: profileForm.photoURL,
+        farmStory: profileForm.farmStory,
+      });
+      await refreshProfile();
+      alert("Account settings saved successfully!");
+      handleCloseModal();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save profile changes. Please check permissions or try again.");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  // Predefined realistic transaction logs for immediate mechanics testing
+  const dummyLogs = [
+    {
+      id: "IZN3G9JWY9",
+      buyerName: "Chef Andrea Delgado (Green Bistro)",
+      createdAt: "2026-05-26T15:30:00Z",
+      status: "pending" as const,
+      deliveryAddress: "Green Bistro Cafe, Bonifacio Global City, Taguig",
+      contactNumber: "0917-882-9912",
+      shippingMethod: "Direct Dispatch (Express)",
+      paymentMethod: "GCash Transfer",
+      buyerMessage: "Please pack the Pechay Tagalog with wet towels to keep them crisp!",
+      items: [
+        { name: "Pechay Tagalog", quantity: 3, price: 40, image: "https://images.unsplash.com/photo-1595855759920-86582396756a?auto=format&fit=crop&q=80&w=120" },
+        { name: "Organic Red Tomatoes", quantity: 2, price: 75, image: "https://images.unsplash.com/photo-1587132137056-bfbf0166836e?auto=format&fit=crop&q=80&w=120" }
+      ],
+      total: 270
+    },
+    {
+      id: "KXM8F2HQA4",
+      buyerName: "Maria Santos (Home Cook)",
+      createdAt: "2026-05-26T10:15:00Z",
+      status: "preparing" as const,
+      deliveryAddress: "12A Molave Street, Project 3, Quezon City",
+      contactNumber: "0918-223-1144",
+      shippingMethod: "Eco-Courier Partner",
+      paymentMethod: "Cash on Delivery",
+      buyerMessage: "Call 5 minutes before arriving.",
+      items: [
+        { name: "Highland Sweet Potatoes", quantity: 5, price: 60, image: "https://images.unsplash.com/photo-1596003903067-bf5762a521c8?auto=format&fit=crop&q=80&w=120" }
+      ],
+      total: 300
+    },
+    {
+      id: "YPT4V1XCD7",
+      buyerName: "Luigi Almeda (Salad Express)",
+      createdAt: "2026-05-25T16:45:00Z",
+      status: "delivered" as const,
+      deliveryAddress: "Salad Express Central, Kapitolyo, Pasig City",
+      contactNumber: "0919-771-4422",
+      shippingMethod: "Cooperative Trucking",
+      paymentMethod: "Cooperative Wallet",
+      items: [
+        { name: "Lettuce Batavia", quantity: 4, price: 50, image: "https://images.unsplash.com/photo-1622484211148-716598e04141?auto=format&fit=crop&q=80&w=120" },
+        { name: "Fresh Garlic Bulbs", quantity: 1, price: 120, image: "https://images.unsplash.com/photo-1540148426945-6cf22a6b2383?auto=format&fit=crop&q=80&w=120" }
+      ],
+      total: 320
+    }
+  ];
+
+  // Tracking mock state status changes locally to ensure complete interaction
+  const [mockStatuses, setMockStatuses] = useState<Record<string, Order['status']>>({});
+
   const totalSales = orders.reduce((sum, order) => order.status === 'delivered' ? sum + order.total : sum, 0);
   const pendingOrders = orders.filter(o => o.status === 'pending');
 
   const updateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
+    if (["IZN3G9JWY9", "KXM8F2HQA4", "YPT4V1XCD7"].includes(orderId)) {
+      setMockStatuses(prev => ({ ...prev, [orderId]: newStatus }));
+      alert(`Demo Order status updated to "${newStatus}"!`);
+      return;
+    }
     try {
       await updateDoc(doc(db, 'orders', orderId), { 
         status: newStatus,
@@ -222,7 +406,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
             <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-[8px]">Operational dashboard for {profile?.farmName || "Your Farm"}.</p>
           </div>
           
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="hidden sm:flex flex-wrap items-center gap-2 w-auto">
             <button 
               onClick={() => { setEditingProduct(null); setShowAddModal(true); }}
               className="flex-1 sm:flex-initial px-4 py-2 bg-primary hover:bg-primary/90 text-white font-bold text-[9px] uppercase tracking-widest rounded-xl transition-all shadow-md shadow-primary/10 active:scale-95 flex items-center justify-center gap-1.5 min-w-[95px]"
@@ -230,7 +414,13 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
               <Plus className="w-3.5 h-3.5" /> Add Item
             </button>
             <button 
-              onClick={onEditProfile}
+              onClick={() => handleTabChange('logs')}
+              className="px-3 py-2 bg-white text-slate-600 font-bold text-[9px] uppercase tracking-widest rounded-xl transition-all border border-slate-200 hover:bg-slate-50 active:scale-95 flex items-center justify-center gap-1.5 shadow-sm min-w-[75px]"
+            >
+              <ClipboardList className="w-3.5 h-3.5 text-primary" /> Orders
+            </button>
+            <button 
+              onClick={onEditProfile || (() => setShowEditProfileModal(true))}
               className="px-3 py-2 bg-white text-slate-600 font-bold text-[9px] uppercase tracking-widest rounded-xl transition-all border border-slate-200 hover:bg-slate-50 active:scale-95 flex items-center justify-center gap-1.5 shadow-sm min-w-[75px]"
             >
               <User className="w-3.5 h-3.5 hover:text-primary" /> Profile
@@ -288,6 +478,21 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
           <div className="flex items-center gap-2.5">
             <div className="w-1.5 h-6 bg-primary rounded-full" />
             <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight font-sans">Farmer <span className="italic text-primary font-serif">Community Feed</span></h1>
+          </div>
+          <button
+            onClick={() => handleTabChange('inventory')}
+            className="px-4 py-2 bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 font-bold text-[9px] uppercase tracking-widest rounded-xl transition-all active:scale-95 flex items-center gap-1.5 shadow-sm cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-primary" /> Back to Dashboard
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'logs' && (
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div className="flex items-center gap-2.5">
+            <div className="w-1.5 h-6 bg-primary rounded-full" />
+            <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight font-sans">Operational <span className="italic text-primary font-serif">Log & Orders</span></h1>
           </div>
           <button
             onClick={() => handleTabChange('inventory')}
@@ -682,7 +887,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
                   ))
                 )}
               </motion.div>
-            ) : (
+            ) : activeTab === 'community' ? (
               <motion.div
                 key="community"
                 initial={{ opacity: 0, x: -25 }}
@@ -692,177 +897,272 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
               >
                 <SocialFeed />
               </motion.div>
+            ) : (
+              <motion.div
+                key="logs"
+                initial={{ opacity: 0, x: -25 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 25 }}
+                className="flex flex-col h-full max-h-[75vh]"
+              >
+                {/* Header block for Logs */}
+                <div className="px-4 mb-4 flex items-center justify-between shrink-0 text-left">
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-black text-slate-800 tracking-tight font-sans">Operational Logs</h2>
+                    <p className="text-[9px] font-bold text-slate-450 uppercase tracking-widest mt-0.5">Real-Time Sourced Purchases & Fulfillment</p>
+                  </div>
+                </div>
+
+                {/* Main continuous scrollable area */}
+                <div className="flex-1 overflow-y-auto px-4 pb-24 space-y-4 no-scrollbar">
+                  {Object.keys(
+                    (() => {
+                      // Prepare log combination right at state scope safely
+                      const allLogsCombined = [
+                        ...orders.map(o => ({
+                          id: o.id,
+                          buyerName: o.buyerName || "General Buyer",
+                          createdAt: (o.createdAt as any)?.toDate?.() ? (o.createdAt as any).toDate().toISOString() : (o.createdAt || new Date().toISOString()),
+                          status: mockStatuses[o.id] || o.status,
+                          deliveryAddress: o.buyerAddress || o.deliveryAddress || "No delivery address",
+                          contactNumber: o.buyerPhone || o.contactNumber || "N/A",
+                          shippingMethod: o.shippingMethod || "Standard Cargo",
+                          paymentMethod: o.paymentMethod === 'cash_on_delivery' ? 'Cash on Delivery' : o.paymentMethod === 'gcash' ? 'GCash' : o.paymentMethod || 'Paid',
+                          buyerMessage: o.buyerMessage || "",
+                          items: (o.items || []).map(item => {
+                            const matchedProd = products.find(p => p.id === item.productId);
+                            return {
+                              name: item.name,
+                              quantity: item.quantity,
+                              price: item.price,
+                              image: item.image || matchedProd?.images?.[0] || "https://images.unsplash.com/photo-1615485290382-441e4d0c9cb5?auto=format&fit=crop&q=80&w=120"
+                            };
+                          }),
+                          total: o.total,
+                          isRealDbOrder: true
+                        })),
+                        ...dummyLogs.map(dl => ({
+                          ...dl,
+                          status: mockStatuses[dl.id] || dl.status,
+                          isRealDbOrder: false
+                        }))
+                      ].sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+                      const groups: Record<string, typeof allLogsCombined> = {};
+                      allLogsCombined.forEach(log => {
+                        const d = new Date(log.createdAt);
+                        const today = new Date();
+                        const yesterday = new Date();
+                        yesterday.setDate(yesterday.getDate() - 1);
+
+                        let dayName = "";
+                        if (d.toDateString() === today.toDateString()) {
+                          dayName = "TODAY";
+                        } else if (d.toDateString() === yesterday.toDateString()) {
+                          dayName = "YESTERDAY";
+                        } else {
+                          dayName = d.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+                        }
+
+                        const monthName = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
+                        const dateLabel = `${dayName} • ${monthName}`;
+
+                        if (!groups[dateLabel]) {
+                          groups[dateLabel] = [];
+                        }
+                        groups[dateLabel].push(log);
+                      });
+                      return groups;
+                    })()
+                  ).map(dateHeader => {
+                    const allLogsCombined = [
+                      ...orders.map(o => ({
+                        id: o.id,
+                        buyerName: o.buyerName || "General Buyer",
+                        createdAt: (o.createdAt as any)?.toDate?.() ? (o.createdAt as any).toDate().toISOString() : (o.createdAt || new Date().toISOString()),
+                        status: mockStatuses[o.id] || o.status,
+                        deliveryAddress: o.buyerAddress || o.deliveryAddress || "No delivery address",
+                        contactNumber: o.buyerPhone || o.contactNumber || "N/A",
+                        shippingMethod: o.shippingMethod || "Standard Cargo",
+                        paymentMethod: o.paymentMethod === 'cash_on_delivery' ? 'Cash on Delivery' : o.paymentMethod === 'gcash' ? 'GCash' : o.paymentMethod || 'Paid',
+                        buyerMessage: o.buyerMessage || "",
+                        items: (o.items || []).map(item => {
+                          const matchedProd = products.find(p => p.id === item.productId);
+                          return {
+                            name: item.name,
+                            quantity: item.quantity,
+                            price: item.price,
+                            image: item.image || matchedProd?.images?.[0] || "https://images.unsplash.com/photo-1615485290382-441e4d0c9cb5?auto=format&fit=crop&q=80&w=120"
+                          };
+                        }),
+                        total: o.total,
+                        isRealDbOrder: true
+                      })),
+                      ...dummyLogs.map(dl => ({
+                        ...dl,
+                        status: mockStatuses[dl.id] || dl.status,
+                        isRealDbOrder: false
+                      }))
+                    ].sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+                    const groups: Record<string, typeof allLogsCombined> = {};
+                    allLogsCombined.forEach(log => {
+                      const d = new Date(log.createdAt);
+                      const today = new Date();
+                      const yesterday = new Date();
+                      yesterday.setDate(yesterday.getDate() - 1);
+
+                      let dayName = "";
+                      if (d.toDateString() === today.toDateString()) {
+                        dayName = "TODAY";
+                      } else if (d.toDateString() === yesterday.toDateString()) {
+                        dayName = "YESTERDAY";
+                      } else {
+                        dayName = d.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+                      }
+
+                      const monthName = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
+                      const dateLabel = `${dayName} • ${monthName}`;
+
+                      if (!groups[dateLabel]) {
+                        groups[dateLabel] = [];
+                      }
+                      groups[dateLabel].push(log);
+                    });
+
+                    const logsInGroup = groups[dateHeader] || [];
+
+                    return (
+                      <div key={dateHeader} className="space-y-4 text-left">
+                        {/* Sticky Date Group Heading */}
+                        <div className="sticky top-0 bg-slate-50 py-2.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase z-10 border-b border-slate-100 text-left">
+                          {dateHeader}
+                        </div>
+
+                        {/* Logs list in this date group */}
+                        <div className="space-y-4">
+                          {logsInGroup.map(log => {
+                            const isPending = log.status === 'pending';
+                            const isPreparing = log.status === 'preparing';
+                            const isShipped = log.status === 'shipped';
+                            const isDelivered = log.status === 'delivered';
+
+                            return (
+                              <div 
+                                key={log.id} 
+                                className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-150 shadow-xs space-y-3.5 relative overflow-hidden transition-all hover:bg-slate-50/20 text-left"
+                              >
+                                {/* Receipt Header info */}
+                                <div className="flex items-start justify-between gap-4 border-b border-dashed border-slate-200 pb-3 text-left">
+                                  <div>
+                                    <span className="font-mono text-[9px] font-bold text-slate-400 block tracking-wider leading-none">RECEIPT ID</span>
+                                    <button 
+                                      onClick={() => setSelectedDetailedOrder({
+                                        ...log,
+                                        buyerAddress: log.deliveryAddress,
+                                        buyerPhone: log.contactNumber,
+                                        buyerMessage: log.buyerMessage,
+                                      } as any)}
+                                      className="text-sm font-black tracking-tight text-slate-800 hover:text-emerald-700 hover:underline outline-none flex items-center gap-1 mt-1 text-left bg-transparent p-0 border-0 cursor-pointer"
+                                    >
+                                      #{log.id.toUpperCase()}
+                                    </button>
+                                    <span className="text-[10px] font-bold text-slate-500 mt-1.5 block font-sans">Buyer: {log.buyerName}</span>
+                                  </div>
+
+                                  <div className="text-right flex flex-col items-end shrink-0">
+                                    <span className="text-[8px] font-bold text-slate-450 uppercase tracking-widest leading-none mb-1.5">
+                                      {new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                    <span className={`px-2.5 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-wider border leading-none ${
+                                      isPending ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                                      isPreparing ? 'bg-blue-50 text-blue-600 border-blue-200' :
+                                      isShipped ? 'bg-indigo-50 text-indigo-600 border-indigo-200' :
+                                      isDelivered ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
+                                      'bg-slate-50 text-slate-650 border-slate-200'
+                                    }`}>
+                                      {log.status === 'preparing' ? 'preparing' : log.status === 'shipped' ? 'shipped' : log.status === 'delivered' ? 'delivered' : log.status}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Items block with images */}
+                                <div className="space-y-2 mt-1">
+                                  {log.items.map((item, index) => (
+                                    <div key={index} className="flex items-center gap-3 bg-slate-50/50 p-2 border border-slate-100/40 rounded-xl">
+                                      <img src={item.image} className="w-9 h-9 object-cover rounded-lg border border-slate-100 shrink-0" referrerPolicy="no-referrer" />
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-slate-800 truncate leading-tight">{item.name}</p>
+                                        <p className="text-[9.5px] text-slate-400 font-bold mt-0.5">
+                                          Qty: {item.quantity} • ₱{item.price.toFixed(2)}
+                                        </p>
+                                      </div>
+                                      <p className="text-xs font-mono font-bold text-slate-705">₱{(item.quantity * item.price).toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {/* Actions & totals footer */}
+                                <div className="pt-3.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap text-left">
+                                  <div className="text-left">
+                                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block leading-none mb-0.5 text-left">Fulfillment Total</span>
+                                    <span className="text-sm font-mono font-black text-slate-800 text-left block">
+                                      ₱{log.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-1.5 ml-auto">
+                                    <button
+                                      onClick={() => setSelectedDetailedOrder({
+                                        ...log,
+                                        buyerAddress: log.deliveryAddress,
+                                        buyerPhone: log.contactNumber,
+                                        buyerMessage: log.buyerMessage,
+                                      } as any)}
+                                      className="px-3.5 py-1.5 text-[9px] font-black uppercase tracking-wider text-slate-505 hover:text-slate-700 border border-slate-205 bg-white hover:bg-slate-50 rounded-xl transition-all cursor-pointer"
+                                    >
+                                      Details
+                                    </button>
+
+                                    {isPending && (
+                                      <button
+                                        onClick={() => updateOrderStatus(log.id, 'preparing')}
+                                        className="px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-all cursor-pointer"
+                                      >
+                                        Accept
+                                      </button>
+                                    )}
+
+                                    {isPreparing && (
+                                      <button
+                                        onClick={() => updateOrderStatus(log.id, 'shipped')}
+                                        className="px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-all cursor-pointer"
+                                      >
+                                        Dispatch
+                                      </button>
+                                    )}
+
+                                    {isShipped && (
+                                      <button
+                                        onClick={() => updateOrderStatus(log.id, 'delivered')}
+                                        className="px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-white bg-emerald-605 hover:bg-emerald-700 rounded-xl shadow-sm transition-all cursor-pointer"
+                                      >
+                                        Deliver
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </motion.div>
             )}
           </AnimatePresence>
-        </div>
-
-        {/* Recent Orders - Bottom Business Panel */}
-        <div className="space-y-6">
-          <div className="px-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight font-sans italic">Operational Log</h2>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Transaction History & Fulfillment</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-3 py-1 bg-slate-100 rounded-full border border-slate-200">
-                Page {currentPage} of {totalPages || 1}
-              </span>
-            </div>
-          </div>
-          
-          <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 shadow-inner min-h-[300px] relative overflow-hidden">
-             {orders.length === 0 ? (
-               <div className="h-full flex flex-col items-center justify-center opacity-30 relative z-10 py-12">
-                 <ShoppingBag className="w-12 h-12 mb-4 text-slate-400" />
-                 <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400">Inventory is standby...</p>
-               </div>
-             ) : (
-               <div className="relative z-10">
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   {paginatedOrders.map(order => (
-                    <div key={order.id} className="p-4 sm:p-6 bg-white border border-slate-150 rounded-2xl hover:shadow-lg transition-all border-l-4 border-l-primary flex flex-col h-full group">
-                      <div className="flex justify-between items-start mb-4 gap-4">
-                        <div>
-                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-0.5">Receipt ID</p>
-                           <p className="font-mono text-xs text-slate-800 font-bold opacity-80">#{order.id.slice(0, 10).toUpperCase()}</p>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-[8px] font-bold uppercase tracking-wider border flex-shrink-0 ${
-                          order.status === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-200' :
-                          order.status === 'delivered' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 
-                          order.status === 'cancelled' ? 'bg-rose-50 text-rose-600 border-rose-200' :
-                          'bg-blue-50 text-blue-600 border-blue-200'
-                        }`}>
-                          {order.status}
-                        </span>
-                      </div>
-                      
-                      <div className="space-y-2 mb-4 opacity-90 border-y border-slate-100 py-3 flex-grow">
-                        {order.items.map((item, idx) => (
-                           <div key={idx} className="flex justify-between items-center text-xs">
-                             <span className="font-bold text-slate-700 tracking-tight">{item.name} <span className="text-[9px] text-slate-450 font-medium italic ml-1.5">x {item.quantity}</span></span>
-                             <span className="font-mono text-[10px] font-bold text-slate-800">₱{(item.price * item.quantity).toLocaleString()}</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Delivery & Logistics Sauté Recap */}
-                      <div className="mb-4 p-4 bg-slate-50 border border-slate-150 rounded-xl space-y-3 text-xs">
-                        <div className="flex items-start gap-2.5">
-                          <MapPin className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest leading-none mb-0.5">Destination Address</p>
-                            <p className="font-semibold text-slate-700 leading-snug">{order.deliveryAddress || 'No address provided'}</p>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3 pb-1.5 border-b border-slate-200/50">
-                          <div className="flex items-start gap-2">
-                            <Phone className="w-3 h-3 text-primary shrink-0 mt-0.5" />
-                            <div className="min-w-0">
-                              <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider leading-none mb-0.5">Contact</p>
-                              <p className="font-bold text-slate-700 truncate">{order.contactNumber || 'N/A'}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-start gap-2.5">
-                            <Truck className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
-                            <div className="min-w-0">
-                              <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider leading-none mb-0.5">Logistics Route</p>
-                              <p className="font-bold text-slate-700 truncate">{order.shippingMethod || 'Standard Route'}</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-0.5">
-                          <div className="flex items-center gap-2">
-                            <CreditCard className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Payment Method</span>
-                          </div>
-                          <span className="font-bold text-slate-600 bg-white border border-slate-150 px-2.5 py-0.5 rounded-lg text-[10px]">
-                            {order.paymentMethod || 'Cash on Delivery'}
-                          </span>
-                        </div>
-
-                        {order.buyerMessage && (
-                          <div className="mt-2.5 pt-2.5 border-t border-dashed border-slate-200 flex items-start gap-2 bg-amber-50/40 -mx-4 -mb-4 sm:-mx-6 sm:-mb-6 p-4 rounded-b-xl sm:rounded-b-[2rem]">
-                            <MessageSquare className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
-                            <div>
-                              <p className="text-[8px] font-black uppercase text-primary tracking-wider leading-none mb-1">Instruction from Chef</p>
-                              <p className="text-[11px] font-medium text-slate-700 italic leading-relaxed">"{order.buyerMessage}"</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mt-auto">
-                        <div>
-                          <p className="text-[10px] opacity-40 font-bold uppercase mb-2 tracking-[0.2em]">Settled Amount</p>
-                          <p className="text-3xl sm:text-4xl font-black tracking-tighter text-slate-800 italic font-sans">₱{order.total.toLocaleString()}</p>
-                        </div>
-                        <div className="flex flex-col items-stretch sm:items-end w-full sm:w-auto mt-2 sm:mt-0">
-                          <div className="flex gap-2 w-full sm:w-auto">
-                            {order.status === 'pending' && (
-                              <button 
-                                onClick={() => updateOrderStatus(order.id, 'preparing')}
-                                className="w-full sm:w-auto px-6 py-3 bg-primary text-white text-[9px] font-bold uppercase rounded-xl transition-all shadow-lg shadow-primary/20 tracking-widest hover:scale-105 active:scale-95 text-center flex items-center justify-center"
-                              >
-                                Accept
-                              </button>
-                            )}
-                            {order.status === 'preparing' && (
-                              <button 
-                                onClick={() => updateOrderStatus(order.id, 'shipped')}
-                                className="w-full sm:w-auto px-6 py-3 bg-primary text-white text-[9px] font-bold uppercase rounded-xl transition-all shadow-lg shadow-primary/20 tracking-widest hover:scale-105 active:scale-95 text-center flex items-center justify-center"
-                              >
-                                Ship Order
-                              </button>
-                            )}
-                            {order.status === 'shipped' && (
-                              <button 
-                                onClick={() => updateOrderStatus(order.id, 'delivered')}
-                                className="w-full sm:w-auto px-6 py-3 bg-secondary text-white text-[9px] font-bold uppercase rounded-xl transition-all shadow-lg shadow-secondary/20 tracking-widest hover:scale-105 active:scale-95 text-center flex items-center justify-center"
-                              >
-                                Complete
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                   ))}
-                 </div>
-                 
-                 {totalPages > 1 && (
-                   <div className="flex items-center justify-center gap-8 mt-16 border-t border-slate-200 pt-10">
-                     <button 
-                      disabled={currentPage === 1}
-                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                      className="p-4 bg-white hover:bg-slate-50 disabled:opacity-30 border border-slate-200 rounded-2xl transition-all shadow-sm"
-                     >
-                       <ArrowLeft className="w-5 h-5 text-slate-400" />
-                     </button>
-                     <div className="flex items-center gap-3">
-                       {[...Array(totalPages)].map((_, i) => (
-                         <button 
-                           key={i}
-                           onClick={() => setCurrentPage(i + 1)}
-                           className={`w-12 h-12 rounded-2xl font-bold text-xs transition-all ${currentPage === i + 1 ? 'bg-primary text-white shadow-xl' : 'bg-white text-slate-400 hover:bg-slate-100 border border-slate-100'}`}
-                         >
-                           {i + 1}
-                         </button>
-                       ))}
-                     </div>
-                     <button 
-                      disabled={currentPage === totalPages}
-                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                      className="p-4 bg-white hover:bg-slate-50 disabled:opacity-30 border border-slate-200 rounded-2xl transition-all shadow-sm"
-                     >
-                       <ChevronRight className="w-5 h-5 text-slate-400" />
-                     </button>
-                   </div>
-                 )}
-               </div>
-             )}
-          </div>
         </div>
       </div>
 
@@ -930,7 +1230,485 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
           </motion.div>
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {selectedDetailedOrder && (
+          <OrderDetailModal 
+            order={selectedDetailedOrder} 
+            onClose={() => {
+              setSelectedDetailedOrder(null);
+              onClearHighlightedOrder?.();
+            }}
+            updateOrderStatus={updateOrderStatus}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Account Settings / Edit Profile Modal */}
+      <AnimatePresence>
+        {showEditProfileModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-[999]"
+          >
+            <motion.div 
+              initial={{ y: "100%", opacity: 0.5 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: "100%", opacity: 0.5 }}
+              transition={{ type: "spring", damping: 26, stiffness: 210 }}
+              className="bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full sm:max-w-lg shadow-2xl flex flex-col overflow-hidden border border-slate-100 max-h-[90vh] md:max-h-[85vh]"
+            >
+              {/* Header */}
+              <div className="flex justify-between items-center px-6 py-5 border-b border-stone-100 shrink-0">
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-slate-800 flex items-center gap-1.5 leading-none">
+                    <Settings className="w-4 h-4 text-primary animate-spin-slow" /> Account Settings
+                  </h3>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Update farm & primary contact details</p>
+                </div>
+                <button 
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="p-2 hover:bg-slate-50 active:scale-95 text-slate-400 hover:text-slate-600 rounded-full transition-all cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Form and Scroll Area */}
+              <form onSubmit={handleSaveProfile} className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto space-y-4 p-6 bg-slate-50/50 max-h-[60vh]">
+                  {/* Farm Details Header banner card */}
+                  <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary shrink-0 animate-pulse">
+                      <Sprout className="w-5 h-5 stroke-[2.5]" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-[10px] font-black uppercase text-emerald-800 tracking-wider">Operational Identity</p>
+                      <p className="text-[9px] text-emerald-600 font-medium leading-relaxed mt-0.5">Let local chefs know who is preparing their harvest. Keep your details current to build trust.</p>
+                    </div>
+                  </div>
+
+                  {/* Interactive Profile Picture Section */}
+                  <div className="space-y-2 text-center">
+                    <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-widest text-center">
+                      Profile Avatar
+                    </label>
+                    <div className="relative">
+                      <div 
+                        onClick={() => profileFileInputRef.current?.click()}
+                        className="w-24 h-24 rounded-full bg-slate-100 border-2 border-emerald-500 relative flex items-center justify-center overflow-hidden mx-auto group cursor-pointer hover:ring-4 hover:ring-emerald-500/10 active:scale-95 transition-all shadow-md"
+                      >
+                        {profileForm.photoURL ? (
+                          <img 
+                            src={profileForm.photoURL} 
+                            alt="Avatar Preview" 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform" 
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="text-slate-400 group-hover:text-emerald-600 transition-colors flex flex-col items-center">
+                            <User className="w-8 h-8 stroke-[1.5]" />
+                            <span className="text-[8px] font-bold uppercase tracking-wider mt-1">Upload</span>
+                          </div>
+                        )}
+                        
+                        <input 
+                          type="file"
+                          ref={profileFileInputRef}
+                          onChange={handleFormFileChange}
+                          accept="image/*"
+                          className="hidden"
+                          id="farmer-profile-image-input"
+                        />
+
+                        {/* Icon Overlay Badge representing camera action */}
+                        <div className="absolute bottom-0 right-0 bg-emerald-600 text-white p-1.5 rounded-full shadow hover:bg-emerald-700 transition-colors z-10">
+                          <Camera className="w-3.5 h-3.5 stroke-[2]" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Preselected Filipino / Local Farmer Avatars */}
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowPresetsInForm(!showPresetsInForm)}
+                        className="inline-flex items-center gap-1 text-[8.5px] font-black uppercase text-emerald-700 hover:text-emerald-800 tracking-wider bg-emerald-50/50 px-2 py-1 rounded-lg transition-all active:scale-95 cursor-pointer border border-emerald-100/55"
+                      >
+                        <RefreshCw className="w-2.5 h-2.5" />
+                        {showPresetsInForm ? "Hide Presets" : "Use Preset Avatar"}
+                      </button>
+
+                      {showPresetsInForm && (
+                        <div className="mt-2.5 p-2 bg-white rounded-xl border border-dashed border-slate-200 flex justify-center gap-3">
+                          {presetFarmerAvatars.map((url, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                setProfileForm(v => ({ ...v, photoURL: url }));
+                                setShowPresetsInForm(false);
+                              }}
+                              className={`w-9 h-9 rounded-full overflow-hidden border-2 transition-all hover:scale-110 active:scale-90 ${profileForm.photoURL === url ? 'border-emerald-600 scale-105 shadow' : 'border-white hover:border-slate-300'}`}
+                            >
+                              <img src={url} alt={`Preset ${idx + 1}`} className="w-full h-full object-cover" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Farm Name Field */}
+                  <div className="space-y-1.5 text-left">
+                    <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-widest">
+                      Farm Name
+                    </label>
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        required
+                        value={profileForm.farmName}
+                        onChange={(e) => setProfileForm(v => ({ ...v, farmName: e.target.value }))}
+                        placeholder="e.g. Cordillera Greens Farm" 
+                        className="w-full px-4 py-3 bg-white border border-slate-205 rounded-xl text-xs font-semibold focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary transition-all text-slate-800"
+                        disabled={isSavingProfile}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Contact Number Field */}
+                  <div className="space-y-1.5 text-left">
+                    <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-widest">
+                      Mobile contact Number
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                        <Phone className="w-4 h-4" />
+                      </span>
+                      <input 
+                        type="tel" 
+                        required
+                        value={profileForm.contactNumber}
+                        onChange={(e) => setProfileForm(v => ({ ...v, contactNumber: e.target.value }))}
+                        placeholder="e.g. +63 917 123 4567" 
+                        className="w-full pl-11 pr-4 py-3 bg-white border border-slate-205 rounded-xl text-xs font-semibold focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary transition-all text-slate-800"
+                        disabled={isSavingProfile}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Address Field */}
+                  <div className="space-y-1.5 text-left">
+                    <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-widest">
+                      Farm Logistics Address
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-3 text-slate-400">
+                        <MapPin className="w-4 h-4" />
+                      </span>
+                      <textarea 
+                        required
+                        rows={3}
+                        value={profileForm.address}
+                        onChange={(e) => setProfileForm(v => ({ ...v, address: e.target.value }))}
+                        placeholder="e.g. Sitio Benson, Brgy. Ambassador, Tublay, Benguet" 
+                        className="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-205 rounded-xl text-xs font-semibold focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary transition-all text-slate-800 resize-none leading-relaxed"
+                        disabled={isSavingProfile}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Primary Crops Field */}
+                  <div className="space-y-1.5 text-left">
+                    <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-widest">
+                      Primary Crops / Cultivations
+                    </label>
+                    <input 
+                      type="text" 
+                      required
+                      value={profileForm.primaryCrops}
+                      onChange={(e) => setProfileForm(v => ({ ...v, primaryCrops: e.target.value }))}
+                      placeholder="e.g. Strawberries, Lettuce, Heirloom Rice, Carrots" 
+                      className="w-full px-4 py-3 bg-white border border-slate-205 rounded-xl text-xs font-semibold focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary transition-all text-slate-800"
+                      disabled={isSavingProfile}
+                    />
+                    <p className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wider text-left mt-1">Comma-separated values of crops you primarily grow.</p>
+                  </div>
+
+                  {/* Farmer Story / Testimonial Box */}
+                  <div className="space-y-1.5 text-left">
+                    <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-widest">
+                      Farmer's Story / Testimonial
+                    </label>
+                    <textarea 
+                      required
+                      rows={3}
+                      value={profileForm.farmStory}
+                      onChange={(e) => setProfileForm(v => ({ ...v, farmStory: e.target.value }))}
+                      placeholder="Share your farm's background, practices, or experiences to inspire local buyers..." 
+                      className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-1 focus:ring-emerald-500 text-slate-800 focus:outline-none leading-relaxed resize-none"
+                      disabled={isSavingProfile}
+                    />
+                    <div className="flex justify-between text-[8px] text-slate-400 font-extrabold uppercase tracking-wider">
+                      <span>Introduce your heritage and values</span>
+                      <span>{profileForm.farmStory.length} chars</span>
+                    </div>
+                  </div>
+
+                  {/* Quick Mobile Log Out Section */}
+                  <div className="mt-6 pt-6 border-t border-slate-200/60 text-center">
+                    <p className="text-[10px] font-black uppercase text-rose-500 tracking-widest mb-1">Session Management</p>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-3">Finished managing your cooperative store?</p>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          // Synchronously purge demo cache so page reload cannot restore the session
+                          localStorage.removeItem('demo_user_session');
+                          localStorage.removeItem('demo_profile_session');
+                          
+                          // Await the logout process fully (Firebase sign out + state purge)
+                          await logout();
+                          
+                          // Force immediate browser redirect to landing page to wipe Javascript memory
+                          window.location.href = '/';
+                        } catch (e) {
+                          console.error("Log out handling error:", e);
+                          window.location.reload();
+                        }
+                      }}
+                      className="inline-flex items-center gap-2 px-5 py-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:border-rose-300 font-extrabold text-[10px] uppercase tracking-widest active:scale-95 transition-all cursor-pointer"
+                    >
+                      <LogOut className="w-3.5 h-3.5" /> Log Out
+                    </button>
+                  </div>
+                </div>
+
+                {/* Footer sticky area */}
+                <div className="p-4 bg-white border-t border-slate-100 flex gap-3.5 shrink-0">
+                  <button 
+                    type="button"
+                    onClick={handleCloseModal}
+                    className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-650 font-bold text-[10px] uppercase tracking-widest rounded-xl transition-all cursor-pointer border border-slate-200"
+                    disabled={isSavingProfile}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10.5px] uppercase tracking-widest rounded-xl transition-all shadow-md shadow-emerald-600/10 flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                    disabled={isSavingProfile}
+                  >
+                    {isSavingProfile ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4 stroke-[2.5]" /> Save Changes
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
+  );
+};
+
+interface OrderDetailModalProps {
+  order: Order;
+  onClose: () => void;
+  updateOrderStatus: (orderId: string, status: 'pending' | 'preparing' | 'shipped' | 'delivered' | 'cancelled') => Promise<void>;
+}
+
+const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, updateOrderStatus }) => {
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleStatusUpdate = async (status: 'pending' | 'preparing' | 'shipped' | 'delivered' | 'cancelled') => {
+    setIsUpdating(true);
+    try {
+      await updateOrderStatus(order.id, status);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4"
+    >
+      <motion.div 
+        initial={{ scale: 0.9, y: 30 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.9, y: 30 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+        className="bg-white rounded-[2.5rem] p-6 sm:p-8 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto border border-stone-150 flex flex-col"
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between mb-5 shrink-0">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-1.5 h-6 bg-primary rounded-full" />
+              <h3 className="text-lg font-black text-slate-800 tracking-tight font-sans">Sourced Order Details</h3>
+            </div>
+            <p className="font-mono text-xs text-slate-405 font-bold tracking-wider">ORDER ID: #{order.id.toUpperCase()}</p>
+          </div>
+          <button 
+            type="button"
+            onClick={onClose}
+            className="p-2.5 bg-slate-50 hover:bg-slate-100 hover:text-slate-600 text-slate-400 rounded-full transition-all border border-slate-150 cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto space-y-5 min-h-0 pr-1.5">
+          {/* Status Tracker */}
+          <div className="p-4 bg-stone-50 border border-stone-150 rounded-2xl flex items-center justify-between">
+            <div>
+              <span className="text-[8px] font-black uppercase tracking-widest text-slate-405 block mb-1">Fulfillment Status</span>
+              <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wide border ${
+                order.status === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                order.status === 'delivered' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 
+                order.status === 'cancelled' ? 'bg-rose-50 text-rose-600 border-rose-200' :
+                'bg-blue-50 text-blue-600 border-blue-200'
+              }`}>
+                {order.status}
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-[8px] font-black uppercase tracking-widest text-slate-440 block mb-1">Date Sourced</span>
+              <span className="text-xs font-mono font-bold text-slate-700">
+                {new Date((order.createdAt as any)?.toDate?.() || order.createdAt).toLocaleDateString()}
+              </span>
+            </div>
+          </div>
+
+          {/* Crops Items Detail */}
+          <div>
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-405 block mb-2.5">Sourced Crops Summary</span>
+            <div className="border border-slate-150 rounded-2xl divide-y divide-slate-100 overflow-hidden bg-white shadow-sm">
+              {order.items.map((item, idx) => (
+                <div key={idx} className="p-4 flex justify-between items-center bg-white transition-colors hover:bg-slate-50/50">
+                  <div>
+                    <p className="font-bold text-slate-850 text-sm leading-tight">{item.name}</p>
+                    <p className="text-[10px] text-slate-405 font-bold mt-0.5 uppercase tracking-wide">
+                      ₱{item.price.toLocaleString()} per unit <span className="text-primary">•</span> Qty: {item.quantity}
+                    </p>
+                  </div>
+                  <span className="font-mono text-sm font-black text-slate-800">₱{(item.price * item.quantity).toLocaleString()}</span>
+                </div>
+              ))}
+              <div className="p-4 bg-slate-50/30 flex justify-between items-center">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-405">Transaction Subtotal</span>
+                <span className="text-xl font-black text-primary italic font-sans animate-pulse">₱{order.total.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Delivery & Billing Address */}
+          <div className="p-4.5 border border-slate-150 rounded-2xl bg-slate-50/20 space-y-3 text-xs leading-relaxed">
+            <div className="flex items-start gap-3">
+              <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[8px] font-black uppercase text-slate-404 tracking-widest leading-none mb-1">Destination Address</p>
+                <p className="font-bold text-slate-700">{order.deliveryAddress || 'No address provided'}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 pt-1.5 border-t border-slate-150/70">
+              <div className="flex items-start gap-2.5">
+                <Phone className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[8px] font-black uppercase text-slate-404 tracking-wider leading-none mb-1">Contact Details</p>
+                  <p className="font-bold text-slate-700">{order.contactNumber || 'N/A'}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <Truck className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[8px] font-black uppercase text-slate-404 tracking-wider leading-none mb-1">Logistics Route</p>
+                  <p className="font-bold text-slate-700">{order.shippingMethod || 'Standard Route'}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-slate-150/50">
+              <span className="text-[9px] font-black uppercase text-slate-404 tracking-wider">Payment Method</span>
+              <span className="font-bold text-slate-600 bg-white border border-slate-150 px-2.5 py-0.5 rounded-lg">
+                {order.paymentMethod || 'Cash on Delivery'}
+              </span>
+            </div>
+
+            {order.buyerMessage && (
+              <div className="mt-3 pt-3 border-t border-dashed border-slate-200 flex items-start gap-2.5 bg-amber-50/40 -mx-4.5 -mb-4.5 p-4 rounded-b-[1.25rem]">
+                <MessageSquare className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[8px] font-black uppercase text-primary tracking-wider leading-none mb-1">Instruction from Chef</p>
+                  <p className="text-[11px] font-medium text-slate-800 italic leading-relaxed">"{order.buyerMessage}"</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Action Controls Footer */}
+        <div className="mt-6 pt-5 border-t border-slate-150 flex flex-wrap gap-2 justify-end shrink-0">
+          <button 
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2.5 bg-white border border-slate-250 hover:bg-slate-50 text-slate-500 font-bold text-[10px] uppercase rounded-xl tracking-wider transition-all select-none active:scale-95 cursor-pointer"
+          >
+            Close Receipt
+          </button>
+          
+          {order.status === 'pending' && (
+            <button 
+              disabled={isUpdating}
+              onClick={() => handleStatusUpdate('preparing')}
+              className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-white font-bold text-[10px] uppercase rounded-xl transition-all shadow-md active:scale-95 cursor-pointer tracking-widest disabled:opacity-40"
+            >
+              Accept Order
+            </button>
+          )}
+
+          {order.status === 'preparing' && (
+            <button 
+              disabled={isUpdating}
+              onClick={() => handleStatusUpdate('shipped')}
+              className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-white font-bold text-[10px] uppercase rounded-xl transition-all shadow-md active:scale-95 cursor-pointer tracking-widest disabled:opacity-40"
+            >
+              Ship Order
+            </button>
+          )}
+
+          {order.status === 'shipped' && (
+            <button 
+              disabled={isUpdating}
+              onClick={() => handleStatusUpdate('delivered')}
+              className="px-6 py-2.5 bg-secondary hover:bg-secondary/90 text-white font-bold text-[10px] uppercase rounded-xl transition-all shadow-md active:scale-95 cursor-pointer tracking-widest disabled:opacity-40"
+            >
+              Complete Order
+            </button>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
   );
 };
 

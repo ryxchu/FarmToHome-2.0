@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   ShoppingBag, Radio, Package, MessageSquare, User, 
   LayoutDashboard, Star, Globe, Users, TrendingUp, Settings, Sprout,
-  LogOut, ChevronLeft, ChevronRight
+  LogOut, ChevronLeft, ChevronRight, ClipboardList
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
@@ -17,8 +17,8 @@ interface UnifiedSidebarProps {
   setMarketViewMode: (mode: 'shop' | 'community') => void;
   selectedCategory: string;
   setSelectedCategory: (category: string) => void;
-  farmerTab: 'inventory' | 'feedback' | 'messages' | 'community';
-  setFarmerTab: (tab: 'inventory' | 'feedback' | 'messages' | 'community') => void;
+  farmerTab: 'inventory' | 'feedback' | 'messages' | 'community' | 'logs';
+  setFarmerTab: (tab: 'inventory' | 'feedback' | 'messages' | 'community' | 'logs') => void;
   adminTab: 'users' | 'marketplace' | 'logistics' | 'analytics' | 'system';
   setAdminTab: (tab: 'users' | 'marketplace' | 'logistics' | 'analytics' | 'system') => void;
   nearMeEnabled: boolean;
@@ -174,6 +174,16 @@ export const UnifiedSidebar: React.FC<UnifiedSidebarProps> = ({
           onClick: () => {
             setView('dashboard');
             setFarmerTab('inventory');
+          }
+        },
+        {
+          id: 'farmer-logs',
+          label: 'Operational Log',
+          icon: ClipboardList,
+          active: currentView === 'dashboard' && farmerTab === 'logs',
+          onClick: () => {
+            setView('dashboard');
+            setFarmerTab('logs');
           }
         },
         {

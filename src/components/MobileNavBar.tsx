@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Home, ShoppingBag, User, Bell, MessageSquare, X, ChevronRight, AlertCircle, Package 
+  Home, ShoppingBag, User, Bell, MessageSquare, X, ChevronRight, AlertCircle, Package, ClipboardList, Plus, Radio 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -13,12 +13,14 @@ interface MobileNavBarProps {
   setView: (view: 'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages') => void;
   marketViewMode: 'shop' | 'community';
   setMarketViewMode: (mode: 'shop' | 'community') => void;
-  farmerTab: 'inventory' | 'feedback' | 'messages' | 'community';
-  setFarmerTab: (tab: 'inventory' | 'feedback' | 'messages' | 'community') => void;
+  farmerTab: 'inventory' | 'feedback' | 'messages' | 'community' | 'logs';
+  setFarmerTab: (tab: 'inventory' | 'feedback' | 'messages' | 'community' | 'logs') => void;
   adminTab: 'users' | 'marketplace' | 'logistics' | 'analytics' | 'system';
   setAdminTab: (tab: 'users' | 'marketplace' | 'logistics' | 'analytics' | 'system') => void;
   onCartClick?: () => void;
   onAuthClick?: () => void;
+  onOrderNotificationClick?: (orderId: string) => void;
+  onAddClick?: () => void;
 }
 
 export const MobileNavBar: React.FC<MobileNavBarProps> = ({
@@ -31,7 +33,9 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
   adminTab,
   setAdminTab,
   onCartClick,
-  onAuthClick
+  onAuthClick,
+  onOrderNotificationClick,
+  onAddClick
 }) => {
   const { user, profile } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -84,7 +88,10 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
       }
     } else if (nType === 'order') {
       if (role === 'farmer') {
-        setFarmerTab('inventory');
+        if (notif.relatedId) {
+          onOrderNotificationClick?.(notif.relatedId);
+        }
+        setFarmerTab('logs');
         setView('dashboard');
       } else if (role === 'buyer') {
         setView('tracking');
@@ -121,93 +128,185 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
     }
   };
 
-  const navItems = [
-    {
-      id: 'home',
-      label: 'Home',
-      icon: Home,
-      active: user 
-        ? ((role === 'admin' && currentView === 'admin-dashboard') || (role === 'farmer' && currentView === 'dashboard') || (role === 'buyer' && currentView === 'home' && marketViewMode === 'community'))
-        : currentView === 'landing',
-      onClick: () => {
-        if (user) {
-          if (role === 'admin') {
-            setView('admin-dashboard');
-          } else if (role === 'farmer') {
+  const navItems = role === 'farmer' 
+    ? [
+        {
+          id: 'store',
+          label: 'Store',
+          icon: Home,
+          active: currentView === 'dashboard' && farmerTab === 'inventory',
+          onClick: () => {
             setView('dashboard');
-          } else {
-            setView('home');
-            setMarketViewMode('community');
+            setFarmerTab('inventory');
           }
-        } else {
-          setView('landing');
-        }
-      }
-    },
-    {
-      id: 'marketplace',
-      label: 'Marketplace',
-      icon: ShoppingBag,
-      active: currentView === 'home' && marketViewMode === 'shop',
-      onClick: () => {
-        setView('home');
-        setMarketViewMode('shop');
-      }
-    },
-    // ✅ ONLY SHOW FOR BUYERS
-    ...(role === 'buyer'
-      ? [
-          {
-            id: 'tracking',
-            label: 'My Orders',
-            icon: Package,
-            active: currentView === 'tracking',
-            onClick: () => {
-              if (user) {
-                setView('tracking');
-              } else if (onAuthClick) {
-                onAuthClick();
-              }
+        },
+        {
+          id: 'logs',
+          label: 'Logs',
+          icon: ClipboardList,
+          active: currentView === 'dashboard' && farmerTab === 'logs',
+          onClick: () => {
+            setView('dashboard');
+            setFarmerTab('logs');
+          }
+        },
+        {
+          id: 'add-item',
+          label: 'Add Item',
+          icon: Plus,
+          customFAB: true,
+          onClick: () => {
+            if (onAddClick) {
+              onAddClick();
+            } else {
+              window.dispatchEvent(new CustomEvent('open-add-product-modal'));
             }
           }
-        ]
-      : []),
-    {
-      id: 'notification',
-      label: 'Notification',
-      icon: Bell,
-      active: showNotifications,
-      badge: unreadCount,
-      onClick: () => {
-        if (user) {
-          setShowNotifications(true);
-        } else if (onAuthClick) {
-          onAuthClick();
+        },
+        {
+          id: 'community',
+          label: 'Feed',
+          icon: Radio,
+          active: currentView === 'dashboard' && farmerTab === 'community',
+          onClick: () => {
+            setView('dashboard');
+            setFarmerTab('community');
+          }
+        },
+        {
+          id: 'notification',
+          label: 'Alerts',
+          icon: Bell,
+          active: showNotifications,
+          badge: unreadCount,
+          onClick: () => {
+            setShowNotifications(true);
+          }
         }
-      }
-    },
-    {
-      id: 'profile',
-      label: 'Profile',
-      icon: User,
-      active: currentView === 'profile',
-      onClick: () => {
-        if (user) {
-          setView('profile');
-        } else if (onAuthClick) {
-          onAuthClick();
+      ]
+    : role === 'admin'
+    ? [
+        {
+          id: 'home',
+          label: 'Admin Hub',
+          icon: Home,
+          active: currentView === 'admin-dashboard',
+          onClick: () => {
+            setView('admin-dashboard');
+          }
+        },
+        {
+          id: 'notification',
+          label: 'Alerts',
+          icon: Bell,
+          active: showNotifications,
+          badge: unreadCount,
+          onClick: () => {
+            setShowNotifications(true);
+          }
+        },
+        {
+          id: 'profile',
+          label: 'Profile',
+          icon: User,
+          active: currentView === 'profile',
+          onClick: () => {
+            setView('profile');
+          }
         }
-      }
-    }
-  ];
+      ]
+    : [
+        {
+          id: 'home',
+          label: 'Home',
+          icon: Home,
+          active: currentView === 'landing' || (currentView === 'home' && marketViewMode === 'community'),
+          onClick: () => {
+            if (user) {
+              setView('home');
+              setMarketViewMode('community');
+            } else {
+              setView('landing');
+            }
+          }
+        },
+        {
+          id: 'marketplace',
+          label: 'Marketplace',
+          icon: ShoppingBag,
+          active: currentView === 'home' && marketViewMode === 'shop',
+          onClick: () => {
+            setView('home');
+            setMarketViewMode('shop');
+          }
+        },
+        {
+          id: 'tracking',
+          label: 'My Orders',
+          icon: Package,
+          active: currentView === 'tracking',
+          onClick: () => {
+            if (user) {
+              setView('tracking');
+            } else if (onAuthClick) {
+              onAuthClick();
+            }
+          }
+        },
+        {
+          id: 'notification',
+          label: 'Alerts',
+          icon: Bell,
+          active: showNotifications,
+          badge: unreadCount,
+          onClick: () => {
+            if (user) {
+              setShowNotifications(true);
+            } else if (onAuthClick) {
+              onAuthClick();
+            }
+          }
+        },
+        {
+          id: 'profile',
+          label: 'Profile',
+          icon: User,
+          active: currentView === 'profile',
+          onClick: () => {
+            if (user) {
+              setView('profile');
+            } else if (onAuthClick) {
+              onAuthClick();
+            }
+          }
+        }
+      ];
 
   return (
     <>
       <div className={`fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-stone-200/60 pt-2.5 pb-6 text-slate-600 shadow-[0_-8px_30px_rgb(0,0,0,0.06)] z-[80] lg:hidden grid ${
-        navItems.length === 5 ? 'grid-cols-5' : 'grid-cols-4'
+        role === 'farmer' ? 'grid-cols-5 text-[10px] uppercase font-bold text-center tracking-wider' : (navItems.length === 5 ? 'grid-cols-5' : 'grid-cols-4')
       } w-full px-1 justify-items-center items-center`}>
-        {navItems.map((item) => {
+        {navItems.map((item: any) => {
           const IconComp = item.icon;
+          
+          if (item.customFAB) {
+            return (
+              <button
+                key={item.id}
+                onClick={item.onClick}
+                className="flex flex-col items-center justify-center -translate-y-4 relative select-none z-[90] active:scale-95 transition-all duration-300"
+              >
+                <div className="w-14 h-14 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-[0_4px_14px_rgba(16,185,129,0.4)] border-4 border-white">
+                  <IconComp className="w-6 h-6 stroke-[3]" />
+                </div>
+                <span className="text-[10px] uppercase font-extrabold tracking-wider text-emerald-600 mt-1 block">
+                  {item.label}
+                </span>
+              </button>
+            );
+          }
+
           return (
             <button
               key={item.id}

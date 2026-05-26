@@ -105,7 +105,6 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({
         // Cache if it's the 'All' landing
         if (activeCategory === 'All' && !searchQuery) {
           safeSetItem('shop_products_all', JSON.stringify(prods));
-          localStorage.setItem('shop_products_ts', Date.now().toString());
         }
 
         processProducts(prods);

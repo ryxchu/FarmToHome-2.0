@@ -83,42 +83,25 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
       const farmerId = selectedItems[0]?.farmerId || 'unknown_farmer'; 
       
       const orderRef = doc(collection(db, 'orders'));
-
-      // Fetch farmer name for display in buyer's order history
-      let farmerName = 'Farm Partner';
-      try {
-        const farmerDoc = await getDoc(doc(db, 'users', farmerId));
-        if (farmerDoc.exists()) {
-          const fd = farmerDoc.data();
-          farmerName = fd.farmName || fd.fullName || 'Farm Partner';
-        }
-      } catch (_) {}
-
       const orderData = {
         id: orderRef.id,
         buyerId: user.uid,
         farmerId,
-        farmerName,
         items: selectedItems.map(i => ({
           productId: i.id,
           name: i.name,
           quantity: i.quantity,
-          price: i.price,
-          unit: i.unit || 'unit',
-          image: i.images?.[0] || null,
+          price: i.price
         })),
-        subtotal: selectedSubtotal,
-        deliveryFee,
-        discount,
-        discountType: voucherApplied ? 'FIRST_BUYER_20' : null,
         total: finalTotal,
+        discount: discount,
+        discountType: voucherApplied ? 'FIRST_BUYER_20' : null,
         status: 'pending',
-        paymentMethod: paymentOption === 'cod' ? 'Cash on Delivery' : paymentOption === 'gcash' ? 'GCash Sauté Transfer' : 'Credit/Debit Card',
-        paymentStatus: paymentOption === 'cod' ? 'pending' : 'paid',
-        shippingMethod: shippingType === 'express' ? 'Express Dispatch' : 'Standard Farm Route',
         deliveryAddress,
         contactNumber,
         buyerMessage: buyerMessage || null,
+        paymentMethod: paymentOption === 'cod' ? 'Cash on Delivery' : paymentOption === 'gcash' ? 'GCash Sauté Transfer' : 'Credit/Debit Card',
+        shippingMethod: shippingType === 'express' ? 'Express Dispatch' : 'Standard Farm Route',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -657,3 +640,4 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
     </div>
   );
 };
+

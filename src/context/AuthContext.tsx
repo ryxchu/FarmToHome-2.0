@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { onAuthStateChanged, User, signOut, getRedirectResult } from 'firebase/auth';
+import { onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, isQuotaError, safeSetItem } from '../lib/firebase';
 import { UserProfile } from '../types';
@@ -314,7 +314,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         // Automatically bootstrap admin profile collection document if current user is the hardcoded admin
         const currentUser = auth.currentUser;
-        if (currentUser && currentUser.email && currentUser.email.toLowerCase() === ((import.meta as any).env?.VITE_ADMIN_EMAIL || 'ryzabasas16@gmail.com').toLowerCase()) {
+        if (currentUser && currentUser.email && currentUser.email.toLowerCase() === 'ryzabasas16@gmail.com') {
           const adminProfile: UserProfile = {
             uid,
             email: currentUser.email,

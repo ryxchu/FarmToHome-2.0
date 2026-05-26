@@ -3,7 +3,7 @@ import { ShoppingCart, User, Sprout, Search, MapPin, Home, History, LayoutDashbo
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { auth, db } from '../lib/firebase';
-import { collection, query, where, onSnapshot, orderBy, limit, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, limit, updateDoc, doc, getDocs } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface NavbarProps {
@@ -42,15 +42,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
       limit(10)
     );
 
-    const unsub = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
       setNotifications(docs);
       setUnreadCount(docs.filter((n: any) => !n.read).length);
     }, (err) => {
-      console.log('Notifications listener error', err);
+      console.log('Notifications fetch error:', err);
     });
 
-    return () => unsub();
+    return () => unsubscribe();
   }, [user, profile]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {

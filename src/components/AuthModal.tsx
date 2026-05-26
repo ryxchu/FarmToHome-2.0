@@ -6,11 +6,6 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithP
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 
-// Admin email pulled from env so it's not hardcoded in source.
-// In Vite, set VITE_ADMIN_EMAIL in your .env file.
-// Falls back to the original value so existing deployments keep working.
-const ADMIN_EMAIL = (import.meta as any).env?.VITE_ADMIN_EMAIL || 'ryzabasas16@gmail.com';
-
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -108,7 +103,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       } else {
         const userCred = await createUserWithEmailAndPassword(auth, email, password);
         // Force admin for the bootstrapped user
-        const finalRole = email === ADMIN_EMAIL ? 'admin' : role;
+        const finalRole = email === 'ryzabasas16@gmail.com' ? 'admin' : role;
         await setDoc(doc(db, 'users', userCred.user.uid), {
           uid: userCred.user.uid,
           email,
@@ -148,7 +143,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       // Check if user profile exists
       const userDoc = await getDoc(doc(db, 'users', userCred.user.uid));
       if (!userDoc.exists()) {
-        const finalRole = userCred.user.email === ADMIN_EMAIL ? 'admin' : role;
+        const finalRole = userCred.user.email === 'ryzabasas16@gmail.com' ? 'admin' : role;
         await setDoc(doc(db, 'users', userCred.user.uid), {
           uid: userCred.user.uid,
           email: userCred.user.email,
@@ -188,7 +183,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       // Check if user profile exists
       const userDoc = await getDoc(doc(db, 'users', userCred.user.uid));
       if (!userDoc.exists()) {
-        const finalRole = userCred.user.email === ADMIN_EMAIL ? 'admin' : role;
+        const finalRole = userCred.user.email === 'ryzabasas16@gmail.com' ? 'admin' : role;
         await setDoc(doc(db, 'users', userCred.user.uid), {
           uid: userCred.user.uid,
           email: userCred.user.email || '',
@@ -240,6 +235,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       if (data.success) {
         setResendCooldown(60);
         setOtp(['', '', '', '', '', '']);
+        if (data.otp) {
+          console.info(`[DEV] OTP sent: ${data.otp}`);
+          setDevOtp(data.otp);
+        } else if (data.dev && data.otp) {
+          console.info(`[DEV] OTP sent: ${data.otp}`);
+          setDevOtp(data.otp);
+        }
       } else {
         setError(data.message);
       }
@@ -504,6 +506,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                     </div>
                   </div>
 
+                  {devOtp && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-4 bg-emerald-50 border border-emerald-100/80 rounded-2xl flex flex-col items-center justify-center gap-1 text-center shadow-lg shadow-emerald-500/5 mb-4"
+                    >
+                      <span className="text-[10px] font-black uppercase text-emerald-800 tracking-wider">Localhost Dev Mode Active</span>
+                      <p className="text-[11px] font-semibold text-emerald-600/90 leading-relaxed">
+                        Verification code is <strong className="text-emerald-700 bg-white px-2.5 py-1 rounded-xl border border-emerald-200 shadow-sm text-sm font-bold ml-1">{devOtp}</strong> (Enter this code below to proceed!)
+                      </p>
+                    </motion.div>
+                  )}
 
                   <div className="space-y-4">
                     <p className="text-[11px] text-slate-500 leading-relaxed">
@@ -758,7 +772,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                             if (role === 'farmer') {
                               loginSimulatedDemo('farmer', 'mangjuandeal@gmail.com', 'Mang Juan (Demo Farmer)');
                             } else if (role === 'admin') {
-                              loginSimulatedDemo('admin', ADMIN_EMAIL, 'Ryza Basas (Demo Admin)');
+                              loginSimulatedDemo('admin', 'ryzabasas16@gmail.com', 'Ryza Basas (Demo Admin)');
                             } else {
                               loginSimulatedDemo('buyer', 'salvadorbuyer@gmail.com', 'Patricia Salvador (Demo Buyer)');
                             }

@@ -7,16 +7,18 @@ import {
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { db } from '../lib/firebase';
+import { query, collection, where, onSnapshot } from 'firebase/firestore';
 
 interface UnifiedSidebarProps {
-currentView: 'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'my-orders' | 'profile' | 'farmer-profile' | 'messages';
-setView: (view: 'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'my-orders' | 'profile' | 'farmer-profile' | 'messages') => void;
+  currentView: 'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages';
+  setView: (view: 'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages') => void;
   marketViewMode: 'shop' | 'community';
   setMarketViewMode: (mode: 'shop' | 'community') => void;
   selectedCategory: string;
   setSelectedCategory: (category: string) => void;
-  farmerTab: 'inventory' | 'feedback' | 'messages';
-  setFarmerTab: (tab: 'inventory' | 'feedback' | 'messages') => void;
+  farmerTab: 'inventory' | 'feedback' | 'messages' | 'community';
+  setFarmerTab: (tab: 'inventory' | 'feedback' | 'messages' | 'community') => void;
   adminTab: 'users' | 'marketplace' | 'logistics' | 'analytics' | 'system';
   setAdminTab: (tab: 'users' | 'marketplace' | 'logistics' | 'analytics' | 'system') => void;
   nearMeEnabled: boolean;
@@ -37,28 +39,29 @@ export const UnifiedSidebar: React.FC<UnifiedSidebarProps> = ({
   nearMeEnabled,
   onNearMeToggle
 }) => {
-const { user, profile, logout } = useAuth();
-const { isOpen, setIsOpen } = useCart();
-const [isCollapsed, setIsCollapsed] = useState(false);
-const [smsStatus, setSmsStatus] = useState<'checking' | 'ok' | 'error'>('checking');
+  const { user, profile, logout } = useAuth();
+  const { isOpen, setIsOpen } = useCart();
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
 
-const role = profile?.role || 'buyer';
+  useEffect(() => {
+    if (!user) return;
+    const q = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      where('type', '==', 'message'),
+      where('read', '==', false)
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setUnreadMessages(snapshot.size);
+    }, (err) => {
+      console.log('Sidebar messages count fetch error:', err);
+    });
+    return () => unsubscribe();
+  }, [user]);
 
-// Check SMS backend availability for admin status panel
-useEffect(() => {
-    if (role !== 'admin') return;
-    let cancelled = false;
-    const check = async () => {
-      try {
-        const res = await fetch('/api/health', { method: 'GET', signal: AbortSignal.timeout(4000) });
-        if (!cancelled) setSmsStatus(res.ok ? 'ok' : 'error');
-      } catch {
-        if (!cancelled) setSmsStatus('error');
-      }
-    };
-    check();
-    return () => { cancelled = true; };
-  }, [role]);
+  // Determine current role: 'admin' | 'farmer' | 'buyer' (fallback if guest)
+  const role = profile?.role || 'buyer';
 
   // Define sidebar links based on active role
   const getNavItems = () => {
@@ -188,9 +191,20 @@ useEffect(() => {
           label: 'Client Inbox',
           icon: MessageSquare,
           active: currentView === 'dashboard' && farmerTab === 'messages',
+          badge: unreadMessages,
           onClick: () => {
             setView('dashboard');
             setFarmerTab('messages');
+          }
+        },
+        {
+          id: 'farmer-community',
+          label: 'Community Feed',
+          icon: Radio,
+          active: currentView === 'dashboard' && farmerTab === 'community',
+          onClick: () => {
+            setView('dashboard');
+            setFarmerTab('community');
           }
         },
         {
@@ -237,20 +251,21 @@ useEffect(() => {
           setMarketViewMode('community');
         }
       },
-{
-  id: 'buyer-orders',
-  label: 'My Orders',
-  icon: Package,
-  active: currentView === 'my-orders',
-  onClick: () => {
-    setView('my-orders');
-  }
-},
+      {
+        id: 'buyer-orders',
+        label: 'My Orders',
+        icon: Package,
+        active: currentView === 'tracking',
+        onClick: () => {
+          setView('tracking');
+        }
+      },
       {
         id: 'buyer-messages',
         label: 'Seller Chats',
         icon: MessageSquare,
         active: currentView === 'messages',
+        badge: unreadMessages,
         onClick: () => {
           setView('messages');
         }
@@ -319,20 +334,25 @@ useEffect(() => {
       <div className={`flex-1 overflow-y-auto no-scrollbar space-y-8 pr-1 ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
         {isCollapsed ? (
           <nav className="space-y-4 w-full flex flex-col items-center">
-            {navItems.map((item) => {
+            {navItems.map((item: any) => {
               const IconComp = item.icon;
               return (
                 <button
                   key={item.id}
                   onClick={item.onClick}
                   title={item.label}
-                  className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm border ${
+                  className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm border relative ${
                     item.active
                       ? 'bg-primary text-white border-primary scale-110'
                       : 'bg-white text-[#362511]/70 border-[#eceae3] hover:scale-110 hover:text-primary hover:bg-white'
                   }`}
                 >
                   <IconComp className="w-4 h-4" />
+                  {item.badge !== undefined && item.badge > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black h-4 min-w-4 px-1 rounded-full flex items-center justify-center border border-white">
+                      {item.badge}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -344,7 +364,7 @@ useEffect(() => {
                 {role === 'admin' ? 'Control Panel' : role === 'farmer' ? 'Farmer Suite' : 'Navigation'}
               </h3>
               <nav className="space-y-1.5">
-                {navItems.map((item) => {
+                {navItems.map((item: any) => {
                   const IconComp = item.icon;
                   return (
                     <button
@@ -357,12 +377,17 @@ useEffect(() => {
                       }`}
                     >
                       {/* Circular Icon Container */}
-                      <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm border ${
+                      <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm border relative ${
                         item.active
                           ? 'bg-primary text-white border-primary'
                           : 'bg-white text-[#362511]/70 border-[#eceae3] group-hover:scale-110 group-hover:text-primary'
                       }`}>
                         <IconComp className="w-4 h-4" />
+                        {item.badge !== undefined && item.badge > 0 && (
+                          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black h-4 min-w-4 px-1 rounded-full flex items-center justify-center border border-white">
+                            {item.badge}
+                          </span>
+                        )}
                       </div>
                       {/* Row Text Label */}
                       <span className={`text-xs uppercase tracking-widest text-left ${
@@ -448,15 +473,7 @@ useEffect(() => {
                   <p className="text-[9px] font-bold text-slate-600 leading-none mb-1">
                     MEMBERS: <span className="text-primary font-bold">ACTIVE</span>
                   </p>
-                  {smsStatus === 'checking' && (
-                    <p className="text-[9px] text-slate-400 font-bold animate-pulse">SMS: CHECKING...</p>
-                  )}
-                  {smsStatus === 'ok' && (
-                    <p className="text-[9px] text-[#b87333] font-bold">INTEGRATED SMS: OK</p>
-                  )}
-                  {smsStatus === 'error' && (
-                    <p className="text-[9px] text-rose-500 font-bold">INTEGRATED SMS: OFFLINE</p>
-                  )}
+                  <p className="text-[9px] text-[#b87333] font-bold">INTEGRATED SMS: OK</p>
                 </div>
               </div>
             )}

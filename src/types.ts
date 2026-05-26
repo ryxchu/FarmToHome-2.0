@@ -64,8 +64,6 @@ export interface OrderItem {
   name: string;
   quantity: number;
   price: number;
-  unit?: string;      
-  image?: string
 }
 
 export interface Order {
@@ -92,8 +90,6 @@ export interface Order {
     lng: number;
   };
   eta?: string;
-  hasRated?: boolean;       
-  ratingId?: string;
 }
 
 export interface Review {
@@ -102,13 +98,12 @@ export interface Review {
   productId: string;
   buyerId: string;
   farmerId: string;
-  rating: number;          
-  productRating: number;    
-  deliveryRating: number;   
+  rating: number;
   comment: string;
   images: string[];
   createdAt: string;
 }
+
 export interface Post {
   id: string;
   farmerId: string;

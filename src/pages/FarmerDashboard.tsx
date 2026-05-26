@@ -3,14 +3,15 @@ import { collection, query, where, onSnapshot, setDoc, updateDoc, doc, deleteDoc
 import { db, auth, handleFirestoreError, OperationType, isQuotaError, isOfflineError, safeSetItem } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Product, Order } from '../types';
-import { Plus, Package, ShoppingBag, TrendingUp, Edit, Trash2, X, Check, Image as ImageIcon, Star, User, Settings, MessageSquare, ArrowLeft, ChevronRight, MapPin, Phone, Truck, CreditCard } from 'lucide-react';
+import { Plus, Package, ShoppingBag, TrendingUp, Edit, Trash2, X, Check, Image as ImageIcon, Star, User, Settings, MessageSquare, ArrowLeft, ChevronRight, MapPin, Phone, Truck, CreditCard, Radio } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Chat } from '../components/Chat';
+import { SocialFeed } from '../components/SocialFeed';
 
 interface FarmerDashboardProps {
   onEditProfile?: () => void;
-  activeTabProp?: 'inventory' | 'feedback' | 'messages';
-  onTabChange?: (tab: 'inventory' | 'feedback' | 'messages') => void;
+  activeTabProp?: 'inventory' | 'feedback' | 'messages' | 'community';
+  onTabChange?: (tab: 'inventory' | 'feedback' | 'messages' | 'community') => void;
 }
 
 export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile, activeTabProp, onTabChange }) => {
@@ -18,7 +19,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'inventory' | 'feedback' | 'messages'>(activeTabProp || 'inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'feedback' | 'messages' | 'community'>(activeTabProp || 'inventory');
   const [showAddModal, setShowAddModal] = useState(false);
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<any | null>(null);
@@ -30,7 +31,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
     }
   }, [activeTabProp]);
 
-  const handleTabChange = (tab: 'inventory' | 'feedback' | 'messages') => {
+  const handleTabChange = (tab: 'inventory' | 'feedback' | 'messages' | 'community') => {
     setActiveTab(tab);
     onTabChange?.(tab);
   };
@@ -241,6 +242,12 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
               <MessageSquare className="w-3.5 h-3.5 hover:text-primary" /> Chat
               <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-rose-500 rounded-full border border-white" />
             </button>
+            <button 
+              onClick={() => handleTabChange('community')}
+              className="px-3 py-2 bg-white text-slate-600 font-bold text-[9px] uppercase tracking-widest rounded-xl transition-all border border-slate-200 hover:bg-slate-50 active:scale-95 flex items-center justify-center gap-1.5 shadow-sm min-w-[75px]"
+            >
+              <Radio className="w-3.5 h-3.5 text-secondary hover:text-primary" /> Community
+            </button>
           </div>
         </div>
       )}
@@ -266,6 +273,21 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
           <div className="flex items-center gap-2.5">
             <div className="w-1.5 h-6 bg-primary rounded-full" />
             <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight font-sans">Client <span className="italic text-primary font-serif">Inbox</span></h1>
+          </div>
+          <button
+            onClick={() => handleTabChange('inventory')}
+            className="px-4 py-2 bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 font-bold text-[9px] uppercase tracking-widest rounded-xl transition-all active:scale-95 flex items-center gap-1.5 shadow-sm cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-primary" /> Back to Dashboard
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'community' && (
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div className="flex items-center gap-2.5">
+            <div className="w-1.5 h-6 bg-primary rounded-full" />
+            <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight font-sans">Farmer <span className="italic text-primary font-serif">Community Feed</span></h1>
           </div>
           <button
             onClick={() => handleTabChange('inventory')}
@@ -622,7 +644,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
                   ))
                 )}
               </motion.div>
-            ) : (
+            ) : activeTab === 'messages' ? (
               <motion.div 
                 key="messages"
                 initial={{ opacity: 0, x: -20 }}
@@ -659,6 +681,16 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ onEditProfile,
                     </div>
                   ))
                 )}
+              </motion.div>
+            ) : (
+              <motion.div
+                key="community"
+                initial={{ opacity: 0, x: -25 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 25 }}
+                className="bg-white rounded-3xl p-4 md:p-6 shadow-sm border border-slate-100"
+              >
+                <SocialFeed />
               </motion.div>
             )}
           </AnimatePresence>
@@ -1044,16 +1076,11 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
           return;
         }
         const productRef = doc(collection(db, 'products'));
-        // FIX: Include farmerName so buyer marketplace can display it
-        // FIX: isPublished should be true for non-banned farmers (default to true)
-const isPublished = profile?.status === 'verified';
         await setDoc(productRef, {
           ...formData,
-          harvestDate: formData.harvestDate ? new Date(formData.harvestDate).toISOString() : new Date().toISOString(),
+          harvestDate: new Date(formData.harvestDate).toISOString(),
           id: productRef.id,
-          farmerId: auth.currentUser?.uid || '',
-          farmerName: profile?.name || profile?.displayName || 'Farmer',
-          farmerProfilePhoto: profile?.profilePhoto || profile?.photoURL || '',
+          farmerId: auth.currentUser?.uid,
           rating: 0,
           reviewCount: 0,
           coordinates: profile?.coordinates || null,

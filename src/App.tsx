@@ -17,8 +17,7 @@ import { Profile } from './pages/Profile';
 import { FarmerProfile } from './pages/FarmerProfile';
 import { Messages } from './pages/Messages';
 import { Cart } from './components/Cart';
-import { OrderTracking } from './pages/OrderTracking';
-import { MyOrders } from './pages/MyOrders';
+import { MyOrders as OrderTracking } from './pages/OrderTracking';
 import { AIChatbot } from './components/AIChatbot';
 import { InfoModal, InfoSectionType } from './components/InfoModal';
 import { motion, AnimatePresence } from 'motion/react';
@@ -72,9 +71,9 @@ function AppContent() {
     }
   }, [profile, logout]);
   
-  const [currentView, setCurrentView] = useState<'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'my-orders' | 'profile' | 'farmer-profile' | 'messages'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages'>('landing');
   const [marketViewMode, setMarketViewMode] = useState<'shop' | 'community'>('shop');
-  const [dashboardTab, setDashboardTab] = useState<'inventory' | 'feedback' | 'messages'>('inventory');
+  const [dashboardTab, setDashboardTab] = useState<'inventory' | 'feedback' | 'messages' | 'community'>('inventory');
   const [adminTab, setAdminTab] = useState<'users' | 'marketplace' | 'logistics' | 'analytics' | 'system'>('users');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedFarmerId, setSelectedFarmerId] = useState<string | null>(null);
@@ -165,7 +164,7 @@ function AppContent() {
       if (profile.coordinates) {
         setUserCoords(profile.coordinates);
       }
-      if (currentView === 'landing' || currentView === 'home') {
+      if (currentView === 'landing') {
         if (profile.role === 'admin') {
           setCurrentView('admin-dashboard');
         } else if (profile.role === 'farmer') {
@@ -348,7 +347,7 @@ function AppContent() {
             />
           ) : (
             <>
-            <div className="flex flex-1 overflow-hidden min-h-[calc(100vh-64px)] md:min-h-[calc(100vh-80px)] h-[calc(100vh-64px)] md:h-[calc(100vh-80px)]">
+            <div className="flex flex-1 overflow-hidden mt-16 md:mt-20 min-h-[calc(100vh-64px)] md:min-h-[calc(100vh-80px)] h-[calc(100vh-64px)] md:h-[calc(100vh-80px)]">
               <UnifiedSidebar
                 currentView={currentView}
                 setView={setCurrentView}
@@ -418,10 +417,7 @@ function AppContent() {
                   />
                 )}
                 {currentView === 'tracking' && (
-                  <OrderTracking />
-                )}
-                {currentView === 'my-orders' && (
-                  <MyOrders onBack={() => setCurrentView('home')} />
+                  <OrderTracking onBack={() => setCurrentView('home')} />
                 )}
                 {currentView === 'profile' && (
                   <Profile />
@@ -578,3 +574,4 @@ export default function App() {
     </AuthProvider>
   );
 }
+

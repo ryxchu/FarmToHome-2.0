@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, getDocs, doc, setDoc, updateDoc, deleteDoc, limit, where } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, doc, setDoc, updateDoc, deleteDoc, limit, where, onSnapshot } from 'firebase/firestore';
 import { db, safeSetItem } from '../lib/firebase';
 import { Post, UserProfile } from '../types';
 import { Heart, MessageCircle, Share2, MoreHorizontal, Send, Sparkles, Smile, Check } from 'lucide-react';
@@ -41,46 +41,44 @@ export const SocialFeed: React.FC = () => {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   useEffect(() => {
-    const fetchPosts = async () => {
-      try {
-        setLoading(true);
-        
-        // Cache posts for social feed to improve speed and reduce reads
-        const cachedPosts = localStorage.getItem('social_feed_posts');
-        if (cachedPosts) {
-          try {
-            setPosts(JSON.parse(cachedPosts));
-            setLoading(false);
-          } catch (e) {
-            localStorage.removeItem('social_feed_posts');
-          }
-        }
+    setLoading(true);
 
-        const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(25));
-        const snapshot = await getDocs(q);
-        const postsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Post));
-        
-        // Batch fetch author user profiles
-        const uniqueFarmerIds = Array.from(new Set(postsData.map(p => p.farmerId)));
-        const farmerCache: Record<string, UserProfile> = {};
-        
-        // Try to get from individual profile cache first
-        const farmersToFetch: string[] = [];
-        uniqueFarmerIds.forEach(fid => {
-          const cached = localStorage.getItem(`user_profile_${fid}`);
-          if (cached) {
-            try {
-              farmerCache[fid] = JSON.parse(cached);
-            } catch (e) {
-              farmersToFetch.push(fid);
-            }
-          } else {
+    // Initial cache load for instant render
+    const cachedPosts = localStorage.getItem('social_feed_posts');
+    if (cachedPosts) {
+      try {
+        setPosts(JSON.parse(cachedPosts));
+        setLoading(false);
+      } catch (e) {
+        localStorage.removeItem('social_feed_posts');
+      }
+    }
+
+    const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(25));
+    
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      const postsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Post));
+      
+      // Batch fetch author user profiles
+      const uniqueFarmerIds = Array.from(new Set(postsData.map(p => p.farmerId)));
+      const farmerCache: Record<string, UserProfile> = {};
+      const farmersToFetch: string[] = [];
+      
+      uniqueFarmerIds.forEach(fid => {
+        const cached = localStorage.getItem(`user_profile_${fid}`);
+        if (cached) {
+          try {
+            farmerCache[fid] = JSON.parse(cached);
+          } catch (e) {
             farmersToFetch.push(fid);
           }
-        });
+        } else {
+          farmersToFetch.push(fid);
+        }
+      });
 
-        // Batch fetch remaining profiles if any
-        if (farmersToFetch.length > 0) {
+      if (farmersToFetch.length > 0) {
+        try {
           for (let i = 0; i < farmersToFetch.length; i += 10) {
             const batch = farmersToFetch.slice(i, i + 10);
             const farmerQuery = query(collection(db, 'users'), where('uid', 'in', batch));
@@ -91,23 +89,25 @@ export const SocialFeed: React.FC = () => {
               safeSetItem(`user_profile_${d.id}`, JSON.stringify(data));
             });
           }
+        } catch (err) {
+          console.warn("Error fetching profiles for community posts", err);
         }
-        
-        const enrichedPosts = postsData.map(post => ({
-          ...post,
-          farmer: farmerCache[post.farmerId]
-        }));
-
-        setPosts(enrichedPosts);
-        safeSetItem('social_feed_posts', JSON.stringify(enrichedPosts));
-      } catch (err) {
-        console.error("Social feed error:", err);
-      } finally {
-        setLoading(false);
       }
-    };
 
-    fetchPosts();
+      const enrichedPosts = postsData.map(post => ({
+        ...post,
+        farmer: farmerCache[post.farmerId]
+      }));
+
+      setPosts(enrichedPosts);
+      safeSetItem('social_feed_posts', JSON.stringify(enrichedPosts));
+      setLoading(false);
+    }, (error) => {
+      console.error("Social feed real-time listener error:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const handleCreatePost = async (e: React.FormEvent) => {
@@ -134,7 +134,12 @@ export const SocialFeed: React.FC = () => {
         ...postData,
         farmer: profile || undefined
       };
-      setPosts(prev => [enrichedNewPost, ...prev]);
+      setPosts(prev => {
+        if (prev.some(p => p.id === enrichedNewPost.id)) {
+          return prev;
+        }
+        return [enrichedNewPost, ...prev];
+      });
 
       // Flush feed cache
       localStorage.removeItem('social_feed_posts');

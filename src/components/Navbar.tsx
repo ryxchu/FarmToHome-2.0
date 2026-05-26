@@ -3,7 +3,7 @@ import { ShoppingCart, User, Sprout, Search, MapPin, Home, History, LayoutDashbo
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { auth, db } from '../lib/firebase';
-import { collection, query, where, onSnapshot, orderBy, limit, updateDoc, doc, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, limit, updateDoc, doc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface NavbarProps {
@@ -35,28 +35,22 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
   React.useEffect(() => {
     if (!user || !profile) return;
 
-    const fetchNotifications = async () => {
-      try {
-        const q = query(
-          collection(db, 'notifications'),
-          where('userId', '==', user.uid),
-          orderBy('createdAt', 'desc'),
-          limit(10)
-        );
-        const snapshot = await getDocs(q);
-        const docs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-        setNotifications(docs);
-        setUnreadCount(docs.filter((n: any) => !n.read).length);
-      } catch (err) {
-        console.log('Notifications fetch error');
-      }
-    };
+    const q = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc'),
+      limit(10)
+    );
 
-    fetchNotifications();
+    const unsub = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+      setNotifications(docs);
+      setUnreadCount(docs.filter((n: any) => !n.read).length);
+    }, (err) => {
+      console.log('Notifications listener error', err);
+    });
 
-    // Check every 5 minutes instead of real-time
-    const interval = setInterval(fetchNotifications, 5 * 60 * 1000);
-    return () => clearInterval(interval);
+    return () => unsub();
   }, [user, profile]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {

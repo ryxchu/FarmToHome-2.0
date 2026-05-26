@@ -360,9 +360,20 @@ export const OrderTracking: React.FC = () => {
                         {selectedOrder.items.map((item, index) => (
                           <div key={index} className="flex justify-between items-center py-4 px-6 bg-slate-50 border border-slate-100 hover:border-accent/15 hover:bg-accent-light/5 rounded-2xl transition-all">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-xl bg-accent-light flex items-center justify-center font-bold text-primary font-serif italic text-base">
-                                {item.name?.[0] || 'C'}
-                              </div>
+<div className="w-10 h-10 rounded-xl overflow-hidden bg-accent-light shrink-0 border border-slate-100">
+  {item.image ? (
+    <img
+      src={item.image}
+      alt={item.name}
+      className="w-full h-full object-cover"
+      loading="lazy"
+    />
+  ) : (
+    <div className="w-full h-full flex items-center justify-center font-bold text-primary font-serif italic text-base">
+      {item.name?.[0] || 'C'}
+    </div>
+  )}
+</div>
                               <div>
                                 <span className="font-extrabold text-slate-800 text-sm leading-none block mb-1">{item.name}</span>
                                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block">Qty: {item.quantity}</span>

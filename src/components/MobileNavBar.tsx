@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Home, ShoppingBag, User, Bell, MessageSquare, X, ChevronRight, AlertCircle 
-} from 'lucide-react';
+import { Home, ShoppingBag, User, Bell, Package, MessageSquare, X, ChevronRight, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { db } from '../lib/firebase';
-import { collection, query, where, orderBy, limit, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, onSnapshot, updateDoc, doc } from 'firebase/firestore';
 
 interface MobileNavBarProps {
-  currentView: 'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages';
-  setView: (view: 'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages') => void;
+  currentView: 'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'my-orders' | 'profile' | 'farmer-profile' | 'messages';
+  setView: (view: 'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'my-orders' | 'profile' | 'farmer-profile' | 'messages') => void;
   marketViewMode: 'shop' | 'community';
   setMarketViewMode: (mode: 'shop' | 'community') => void;
   farmerTab: 'inventory' | 'feedback' | 'messages';
@@ -40,7 +38,6 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
 
   const role = profile?.role || 'buyer';
 
-  // Live Notification Fetch
   useEffect(() => {
     if (!user) {
       setNotifications([]);
@@ -48,26 +45,20 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
       return;
     }
 
-    const fetchNotifications = async () => {
-      try {
-        const q = query(
-          collection(db, 'notifications'),
-          where('userId', '==', user.uid),
-          orderBy('createdAt', 'desc'),
-          limit(10)
-        );
-        const snapshot = await getDocs(q);
-        const docs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-        setNotifications(docs);
-        setUnreadCount(docs.filter((n: any) => !n.read).length);
-      } catch (err) {
-        console.log('Mobile notifications fetch error');
-      }
-    };
-
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 5 * 60 * 1000);
-    return () => clearInterval(interval);
+    const q = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+    const unsub = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+      setNotifications(docs);
+      setUnreadCount(docs.filter((n: any) => !n.read).length);
+    }, (err) => {
+      console.warn('Notifications listener error:', err);
+    });
+    return () => unsub();
   }, [user]);
 
   const handleNotifClick = async (notif: any) => {
@@ -75,10 +66,8 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
     const nType = notif.type;
     const wasUnread = !notif.read;
 
-    // 1. Close drawer
     setShowNotifications(false);
 
-    // 2. Perform exact matched navigation
     if (nType === 'message') {
       if (role === 'farmer') {
         setFarmerTab('messages');
@@ -91,7 +80,7 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
         setFarmerTab('inventory');
         setView('dashboard');
       } else if (role === 'buyer') {
-        setView('tracking');
+        setView('my-orders');
       }
     } else if (nType === 'system') {
       if (role === 'farmer') {
@@ -100,7 +89,6 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
       }
     }
 
-    // 3. Mark as read in Firestore
     if (wasUnread) {
       try {
         setUnreadCount(prev => Math.max(0, prev - 1));
@@ -125,67 +113,85 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
     }
   };
 
-  const navItems = [
-    {
-      id: 'home',
-      label: 'Home',
-      icon: Home,
-      active: user 
-        ? ((role === 'admin' && currentView === 'admin-dashboard') || (role === 'farmer' && currentView === 'dashboard') || (role === 'buyer' && currentView === 'home' && marketViewMode === 'community'))
-        : currentView === 'landing',
-      onClick: () => {
-        if (user) {
-          if (role === 'admin') {
-            setView('admin-dashboard');
-          } else if (role === 'farmer') {
-            setView('dashboard');
-          } else {
-            setView('home');
-            setMarketViewMode('community');
-          }
+const navItems = [
+  {
+    id: 'home',
+    label: 'Home',
+    icon: Home,
+    active: user 
+      ? ((role === 'admin' && currentView === 'admin-dashboard') || (role === 'farmer' && currentView === 'dashboard') || (role === 'buyer' && currentView === 'home' && marketViewMode === 'community'))
+      : currentView === 'landing',
+    onClick: () => {
+      if (user) {
+        if (role === 'admin') {
+          setView('admin-dashboard');
+        } else if (role === 'farmer') {
+          setView('dashboard');
         } else {
-          setView('landing');
+          setView('home');
+          setMarketViewMode('community');
         }
-      }
-    },
-    {
-      id: 'marketplace',
-      label: 'Marketplace',
-      icon: ShoppingBag,
-      active: currentView === 'home' && marketViewMode === 'shop',
-      onClick: () => {
-        setView('home');
-        setMarketViewMode('shop');
-      }
-    },
-    {
-      id: 'notification',
-      label: 'Notification',
-      icon: Bell,
-      active: showNotifications,
-      badge: unreadCount,
-      onClick: () => {
-        if (user) {
-          setShowNotifications(true);
-        } else if (onAuthClick) {
-          onAuthClick();
-        }
-      }
-    },
-    {
-      id: 'profile',
-      label: 'Profile',
-      icon: User,
-      active: currentView === 'profile',
-      onClick: () => {
-        if (user) {
-          setView('profile');
-        } else if (onAuthClick) {
-          onAuthClick();
-        }
+      } else {
+        setView('landing');
       }
     }
-  ];
+  },
+  {
+    id: 'marketplace',
+    label: 'Marketplace',
+    icon: ShoppingBag,
+    active: currentView === 'home' && marketViewMode === 'shop',
+    onClick: () => {
+      setView('home');
+      setMarketViewMode('shop');
+    }
+  },
+  // ✅ ONLY SHOW FOR BUYERS
+  ...(role === 'buyer'
+    ? [
+        {
+          id: 'my-orders',
+          label: 'My Orders',
+          icon: Package,
+          active: currentView === 'my-orders',
+          onClick: () => {
+            if (user) {
+              setView('my-orders');
+            } else if (onAuthClick) {
+              onAuthClick();
+            }
+          }
+        } as const
+      ]
+    : []),
+  {
+    id: 'notification',
+    label: 'Notification',
+    icon: Bell,
+    active: showNotifications,
+    badge: unreadCount,
+    onClick: () => {
+      if (user) {
+        setShowNotifications(true);
+      } else if (onAuthClick) {
+        onAuthClick();
+      }
+    }
+  },
+  {
+    id: 'profile',
+    label: 'Profile',
+    icon: User,
+    active: currentView === 'profile',
+    onClick: () => {
+      if (user) {
+        setView('profile');
+      } else if (onAuthClick) {
+        onAuthClick();
+      }
+    }
+  }
+];
 
   return (
     <>
@@ -223,11 +229,9 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
         })}
       </div>
 
-      {/* Floating Bottom sheet notification drawer for One-handed mobile experience */}
       <AnimatePresence>
         {showNotifications && (
           <>
-            {/* Backdrop close */}
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -236,7 +240,6 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
               onClick={() => setShowNotifications(false)}
             />
 
-            {/* Notification Drawer Sheet */}
             <motion.div 
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
@@ -244,7 +247,6 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
               transition={{ type: "spring", damping: 25, stiffness: 220 }}
               className="fixed bottom-0 left-0 right-0 max-h-[75vh] bg-stone-50 rounded-t-[2.5rem] shadow-2xl p-6 pb-12 z-[100] lg:hidden flex flex-col border-t border-stone-200"
             >
-              {/* Touch handle */}
               <div className="w-12 h-1.5 bg-stone-300/80 rounded-full mx-auto mb-5 cursor-pointer shrink-0" onClick={() => setShowNotifications(false)} />
 
               <div className="flex items-center justify-between mb-5 shrink-0 px-1">
@@ -262,7 +264,6 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
                 )}
               </div>
 
-              {/* Notification Scroll List Area */}
               <div className="flex-1 overflow-y-auto space-y-3.5 pr-1 min-h-0">
                 {notifications.length === 0 ? (
                   <div className="py-16 text-center">

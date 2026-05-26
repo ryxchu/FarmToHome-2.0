@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShoppingBag, Radio, Package, MessageSquare, User, 
   LayoutDashboard, Star, Globe, Users, TrendingUp, Settings, Sprout,
@@ -9,8 +9,8 @@ import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 
 interface UnifiedSidebarProps {
-  currentView: 'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages';
-  setView: (view: 'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages') => void;
+currentView: 'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'my-orders' | 'profile' | 'farmer-profile' | 'messages';
+setView: (view: 'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'my-orders' | 'profile' | 'farmer-profile' | 'messages') => void;
   marketViewMode: 'shop' | 'community';
   setMarketViewMode: (mode: 'shop' | 'community') => void;
   selectedCategory: string;
@@ -37,12 +37,28 @@ export const UnifiedSidebar: React.FC<UnifiedSidebarProps> = ({
   nearMeEnabled,
   onNearMeToggle
 }) => {
-  const { user, profile, logout } = useAuth();
-  const { isOpen, setIsOpen } = useCart();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+const { user, profile, logout } = useAuth();
+const { isOpen, setIsOpen } = useCart();
+const [isCollapsed, setIsCollapsed] = useState(false);
+const [smsStatus, setSmsStatus] = useState<'checking' | 'ok' | 'error'>('checking');
 
-  // Determine current role: 'admin' | 'farmer' | 'buyer' (fallback if guest)
-  const role = profile?.role || 'buyer';
+const role = profile?.role || 'buyer';
+
+// Check SMS backend availability for admin status panel
+useEffect(() => {
+    if (role !== 'admin') return;
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const res = await fetch('/api/health', { method: 'GET', signal: AbortSignal.timeout(4000) });
+        if (!cancelled) setSmsStatus(res.ok ? 'ok' : 'error');
+      } catch {
+        if (!cancelled) setSmsStatus('error');
+      }
+    };
+    check();
+    return () => { cancelled = true; };
+  }, [role]);
 
   // Define sidebar links based on active role
   const getNavItems = () => {
@@ -221,15 +237,15 @@ export const UnifiedSidebar: React.FC<UnifiedSidebarProps> = ({
           setMarketViewMode('community');
         }
       },
-      {
-        id: 'buyer-orders',
-        label: 'My Orders',
-        icon: Package,
-        active: currentView === 'tracking',
-        onClick: () => {
-          setView('tracking');
-        }
-      },
+{
+  id: 'buyer-orders',
+  label: 'My Orders',
+  icon: Package,
+  active: currentView === 'my-orders',
+  onClick: () => {
+    setView('my-orders');
+  }
+},
       {
         id: 'buyer-messages',
         label: 'Seller Chats',
@@ -432,7 +448,15 @@ export const UnifiedSidebar: React.FC<UnifiedSidebarProps> = ({
                   <p className="text-[9px] font-bold text-slate-600 leading-none mb-1">
                     MEMBERS: <span className="text-primary font-bold">ACTIVE</span>
                   </p>
-                  <p className="text-[9px] text-[#b87333] font-bold">INTEGRATED SMS: OK</p>
+                  {smsStatus === 'checking' && (
+                    <p className="text-[9px] text-slate-400 font-bold animate-pulse">SMS: CHECKING...</p>
+                  )}
+                  {smsStatus === 'ok' && (
+                    <p className="text-[9px] text-[#b87333] font-bold">INTEGRATED SMS: OK</p>
+                  )}
+                  {smsStatus === 'error' && (
+                    <p className="text-[9px] text-rose-500 font-bold">INTEGRATED SMS: OFFLINE</p>
+                  )}
                 </div>
               </div>
             )}

@@ -18,6 +18,7 @@ import { FarmerProfile } from './pages/FarmerProfile';
 import { Messages } from './pages/Messages';
 import { Cart } from './components/Cart';
 import { OrderTracking } from './pages/OrderTracking';
+import { MyOrders } from './pages/MyOrders';
 import { AIChatbot } from './components/AIChatbot';
 import { InfoModal, InfoSectionType } from './components/InfoModal';
 import { motion, AnimatePresence } from 'motion/react';
@@ -71,7 +72,7 @@ function AppContent() {
     }
   }, [profile, logout]);
   
-  const [currentView, setCurrentView] = useState<'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'my-orders' | 'profile' | 'farmer-profile' | 'messages'>('landing');
   const [marketViewMode, setMarketViewMode] = useState<'shop' | 'community'>('shop');
   const [dashboardTab, setDashboardTab] = useState<'inventory' | 'feedback' | 'messages'>('inventory');
   const [adminTab, setAdminTab] = useState<'users' | 'marketplace' | 'logistics' | 'analytics' | 'system'>('users');
@@ -164,7 +165,7 @@ function AppContent() {
       if (profile.coordinates) {
         setUserCoords(profile.coordinates);
       }
-      if (currentView === 'landing') {
+      if (currentView === 'landing' || currentView === 'home') {
         if (profile.role === 'admin') {
           setCurrentView('admin-dashboard');
         } else if (profile.role === 'farmer') {
@@ -419,6 +420,9 @@ function AppContent() {
                 {currentView === 'tracking' && (
                   <OrderTracking />
                 )}
+                {currentView === 'my-orders' && (
+                  <MyOrders onBack={() => setCurrentView('home')} />
+                )}
                 {currentView === 'profile' && (
                   <Profile />
                 )}
@@ -574,4 +578,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-

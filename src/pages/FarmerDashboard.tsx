@@ -1044,11 +1044,16 @@ const ProductFormModal: React.FC<{ initialData: Product | null; onClose: () => v
           return;
         }
         const productRef = doc(collection(db, 'products'));
+        // FIX: Include farmerName so buyer marketplace can display it
+        // FIX: isPublished should be true for non-banned farmers (default to true)
+const isPublished = profile?.status === 'verified';
         await setDoc(productRef, {
           ...formData,
-          harvestDate: new Date(formData.harvestDate).toISOString(),
+          harvestDate: formData.harvestDate ? new Date(formData.harvestDate).toISOString() : new Date().toISOString(),
           id: productRef.id,
-          farmerId: auth.currentUser?.uid,
+          farmerId: auth.currentUser?.uid || '',
+          farmerName: profile?.name || profile?.displayName || 'Farmer',
+          farmerProfilePhoto: profile?.profilePhoto || profile?.photoURL || '',
           rating: 0,
           reviewCount: 0,
           coordinates: profile?.coordinates || null,

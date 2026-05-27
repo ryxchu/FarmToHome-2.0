@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
+import { ConfirmProvider, useConfirm } from './context/ConfirmContext';
 import { Navbar } from './components/Navbar';
 import { LandingPage } from './pages/LandingPage';
 import { BuyerHome } from './pages/BuyerHome';
@@ -174,6 +175,21 @@ function AppContent() {
         } else {
           setCurrentView('home');
         }
+      } else {
+        // Enforce role-based structural permissions and views isolation
+        if (profile.role === 'buyer') {
+          if (currentView === 'dashboard' || currentView === 'admin-dashboard') {
+            setCurrentView('home');
+          }
+        } else if (profile.role === 'farmer') {
+          if (currentView === 'admin-dashboard' || currentView === 'home') {
+            setCurrentView('dashboard');
+          }
+        } else if (profile.role === 'admin') {
+          if (currentView === 'home' || currentView === 'dashboard' || currentView === 'tracking') {
+            setCurrentView('admin-dashboard');
+          }
+        }
       }
     } else if (!user && wasLoggedIn) {
       // User just logged out
@@ -181,6 +197,26 @@ function AppContent() {
       setWasLoggedIn(false);
     }
   }, [user, profile, currentView, wasLoggedIn]);
+
+  // Capture dynamic navigation requests triggered by the dynamic AI Support Assistant
+  useEffect(() => {
+    const handleChatbotNavigate = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) {
+        if (detail.productId) {
+          setSelectedProductId(detail.productId);
+          setCurrentView('product');
+        } else if (detail.page) {
+          setCurrentView(detail.page);
+        } else if (detail.farmerId) {
+          setSelectedFarmerId(detail.farmerId);
+          setCurrentView('farmer-profile');
+        }
+      }
+    };
+    window.addEventListener('chatbot-navigate-product', handleChatbotNavigate);
+    return () => window.removeEventListener('chatbot-navigate-product', handleChatbotNavigate);
+  }, []);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -335,6 +371,8 @@ function AppContent() {
         onDashboardTabChange={setDashboardTab}
         onSearch={setSearchQuery}
         onOrderNotificationClick={setHighlightedOrderId}
+        nearMeEnabled={nearMeEnabled}
+        userCoords={userCoords}
       />
 
       <main className={`flex-grow flex flex-col ${currentView === 'landing' ? '' : 'overflow-hidden'}`}>
@@ -593,7 +631,9 @@ export default function App() {
   return (
     <AuthProvider>
       <CartProvider>
-        <AppContent />
+        <ConfirmProvider>
+          <AppContent />
+        </ConfirmProvider>
       </CartProvider>
     </AuthProvider>
   );

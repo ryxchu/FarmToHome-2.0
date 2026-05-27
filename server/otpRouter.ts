@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { sendOtpEmail } from './otpService';
+import { rateLimitMiddleware } from './rateLimit';
 
 const router = Router();
 
@@ -12,7 +13,7 @@ export const secureEmailOtps = new Map<string, { otp: string; expiresAt: number 
  * 1. Express API Route (/api/auth/send-otp)
  * Generates a random 6-digit numeric verification code, saves it style with expiration, and dispatches.
  */
-router.post('/send-otp', async (req, res) => {
+router.post('/send-otp', rateLimitMiddleware(5, 60000), async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -102,7 +103,7 @@ router.post('/send-otp', async (req, res) => {
  * 2. Express API Route (/api/auth/verify-otp)
  * Validates the provided code from the user against the temporary storage and expiry timestamp.
  */
-router.post('/verify-otp', async (req, res) => {
+router.post('/verify-otp', rateLimitMiddleware(10, 60000), async (req, res) => {
   try {
     const { email, otp } = req.body;
 

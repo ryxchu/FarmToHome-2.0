@@ -4,11 +4,120 @@ import {
   Bell, CheckCircle, ShieldAlert, Sparkles, HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../context/AuthContext';
 import { collection, query, where, onSnapshot, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { UserProfile } from '../types';
+
+// Custom high-grade safe markdown elements renderer
+const renderSafeMessageContent = (text: string) => {
+  if (!text) return null;
+  
+  // Split into lines
+  const lines = text.split('\n');
+  const renderedElements: React.ReactNode[] = [];
+  
+  let inList = false;
+  let currentListItems: React.ReactNode[] = [];
+
+  const parseLinksAndBoldText = (str: string): React.ReactNode[] => {
+    const parts = str.split(/\[(.*?)\]\((product|page|farmer):(.*?)\)/g);
+    const elements: React.ReactNode[] = [];
+    
+    for (let i = 0; i < parts.length; i += 4) {
+      if (parts[i]) {
+        elements.push(...parseBoldOnly(parts[i]));
+      }
+      if (i + 1 < parts.length && parts[i + 1]) {
+        const anchor = parts[i + 1];
+        const type = parts[i + 2];
+        const id = parts[i + 3];
+        elements.push(
+          <button
+            type="button"
+            key={`link-${i}`}
+            onClick={() => {
+              const event = new CustomEvent('chatbot-navigate-product', { 
+                detail: { 
+                  productId: type === 'product' ? id : undefined,
+                  page: type === 'page' ? id : undefined,
+                  farmerId: type === 'farmer' ? id : undefined
+                } 
+              });
+              window.dispatchEvent(event);
+            }}
+            className="inline-flex items-center gap-1 text-emerald-700 font-extrabold hover:underline underline-offset-2 mx-1 scale-100 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+          >
+            {anchor} ✨
+          </button>
+        );
+      }
+    }
+    return elements;
+  };
+
+  const parseBoldOnly = (str: string): React.ReactNode[] => {
+    const parts = str.split(/\*\*(.*?)\*\*/g);
+    return parts.map((part, index) => {
+      if (index % 2 === 1) {
+        return <strong key={index} className="font-bold text-slate-900">{part}</strong>;
+      }
+      return part;
+    });
+  };
+
+  lines.forEach((line, lineIndex) => {
+    const trimmed = line.trim();
+    
+    // Check if it's a bullet point
+    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      if (!inList) {
+        inList = true;
+        currentListItems = [];
+      }
+      const itemText = trimmed.substring(2);
+      currentListItems.push(
+        <li key={`li-${lineIndex}`} className="list-disc ml-5 pl-1 my-0.5 text-zinc-700 leading-relaxed text-sm">
+          {parseLinksAndBoldText(itemText)}
+        </li>
+      );
+    } else {
+      // If we were in a list, close it and push
+      if (inList) {
+        renderedElements.push(
+          <ul key={`ul-${lineIndex - 1}`} className="list-disc my-1.5 space-y-1">
+            {currentListItems}
+          </ul>
+        );
+        inList = false;
+        currentListItems = [];
+      }
+      
+      if (trimmed === '') {
+        // Empty line acts as paragraph break or vertical space
+        renderedElements.push(<div key={`br-${lineIndex}`} className="h-1.5" />);
+      } else {
+        // Standard text line
+        renderedElements.push(
+          <p key={`p-${lineIndex}`} className="text-zinc-700 leading-relaxed my-1 break-words text-sm">
+            {parseLinksAndBoldText(line)}
+          </p>
+        );
+      }
+    }
+  });
+
+  // Handle remaining list if any
+  if (inList && currentListItems.length > 0) {
+    renderedElements.push(
+      <ul key={`ul-end`} className="list-disc my-1.5 space-y-1">
+        {currentListItems}
+      </ul>
+    );
+  }
+
+  return <div className="space-y-0.5">{renderedElements}</div>;
+};
 
 export const AIChatbot: React.FC = () => {
   const { user, profile } = useAuth();
@@ -267,7 +376,7 @@ export const AIChatbot: React.FC = () => {
                           m.text
                         ) : (
                           <div className="chatbot-markdown max-w-none">
-                            <ReactMarkdown>{m.text}</ReactMarkdown>
+                            {renderSafeMessageContent(m.text)}
                           </div>
                         )}
                       </div>

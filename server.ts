@@ -1,10 +1,12 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import nodemailer from "nodemailer";
 import { GoogleGenAI, Type } from "@google/genai";
 import otpRouter from "./server/otpRouter";
+import { db } from "./src/lib/firebase";
+import { rateLimitMiddleware } from "./server/rateLimit";
+import { collection, getDocs, query, where, limit } from "firebase/firestore";
 
 const _cleanFilename = typeof import.meta !== "undefined" && import.meta.url
   ? fileURLToPath(import.meta.url)
@@ -15,7 +17,7 @@ const _cleanDirname = _cleanFilename ? path.dirname(_cleanFilename) : "";
 let aiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI | null {
   const key = process.env.GEMINI_API_KEY;
-  if (!key) {
+  if (!key || key === "undefined" || key === "null" || key.trim() === "" || key.startsWith("your_")) {
     return null;
   }
   if (!aiClient) {
@@ -31,9 +33,49 @@ function getGeminiClient(): GoogleGenAI | null {
   return aiClient;
 }
 
+// Rate limiting is centralized and imported from ./server/rateLimit
+
 // Highly helpful and friendly mock AI assistant responses as fallback on standard review/preview envs
 function generateMockResponse(message: string, language: string): string {
   const msg = message.toLowerCase();
+  
+  // Custom out-of-context filter to stay localized to FarmToHome
+  const oocKeywords = ['code', 'math', 'write', 'html', 'python', 'java', 'c++', 'joke', 'capital of', 'translate', 'solve', 'weather in', 'who is', 'world cup', 'generic', 'recipe', 'movie', 'history', 'science', 'physics', 'tell me a story about'];
+  const hasOoc = oocKeywords.some(keyword => msg.includes(keyword)) || 
+                 (msg.length > 35 && 
+                  !msg.includes('farm') && 
+                  !msg.includes('home') && 
+                  !msg.includes('order') && 
+                  !msg.includes('shopp') && 
+                  !msg.includes('vegetable') && 
+                  !msg.includes('fruit') && 
+                  !msg.includes('mango') && 
+                  !msg.includes('cabbage') && 
+                  !msg.includes('pechay') && 
+                  !msg.includes('onion') && 
+                  !msg.includes('tomat') && 
+                  !msg.includes('ginger') && 
+                  !msg.includes('pay') && 
+                  !msg.includes('gcash') && 
+                  !msg.includes('cod') && 
+                  !msg.includes('sell') && 
+                  !msg.includes('crop') && 
+                  !msg.includes('agriculture') && 
+                  !msg.includes('support') && 
+                  !msg.includes('status') && 
+                  !msg.includes('track') &&
+                  !msg.includes('post') &&
+                  !msg.includes('review') &&
+                  !msg.includes('stock') &&
+                  !msg.includes('farmer') &&
+                  !msg.includes('buyer') &&
+                  !msg.includes('feature') &&
+                  !msg.includes('app') &&
+                  !msg.includes('how to'));
+  
+  if (hasOoc) {
+    return "Sorry, I can only assist you with Farm To Home related questions.";
+  }
   
   if (language === 'tagalog') {
     if (msg.includes('order') || msg.includes('status') || msg.includes('track') || msg.includes('nasaan')) {
@@ -112,7 +154,7 @@ async function startServer() {
   app.use("/api/auth", otpRouter);
 
   // OTP Email endpoint
-  app.post("/api/send-otp", async (req, res) => {
+  app.post("/api/send-otp", rateLimitMiddleware(5, 60000), async (req, res) => {
     try {
       const { email, phone, type } = req.body;
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -151,20 +193,19 @@ async function startServer() {
                 <h2 style="color: #10b981;">FarmToHome Verification</h2>
                 <p>Your 6-digit verification code is:</p>
                 <div style="font-size: 32px; font-weight: bold; color: #0f172a; padding: 15px; background: #f8fafc; border-radius: 8px; display: inline-block; letter-spacing: 5px;">
-                  ${otp}
+                   ${otp}
                 </div>
                 <p style="margin-top: 20px; font-size: 12px; color: #666;">This code will expire in 10 minutes.</p>
               </div>
             `,
           });
-          res.json({ success: true, message: "OTP sent to email", otp });
+          res.json({ success: true, message: "OTP sent to email" });
         } catch (error: any) {
           console.warn("Failed to send SMTP email, falling back to simulated OTP on localhost:", error);
           res.json({ 
             success: true, 
             message: "Verification simulated on Localhost (SMTP fallback)", 
-            dev: true, 
-            otp 
+            dev: true
           });
         }
       } else {
@@ -215,8 +256,7 @@ async function startServer() {
               console.log(`[SMS Semaphore] Success response:`, semData);
               return res.json({ 
                 success: true, 
-                message: `Verification code sent in real-time via Semaphore to ${localPhone}!`,
-                otp
+                message: `Verification code sent in real-time via Semaphore to ${localPhone}!`
               });
             } else {
               console.error("[SMS Semaphore] API error response:", semData);
@@ -255,8 +295,7 @@ async function startServer() {
               console.log(`[SMS Twilio] Success response:`, twilioData);
               return res.json({ 
                 success: true, 
-                message: `Verification code sent in real-time via Twilio to ${safePhone}!`,
-                otp
+                message: `Verification code sent in real-time via Twilio to ${safePhone}!`
               });
             } else {
               console.error("[SMS Twilio] API error response:", twilioData);
@@ -288,8 +327,7 @@ async function startServer() {
               return res.json({ 
                 success: true, 
                 message: `Verification code sent in real-time to cellphone ${safePhone}!`, 
-                dev: true, 
-                otp 
+                dev: true
               });
             } else {
               console.warn("[SMS Textbelt] Limit exceeded or failed:", textbeltData.error || textbeltData);
@@ -304,8 +342,7 @@ async function startServer() {
         res.json({ 
           success: true, 
           message: "Simulating OTP code on localhost (Add SEMAPHORE_API_KEY or TWILIO_ACCOUNT_SID in your .env for production SMS!)", 
-          dev: true, 
-          otp 
+          dev: true
         });
       }
     } catch (err: any) {
@@ -315,7 +352,7 @@ async function startServer() {
   });
 
   // Dedicated endpoint for Forgot Password notification (to ensure custom SMTP is used)
-  app.post("/api/forgot-password-notify", async (req, res) => {
+  app.post("/api/forgot-password-notify", rateLimitMiddleware(5, 60000), async (req, res) => {
     const { email } = req.body;
     const smtpUser = process.env.SMTP_USER || 'farmtohomee11@gmail.com';
     const smtpPass = process.env.SMTP_PASS || 'welt gieb tlom kpxe';
@@ -351,7 +388,7 @@ async function startServer() {
   });
 
   // Contact Us endpoint
-  app.post("/api/contact-us", async (req, res) => {
+  app.post("/api/contact-us", rateLimitMiddleware(5, 60000), async (req, res) => {
     const { name, email, phone, message } = req.body;
     const smtpUser = process.env.SMTP_USER || 'farmtohomee11@gmail.com';
     const smtpPass = process.env.SMTP_PASS || 'welt gieb tlom kpxe';
@@ -397,7 +434,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/verify-otp", (req, res) => {
+  app.post("/api/verify-otp", rateLimitMiddleware(10, 60000), (req, res) => {
     const { identifier, otp } = req.body;
     const storedOtp = otps.get(identifier);
 
@@ -411,7 +448,7 @@ async function startServer() {
   });
 
   // Gemini AI Chatbot support-chat endpoint
-  app.post("/api/gemini/support-chat", async (req, res) => {
+  app.post("/api/gemini/support-chat", rateLimitMiddleware(10, 60000), async (req, res) => {
     let fallbackText = "Sorry, I'm having trouble understanding. Please ask again.";
     let userMessage = "";
     let userLanguage = "english";
@@ -419,11 +456,115 @@ async function startServer() {
       const { message, language, history } = req.body || {};
       userMessage = message || "";
       userLanguage = language || "english";
+      console.log(`[Support Chat] New request: "${userMessage}" in ${userLanguage}`);
+      
       fallbackText = generateMockResponse(userMessage, userLanguage);
+
+      // 1. Strict server-side Out-Of-Context check
+      const msgLower = userMessage.toLowerCase();
+      const oocKeywords = ['code', 'math', 'write', 'html', 'python', 'java', 'c++', 'joke', 'capital of', 'translate', 'solve', 'weather in', 'who is', 'world cup', 'generic', 'recipe', 'movie', 'history', 'science', 'physics', 'tell me a story about'];
+      const hasOoc = oocKeywords.some(keyword => msgLower.includes(keyword)) || 
+                     (userMessage.length > 35 && 
+                      !msgLower.includes('farm') && 
+                      !msgLower.includes('home') && 
+                      !msgLower.includes('order') && 
+                      !msgLower.includes('shopp') && 
+                      !msgLower.includes('vegetable') && 
+                      !msgLower.includes('fruit') && 
+                      !msgLower.includes('mango') && 
+                      !msgLower.includes('cabbage') && 
+                      !msgLower.includes('pechay') && 
+                      !msgLower.includes('onion') && 
+                      !msgLower.includes('tomat') && 
+                      !msgLower.includes('ginger') && 
+                      !msgLower.includes('pay') && 
+                      !msgLower.includes('gcash') && 
+                      !msgLower.includes('cod') && 
+                      !msgLower.includes('sell') && 
+                      !msgLower.includes('crop') && 
+                      !msgLower.includes('agriculture') && 
+                      !msgLower.includes('support') && 
+                      !msgLower.includes('status') && 
+                      !msgLower.includes('track') &&
+                      !msgLower.includes('post') &&
+                      !msgLower.includes('review') &&
+                      !msgLower.includes('stock') &&
+                      !msgLower.includes('farmer') &&
+                      !msgLower.includes('buyer') &&
+                      !msgLower.includes('feature') &&
+                      !msgLower.includes('app') &&
+                      !msgLower.includes('how to'));
+      
+      if (hasOoc) {
+        return res.json({ success: true, text: "Sorry, I can only assist you with Farm To Home related questions." });
+      }
+
+      // 2. Fetch live database context (Products, Posts, Reviews, Users)
+      let productsContext = "Currently, there are no live products registered in our database.";
+      let postsContext = "Currently, there are no live community posts registered in our database.";
+      let reviewsContext = "Currently, there are no product reviews registered in our database.";
+      let usersContext = "Currently, there are no users registered in our database.";
+
+      try {
+        const prodQuery = query(collection(db, 'products'), where('isPublished', '==', true), limit(100));
+        const prodSnapshot = await getDocs(prodQuery);
+        if (!prodSnapshot.empty) {
+          const prods = prodSnapshot.docs.map(doc => {
+            const d = doc.data();
+            return `- **Crop Name**: ${d.name}, **Price**: ₱${d.price}/unit, **Stock**: ${d.stock || 0} units, **Id**: ${doc.id}, **Category**: ${d.category || 'General'}, **Description**: ${d.description || ''}`;
+          });
+          productsContext = prods.join("\n");
+        }
+      } catch (err) {
+        console.error("[Support Chat] Failed to fetch live products catalog for context:", err);
+      }
+
+      try {
+        const postsQuery = query(collection(db, 'posts'), limit(100));
+        const postsSnapshot = await getDocs(postsQuery);
+        if (!postsSnapshot.empty) {
+          const posts = postsSnapshot.docs.map(doc => {
+            const d = doc.data();
+            return `- **Post ID**: ${doc.id}, **Title**: ${d.title || 'Untitled'}, **Content**: ${d.content || ''}, **Author**: ${d.authorName || 'Anonymous'}`;
+          });
+          postsContext = posts.join("\n");
+        }
+      } catch (err) {
+        console.error("[Support Chat] Failed to fetch live posts context:", err);
+      }
+
+      try {
+        const reviewsQuery = query(collection(db, 'reviews'), limit(50));
+        const reviewsSnapshot = await getDocs(reviewsQuery);
+        if (!reviewsSnapshot.empty) {
+          const revs = reviewsSnapshot.docs.map(doc => {
+            const d = doc.data();
+            return `- **Review ID**: ${doc.id}, **Product ID**: ${d.productId}, **Rating**: ${d.rating} stars, **Comment**: ${d.comment || ''}, **Buyer**: ${d.buyerName || 'Buyer'}`;
+          });
+          reviewsContext = revs.join("\n");
+        }
+      } catch (err) {
+        console.error("[Support Chat] Failed to fetch live reviews context:", err);
+      }
+
+      try {
+        const usersQuery = query(collection(db, 'users'), limit(50));
+        const usersSnapshot = await getDocs(usersQuery);
+        if (!usersSnapshot.empty) {
+          const users = usersSnapshot.docs.map(doc => {
+            const d = doc.data();
+            return `- **User**: ${d.fullName || d.email || 'Anonymous'}, **Role**: ${d.role || 'buyer'}, **Status**: ${d.status || 'unverified'}, **ID**: ${doc.id}`;
+          });
+          usersContext = users.join("\n");
+        }
+      } catch (err) {
+        console.error("[Support Chat] Failed to fetch live users context:", err);
+      }
 
       const client = getGeminiClient();
       if (!client) {
-        console.warn("GEMINI_API_KEY is missing or client failed to initialize. Using responsive local fallback.");
+        console.warn("[Support Chat] GEMINI_API_KEY is missing/invalid. Falling back to local offline smart response.");
+        console.log(`[Support Chat] Returning fallback text: "${fallbackText.substring(0, 60)}..."`);
         return res.json({ success: true, text: fallbackText });
       }
 
@@ -445,35 +586,81 @@ async function startServer() {
         parts: [{ text: userMessage }]
       });
 
+      console.log(`[Support Chat] Sending history of ${chatHistory.length} turns to Gemini with rich live database context...`);
       const response = await client.models.generateContent({
         model: "gemini-3.5-flash",
         contents: chatHistory,
         config: {
-          systemInstruction: `You are the official FarmToHome support bot. 
-You assist users with order status, farming techniques, and platform navigation. 
-Be warm, professional, and knowledgeable about organic farming.
-IMPORTANT: 
+          systemInstruction: `You are the official FarmToHome genius assistant.
+You possess absolute, real-time knowledge of the entire FarmToHome application, database listings, community posts, reviews, and app features.
+
+PLATFORM PAGES & TARGET ROUTING CAPABILITY:
+You can guide and navigate users directly across various pages inside the application!
+Whenever you describe a page, or if a user asks how to do something on a page, MUST provide a clickable custom redirections markdown link using exactly these patterns:
+- [Go to Shop/Marketplace](page:home) to let them browse all available crops.
+- [Go to Farmer Dashboard](page:dashboard) for farmer crops, certifications, and earnings.
+- [Go to Inbox/Messages](page:messages) to chat in real-time with local farmers.
+- [Track Delivery Progress](page:tracking) to view real-time delivery statuses of active orders.
+- [View Account Profile](page:profile) to edit address presets, contact info, and security checks.
+- [Go to Alerts Console](page:admin-dashboard) for security/certifications (Admin only).
+
+Whenever a user is interested in a specific crop from the inventory, MUST format a clickable relative redirection link: [View crop_name](product:productId) (e.g. [View Pechay](product:abc123xyz)).
+Whenever they are interested in a specific farmer, you can direct them using: [Visit Farmer_Name's Profile](farmer:farmerUserId) (e.g. [Visit Mang Juan's Profile](farmer:user456)).
+
+CORE FEATURES & USER MANUAL:
+1. Marketplace Shop: Buyers can browse organic crops, search, add products to cart, and checkout. We support Cash on Delivery (COD) and GCash payments.
+2. Farmer Dashboard: Farmers can manage their published crops, set unit price, upload land certification forms (real-time verification), view sales earnings charts, and download receipts.
+3. Social Feed: Users can share farming stories, ask questions, or announce fresh harvests.
+4. Alerts Console: Admins can approve pending farmer profiles, view audit logs, delete spam, and monitor live metrics.
+5. In-App Direct Chat: Real-time discussion between buyers and farmers directly.
+6. Support Center: Email farmtohomee11@gmail.com and password-less OTP security during registration.
+
+CRITICAL OUT-OF-CONTEXT POLICY:
+You can ONLY assist users with questions regarding the "Farm To Home" platform, organic farming, crops, listings, user status, community posts, reviews, payments (GCash, COD), and logistics.
+If the user asks ANY question out of this context (including writing code, math, history trivia, generic recipes, weather projections, general web search, movies, unrelated software), you MUST immediately respond with EXACTLY this sentence and NOTHING else:
+"Sorry, I can only assist you with Farm To Home related questions."
+Do NOT explain why, do NOT answer the question. This is a strict security safeguard.
+
+LIVE DATABASE LISTINGS & INVENTORY:
+Here is the real-time crop inventory from our live Firestore database:
+${productsContext}
+
+LIVE COMMUNITY FORUM POSTS:
+Here are the active posts in the community social feed:
+${postsContext}
+
+LIVE RATINGS & REVIEWS:
+Here are the customer reviews from buyers:
+${reviewsContext}
+
+LIVE MEMBERS REGISTERED:
+Here are the community members:
+${usersContext}
+
+IMPORTANT DIRECTIVES:
+- If a user asks "how many stocks of [crop name]", inspect the LIVE DATABASE LISTINGS above, match the crop, and report the EXACT stock quantity and price. Provide a product link like [View Cabbage](product:cabbage-id-xyz).
+- If a user asks "how many post of [crop name]", read the LIVE COMMUNITY FORUM POSTS above, count how many posts mention or talk about it, and report the exact quantity and details.
 - Always respond in ${userLanguage === 'tagalog' ? 'Tagalog' : 'English'}.
-- If you are providing steps, instructions, or lists, MUST use bullet points or numbered lists.
-- Use Markdown formatting for better readability (bold, italic, lists).
-- Keep responses concise but helpful.`
+- Use Markdown formatting (bold, bullet points) for readable text layouts. Keep replies concise, helpful, and functionally useful.`
         }
       });
 
+      console.log(`[Support Chat] Gemini successfully replied: "${response.text?.substring(0, 60)}..."`);
       return res.json({ success: true, text: response.text });
     } catch (error: any) {
       const errorMsg = error?.message || error?.toString() || "";
       if (errorMsg.includes("429") || errorMsg.includes("prepayment") || errorMsg.includes("RESOURCE_EXHAUSTED") || errorMsg.includes("credits")) {
-        console.warn("Gemini API key quota/prepayment exhausted (429). Falling back securely to high-quality local chatbot simulation.");
+        console.warn("[Support Chat] Gemini API key quota/prepayment exhausted (429). Falling back securely to high-quality local chatbot simulation.");
       } else {
-        console.error("Gemini support chat error, falling back securely to local simulation:", error);
+        console.error("[Support Chat] Gemini support chat error, falling back securely to local simulation:", error);
       }
+      console.log(`[Support Chat] Returning fallback text: "${fallbackText.substring(0, 60)}..."`);
       return res.json({ success: true, text: fallbackText });
     }
   });
 
   // Gemini Smart Price Suggestion endpoint
-  app.post("/api/gemini/price-suggestion", async (req, res) => {
+  app.post("/api/gemini/price-suggestion", rateLimitMiddleware(10, 60000), async (req, res) => {
     let cat = "";
     try {
       const { name, category } = req.body || {};
@@ -524,6 +711,7 @@ IMPORTANT:
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",

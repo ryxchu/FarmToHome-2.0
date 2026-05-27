@@ -2,6 +2,7 @@ import React from 'react';
 import { ShoppingCart, User, Sprout, Search, MapPin, Home, History, LayoutDashboard, MessageSquare, Bell, Menu, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { useConfirm } from '../context/ConfirmContext';
 import { auth, db } from '../lib/firebase';
 import { collection, query, where, onSnapshot, orderBy, limit, updateDoc, doc, getDocs } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
@@ -13,17 +14,53 @@ interface NavbarProps {
   onDashboardTabChange?: (tab: 'inventory' | 'feedback' | 'messages' | 'community' | 'logs') => void;
   onSearch?: (query: string) => void;
   onOrderNotificationClick?: (orderId: string) => void;
+  nearMeEnabled?: boolean;
+  userCoords?: { lat: number, lng: number } | null;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setView, onDashboardTabChange, onSearch, onOrderNotificationClick }) => {
+export const Navbar: React.FC<NavbarProps> = ({ 
+  onAuthClick, 
+  onCartClick, 
+  setView, 
+  onDashboardTabChange, 
+  onSearch, 
+  onOrderNotificationClick,
+  nearMeEnabled,
+  userCoords
+}) => {
   const { user, profile, logout } = useAuth();
   const { items } = useCart();
+  const { confirm } = useConfirm();
   const [searchValue, setSearchValue] = React.useState('');
   const [showNotifications, setShowNotifications] = React.useState(false);
   const [unreadCount, setUnreadCount] = React.useState(0);
   const [notifications, setNotifications] = React.useState<any[]>([]);
   const [scrolled, setScrolled] = React.useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [displayLocation, setDisplayLocation] = React.useState('Metro Manila, PH');
+
+  React.useEffect(() => {
+    if (nearMeEnabled && userCoords) {
+      const { lat, lng } = userCoords;
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.address) {
+            const city = data.address.city || data.address.town || data.address.municipality || data.address.city_district || data.address.village || data.address.province || data.address.state || 'Local Area';
+            setDisplayLocation(`${city}, PH (Near Me)`);
+          } else {
+            setDisplayLocation(`Coords: ${lat.toFixed(2)}, ${lng.toFixed(2)} (Near Me)`);
+          }
+        })
+        .catch(() => {
+          setDisplayLocation(`GPS: ${lat.toFixed(2)}, ${lng.toFixed(2)} (Near Me)`);
+        });
+    } else if (profile?.address) {
+      setDisplayLocation(profile.address);
+    } else {
+      setDisplayLocation('Metro Manila, PH');
+    }
+  }, [nearMeEnabled, userCoords, profile?.address]);
 
   React.useEffect(() => {
     const handleScroll = () => {
@@ -240,7 +277,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
             <div className="flex items-center gap-4 sm:gap-8">
               <div className="hidden lg:flex items-center gap-2 px-5 py-2.5 bg-white/10 rounded-2xl border border-white/10">
                 <MapPin className="w-4 h-4 text-accent" />
-                <span className="text-[10px] font-bold text-white uppercase tracking-widest">Metro Manila, PH</span>
+                <span className="text-[10px] font-bold text-white uppercase tracking-widest">{displayLocation}</span>
               </div>
 
               <div className="flex items-center gap-4 sm:gap-6">
@@ -467,9 +504,18 @@ export const Navbar: React.FC<NavbarProps> = ({ onAuthClick, onCartClick, setVie
                       )}
 
                       <button 
-                        onClick={() => {
-                          logout();
-                          setView('landing');
+                        onClick={async () => {
+                          const confirmed = await confirm({
+                            title: 'Are you sure you want to logout???',
+                            message: 'You are logging out from your Farm To Home session. You will need to use your OTP next time you register or log in.',
+                            confirmText: 'Yes, Logout',
+                            cancelText: 'Cancel',
+                            type: 'logout'
+                          });
+                          if (confirmed) {
+                            logout();
+                            setView('landing');
+                          }
                         }}
                         className="w-full px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-secondary hover:bg-secondary/5 flex items-center gap-4 rounded-2xl transition-all group/item hover:translate-x-2"
                       >

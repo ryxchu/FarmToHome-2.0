@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, setDoc, updateDoc, doc, deleteDoc, getDoc, getDocs } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType, isQuotaError, isOfflineError, safeSetItem } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
+import { useConfirm } from '../context/ConfirmContext';
 import { Product, Order } from '../types';
 import { Plus, Package, ShoppingBag, TrendingUp, Edit, Trash2, X, Check, Image as ImageIcon, Star, User, Settings, MessageSquare, ArrowLeft, ChevronRight, MapPin, Phone, Truck, CreditCard, Radio, ClipboardList, Sprout, Camera, Sparkles, RefreshCw, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Chat } from '../components/Chat';
 import { SocialFeed } from '../components/SocialFeed';
+import { PhotoEditorModal } from '../components/PhotoEditorModal';
 
 interface FarmerDashboardProps {
   onEditProfile?: () => void;
@@ -27,10 +29,13 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
   showProfileFormProp,
   onCloseProfileForm
 }) => {
-  const { user, profile, refreshProfile, logout } = useAuth();
+  const { user, profile, refreshProfile, logout, isDemoActive } = useAuth();
+  const { confirm } = useConfirm();
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
+  const [photoEditorOpen, setPhotoEditorOpen] = useState(false);
+  const [tempImageSrc, setTempImageSrc] = useState('');
   const [activeTab, setActiveTab] = useState<'inventory' | 'feedback' | 'messages' | 'community' | 'logs'>(activeTabProp || 'inventory');
   const [showAddModal, setShowAddModal] = useState(false);
   const [conversations, setConversations] = useState<any[]>([]);
@@ -228,11 +233,44 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
       const reader = new FileReader();
       reader.onloadend = () => {
         if (typeof reader.result === 'string') {
-          setProfileForm(v => ({ ...v, photoURL: reader.result as string }));
+          setTempImageSrc(reader.result as string);
+          setPhotoEditorOpen(true);
         }
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const [detectingLocation, setDetectingLocation] = useState(false);
+
+  const detectLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported');
+      return;
+    }
+    setDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+          .then(res => res.json())
+          .then(data => {
+            const displayAddress = data?.display_name || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+            setProfileForm(v => ({ ...v, address: displayAddress }));
+            setDetectingLocation(false);
+          })
+          .catch(() => {
+            setProfileForm(v => ({ ...v, address: `${lat.toFixed(6)}, ${lng.toFixed(6)}` }));
+            setDetectingLocation(false);
+          });
+      },
+      (error) => {
+        alert('Could not detect location. Please enable permissions.');
+        setDetectingLocation(false);
+      },
+      { enableHighAccuracy: true }
+    );
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -915,9 +953,18 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
 
                 {/* Main continuous scrollable area */}
                 <div className="flex-1 overflow-y-auto px-4 pb-24 space-y-4 no-scrollbar">
-                  {Object.keys(
-                    (() => {
-                      // Prepare log combination right at state scope safely
+                  {orders.length === 0 && !isDemoActive ? (
+                    <div className="py-24 text-center">
+                      <Package className="w-16 h-16 text-slate-200 mx-auto mb-6 shrink-0" />
+                      <p className="text-slate-400 font-bold uppercase tracking-[0.4em] text-[10px]">No orders or logs yet</p>
+                      <p className="text-xs text-slate-400 max-w-sm mx-auto mt-2 leading-relaxed font-semibold">
+                        Once buyers start sourcing and purchasing your crops, your real-time fulfillment logs will appear here!
+                      </p>
+                    </div>
+                  ) : (
+                    Object.keys(
+                      (() => {
+                        // Prepare log combination right at state scope safely
                       const allLogsCombined = [
                         ...orders.map(o => ({
                           id: o.id,
@@ -941,11 +988,11 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
                           total: o.total,
                           isRealDbOrder: true
                         })),
-                        ...dummyLogs.map(dl => ({
+                        ...(isDemoActive ? dummyLogs.map(dl => ({
                           ...dl,
                           status: mockStatuses[dl.id] || dl.status,
                           isRealDbOrder: false
-                        }))
+                        })) : [])
                       ].sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
                       const groups: Record<string, typeof allLogsCombined> = {};
@@ -998,11 +1045,11 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
                         total: o.total,
                         isRealDbOrder: true
                       })),
-                      ...dummyLogs.map(dl => ({
+                      ...(isDemoActive ? dummyLogs.map(dl => ({
                         ...dl,
                         status: mockStatuses[dl.id] || dl.status,
                         isRealDbOrder: false
-                      }))
+                      })) : [])
                     ].sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
                     const groups: Record<string, typeof allLogsCombined> = {};
@@ -1158,7 +1205,8 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
                         </div>
                       </div>
                     );
-                  })}
+                  })
+                )}
                 </div>
               </motion.div>
             )}
@@ -1403,9 +1451,20 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
 
                   {/* Address Field */}
                   <div className="space-y-1.5 text-left">
-                    <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-widest">
-                      Farm Logistics Address
-                    </label>
+                    <div className="flex justify-between items-center">
+                      <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-widest">
+                        Farm Logistics Address
+                      </label>
+                      <button 
+                        type="button" 
+                        onClick={detectLocation}
+                        className="text-[9px] font-bold text-emerald-600 hover:text-emerald-700 uppercase tracking-widest hover:underline flex items-center gap-1"
+                        disabled={detectingLocation}
+                      >
+                        <MapPin className="w-3 h-3 text-emerald-600 animate-pulse" />
+                        {detectingLocation ? 'Detecting...' : 'Detect Location'}
+                      </button>
+                    </div>
                     <div className="relative">
                       <span className="absolute left-4 top-3 text-slate-400">
                         <MapPin className="w-4 h-4" />
@@ -1466,6 +1525,14 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
                     <button
                       type="button"
                       onClick={async () => {
+                        const confirmed = await confirm({
+                          title: 'Are you sure you want to logout???',
+                          message: 'You are logging out from your Farmer Dashboard session. You will need to use your OTP next time you register or log in.',
+                          confirmText: 'Yes, Logout',
+                          cancelText: 'Cancel',
+                          type: 'logout'
+                        });
+                        if (!confirmed) return;
                         try {
                           // Synchronously purge demo cache so page reload cannot restore the session
                           localStorage.removeItem('demo_user_session');
@@ -1520,6 +1587,16 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <PhotoEditorModal 
+        isOpen={photoEditorOpen}
+        imageSrc={tempImageSrc}
+        onClose={() => setPhotoEditorOpen(false)}
+        onDone={(croppedBase64) => {
+          setProfileForm(prev => ({ ...prev, photoURL: croppedBase64 }));
+          setPhotoEditorOpen(false);
+        }}
+      />
     </div>
   );
 };

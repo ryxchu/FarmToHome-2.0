@@ -615,12 +615,16 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onBack }) => {
   const handleCancelOrder = useCallback(async (orderId: string) => {
     setActionLoading(orderId);
     try {
+      // Optimistically update local state so there is zero latency
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'cancelled', cancellationReason: 'Cancelled by buyer', updatedAt: new Date().toISOString() } : o));
+      
       await updateDoc(doc(db, 'orders', orderId), {
         status: 'cancelled',
         updatedAt: new Date().toISOString(),
         cancellationReason: 'Cancelled by buyer',
       });
       setCancelConfirm(null);
+      setActiveTab('cancelled');
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `orders/${orderId}`);
     } finally {

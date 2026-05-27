@@ -1,11 +1,14 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, setLogLevel } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { initializeFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
+// Silence non-fatal/transport-level warnings (such as idle stream disconnections)
+setLogLevel('error');
+
 const app = initializeApp(firebaseConfig);
 export const db = initializeFirestore(app, {
-  experimentalAutoDetectLongPolling: true,
+  experimentalForceLongPolling: true,
 }, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 

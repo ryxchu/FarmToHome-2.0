@@ -99,6 +99,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     try {
       if (mode === 'login') {
         const userCred = await signInWithEmailAndPassword(auth, email, password);
+        // Check if database profile exists. If not, it was deleted by an admin!
+        if (email.toLowerCase() !== 'ryzabasas16@gmail.com') {
+          const userDoc = await getDoc(doc(db, 'users', userCred.user.uid));
+          if (!userDoc.exists()) {
+            const { deleteUser } = await import('firebase/auth');
+            await deleteUser(userCred.user);
+            throw new Error("Your account has been deleted by an administrator. Your login has been completely cleared, and you can now register a fresh account with this email.");
+          }
+        }
         onClose();
       } else {
         const userCred = await createUserWithEmailAndPassword(auth, email, password);
@@ -120,7 +129,39 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       if (err.code === 'auth/operation-not-allowed') {
         setError('Email/Password login is not enabled in Firebase. Please enable it in the console or use Google Sign-in.');
       } else if (err.code === 'auth/email-already-in-use') {
-        setError('ALREADY_REGISTERED');
+        try {
+          // Attempt self-healing: see if we can log in with the typed password
+          const checkCred = await signInWithEmailAndPassword(auth, email, password);
+          // If login succeeds, check if the Firestore document exists
+          const userDoc = await getDoc(doc(db, 'users', checkCred.user.uid));
+          if (!userDoc.exists()) {
+            // Document does not exist in Firestore! This is an out-of-sync orphaned login.
+            const { deleteUser } = await import('firebase/auth');
+            await deleteUser(checkCred.user);
+            
+            // Now register a fresh account using the requested credentials
+            const newCred = await createUserWithEmailAndPassword(auth, email, password);
+            const finalRole = email === 'ryzabasas16@gmail.com' ? 'admin' : role;
+            await setDoc(doc(db, 'users', newCred.user.uid), {
+              uid: newCred.user.uid,
+              email,
+              fullName,
+              phone,
+              role: finalRole,
+              status: finalRole === 'admin' ? 'verified' : 'unverified',
+              createdAt: new Date().toISOString()
+            });
+            setMode('otp');
+            sendOtp(otpMethod);
+            return;
+          } else {
+            // Profile exists normally in database, so this email is indeed in use
+            setError('ALREADY_REGISTERED');
+          }
+        } catch (signInErr: any) {
+          // If login fails (wrong password or other), prompt the user with instructions to resolve the conflict
+          setError('ORPHANED_AUTH_CONFLICT');
+        }
       } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
         setError('Invalid email or password. Please try again.');
       } else if (err.code === 'auth/network-request-failed' || err.message?.includes('network-request-failed') || err.message?.includes('network-failed') || err.message?.includes('network')) {
@@ -506,18 +547,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                     </div>
                   </div>
 
-                  {devOtp && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="p-4 bg-emerald-50 border border-emerald-100/80 rounded-2xl flex flex-col items-center justify-center gap-1 text-center shadow-lg shadow-emerald-500/5 mb-4"
-                    >
-                      <span className="text-[10px] font-black uppercase text-emerald-800 tracking-wider">Localhost Dev Mode Active</span>
-                      <p className="text-[11px] font-semibold text-emerald-600/90 leading-relaxed">
-                        Verification code is <strong className="text-emerald-700 bg-white px-2.5 py-1 rounded-xl border border-emerald-200 shadow-sm text-sm font-bold ml-1">{devOtp}</strong> (Enter this code below to proceed!)
-                      </p>
-                    </motion.div>
-                  )}
+
 
                   <div className="space-y-4">
                     <p className="text-[11px] text-slate-500 leading-relaxed">
@@ -742,6 +772,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                         Sign in instead?
                       </button>
                     </>
+                  ) : error === 'ORPHANED_AUTH_CONFLICT' ? (
+                    <div className="flex flex-col gap-2 text-start">
+                      <p className="text-[11px] leading-relaxed text-secondary-dark font-semibold">
+                        This email is already registered in Firebase Authentication, but its profile in the database is gone!
+                      </p>
+                      <p className="normal-case text-[10px] leading-normal text-slate-500 font-medium">
+                        If you deleted this user in the Firestore database, please <strong>Sign In</strong> using your original password first. The system will automatically clear the old registration and guide you to sign up fresh!
+                      </p>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setMode('login');
+                          setError('');
+                        }}
+                        className="text-primary hover:underline self-start font-bold uppercase tracking-wider text-[10px] mt-1"
+                      >
+                        Sign in instead to auto-heal
+                      </button>
+                    </div>
                   ) : error === 'PASSWORD_RESET_SENT' ? (
                     <div className="text-emerald-600 flex flex-col gap-2 text-start">
                       <div className="flex items-center gap-2">

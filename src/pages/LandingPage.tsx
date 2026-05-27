@@ -194,7 +194,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* 🌟 INTERACTIVE AGRI-HUB SECTION (Makes Home distinct, engaging, and dynamic) */}
-      <section className="py-24 px-4 sm:px-8 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 sm:gap-16 items-start">
+      <motion.section 
+        initial={{ opacity: 0, y: 50 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-100px" }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className="py-24 px-4 sm:px-8 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 sm:gap-16 items-start"
+      >
         {/* Left Side: Seasonal Philippine Harvest Tracker */}
         <div className="lg:col-span-7 bg-white rounded-[3rem] p-6 sm:p-10 border border-stone-200/80 shadow-2xl shadow-stone-250/10 space-y-8">
           <div className="flex items-start justify-between gap-4">
@@ -363,13 +369,33 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </button>
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* About Us Section */}
-      <section id="about-us" className="py-32 px-8 bg-white/50 backdrop-blur-sm relative">
+      <motion.section 
+        id="about-us" 
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: "-100px" }}
+        variants={{
+          hidden: {},
+          visible: {
+            transition: {
+              staggerChildren: 0.15
+            }
+          }
+        }}
+        className="py-32 px-8 bg-white/50 backdrop-blur-sm relative"
+      >
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
-            <div>
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, x: -50 },
+                visible: { opacity: 1, x: 0 }
+              }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+            >
               <span className="text-primary font-bold uppercase tracking-[0.4em] text-[10px] mb-4 block">Get to Know Us</span>
               <h2 className="text-3xl sm:text-5xl font-bold text-slate-800 tracking-tighter font-serif italic mb-8">What is Farm To Home</h2>
               <p className="text-lg text-slate-600 leading-relaxed font-medium mb-10">
@@ -389,8 +415,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
                 ))}
               </div>
-            </div>
-            <div className="relative">
+            </motion.div>
+            <motion.div 
+              variants={{
+                hidden: { opacity: 0, x: 50 },
+                visible: { opacity: 1, x: 0 }
+              }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+              className="relative"
+            >
               <div className="aspect-square rounded-[4rem] overflow-hidden shadow-2xl border-8 border-white bg-slate-100">
                 <img 
                   src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=1000" 
@@ -402,20 +435,38 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <p className="text-2xl font-bold font-serif italic mb-2">100% Local</p>
                 <p className="text-sm opacity-80 font-medium">Every product reflects the hard work and perseverance of the Filipino farmer.</p>
               </div>
-            </div>
+            </motion.div>
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* Featured Products Preview */}
       {featuredProducts.length > 0 && (
-        <section className="py-32 px-8 bg-slate-50 relative overflow-hidden">
+        <motion.section 
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-100px" }}
+          variants={{
+            hidden: {},
+            visible: {
+              transition: {
+                staggerChildren: 0.12
+              }
+            }
+          }}
+          className="py-32 px-8 bg-slate-50 relative overflow-hidden"
+        >
           <div className="max-w-7xl mx-auto relative z-10">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
-              <div>
+              <motion.div
+                variants={{
+                  hidden: { opacity: 0, y: 20 },
+                  visible: { opacity: 1, y: 0, transition: { duration: 0.6 } }
+                }}
+              >
                 <span className="text-primary font-bold uppercase tracking-[0.4em] text-[10px] mb-4 block">This Season</span>
                 <h2 className="text-3xl sm:text-5xl font-bold text-slate-800 tracking-tighter font-serif italic">From Our Farm</h2>
-              </div>
+              </motion.div>
               <button 
                 onClick={onShopClick}
                 className="flex items-center gap-2 text-primary font-bold uppercase tracking-widest text-[11px] group"
@@ -428,6 +479,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {featuredProducts.map((product) => (
                 <motion.div 
                   key={product.id}
+                  variants={{
+                    hidden: { opacity: 0, y: 35 },
+                    visible: { opacity: 1, y: 0, transition: { duration: 0.6 } }
+                  }}
                   whileHover={{ y: -10 }}
                   onClick={() => onFeaturedProductClick?.(product.id)}
                   className="bg-white rounded-2xl sm:rounded-[2.5rem] overflow-hidden shadow-xl border border-slate-100 group cursor-pointer h-full flex flex-col"
@@ -454,16 +509,36 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               ))}
             </div>
           </div>
-        </section>
+        </motion.section>
       )}
 
       {/* Testimonials / Our Story */}
-      <section id="our-story" className="py-16 px-4 sm:py-40 sm:px-8 relative overflow-hidden bg-white">
+      <motion.section 
+        id="our-story" 
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: "-100px" }}
+        variants={{
+          hidden: {},
+          visible: {
+            transition: {
+              staggerChildren: 0.15
+            }
+          }
+        }}
+        className="py-16 px-4 sm:py-40 sm:px-8 relative overflow-hidden bg-white"
+      >
         <div className="max-w-7xl mx-auto relative z-10">
-          <div className="text-center mb-10 sm:mb-20">
+          <motion.div 
+            variants={{
+              hidden: { opacity: 0, y: 30 },
+              visible: { opacity: 1, y: 0, transition: { duration: 0.8 } }
+            }}
+            className="text-center mb-10 sm:mb-20"
+          >
             <span className="text-primary font-bold uppercase tracking-[0.4em] text-[10px] mb-3 block">Our Story</span>
             <h2 className="text-3xl sm:text-5xl md:text-7xl font-bold text-slate-900 tracking-tighter font-serif italic text-balance">From the Heart of the <span className="text-primary not-italic">Farmer</span></h2>
-          </div>
+          </motion.div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-12">
             {[
@@ -488,6 +563,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             ].map((testimony, idx) => (
               <motion.div 
                 key={idx}
+                variants={{
+                  hidden: { opacity: 0, y: 40 },
+                  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } }
+                }}
                 whileHover={{ y: -15 }}
                 className="bg-accent-light/30 p-6 sm:p-12 rounded-3xl sm:rounded-[5rem] border-4 border-white shadow-xl relative group"
               >
@@ -508,7 +587,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             ))}
           </div>
 
-          <div className="mt-16 sm:mt-32 text-center bg-primary p-10 sm:p-20 rounded-[2rem] sm:rounded-[5rem] shadow-3xl text-white relative overflow-hidden group">
+          <motion.div 
+            variants={{
+              hidden: { opacity: 0, scale: 0.95, y: 30 },
+              visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.8, type: 'spring', bounce: 0.25 } }
+            }}
+            className="mt-16 sm:mt-32 text-center bg-primary p-10 sm:p-20 rounded-[2rem] sm:rounded-[5rem] shadow-3xl text-white relative overflow-hidden group"
+          >
             <div className="absolute inset-0 banig-pattern opacity-10" />
             <div className="relative z-10 max-w-2xl mx-auto">
               <h3 className="text-2xl sm:text-4xl md:text-5xl font-bold font-serif italic mb-4 sm:mb-8 text-balance">Come, Let’s Support Local</h3>
@@ -521,9 +606,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <ShoppingBag className="w-5 h-5 sm:w-8 sm:h-8" />
               </button>
             </div>
-          </div>
+          </motion.div>
         </div>
-      </section>
+      </motion.section>
     </div>
   );
 };

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, updateDoc, doc, getDocs, setDoc, deleteDoc, getDoc, where, limit } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType, isQuotaError, isOfflineError, safeSetItem } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
+import { useConfirm } from '../context/ConfirmContext';
 import { Product, Order, UserProfile, SystemConfig, AuditLog } from '../types';
 import { 
   Users, ShoppingBag, TrendingUp, CheckCircle, XCircle, Shield, 
@@ -22,6 +23,7 @@ interface AdminDashboardProps {
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTabProp, onTabChange }) => {
   const { user, profile, openAuth } = useAuth();
+  const { confirm } = useConfirm();
   const [activeTab, setActiveTab] = useState<'users' | 'marketplace' | 'logistics' | 'analytics' | 'system'>(activeTabProp || 'users');
 
   useEffect(() => {
@@ -247,7 +249,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTabProp, o
   };
 
   const deleteProduct = async (productId: string) => {
-    if (!window.confirm('Are you sure you want to permanently delete this product from the marketplace?')) return;
+    const confirmed = await confirm({
+      title: 'Permanently delete this product???',
+      message: 'Are you sure you want to permanently delete this product from the marketplace? This action cannot be undone and will immediately drop this crop from the client store fronts.',
+      confirmText: 'Yes, Delete',
+      cancelText: 'Cancel',
+      type: 'danger'
+    });
+    if (!confirmed) return;
     try {
       await deleteDoc(doc(db, 'products', productId));
 

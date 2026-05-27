@@ -78,8 +78,10 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({
   useEffect(() => {
     if (viewMode !== 'shop') return;
 
+    let unsubscribe: (() => void) | null = null;
+
     // Use a timeout to debounce reads when the user types in the search bar
-    const timer = setTimeout(async () => {
+    const timer = setTimeout(() => {
       // Try cache only for 'All' category without search
       if (activeCategory === 'All' && !searchQuery) {
         const cached = localStorage.getItem('shop_products_all');
@@ -99,23 +101,31 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({
           ? query(collection(db, 'products'), where('isPublished', '==', true), limit(32))
           : query(collection(db, 'products'), where('isPublished', '==', true), where('category', '==', activeCategory), limit(32));
     
-        const snapshot = await getDocs(q);
-        const prods = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product));
-        
-        // Cache if it's the 'All' landing
-        if (activeCategory === 'All' && !searchQuery) {
-          safeSetItem('shop_products_all', JSON.stringify(prods));
-        }
+        unsubscribe = onSnapshot(q, (snapshot) => {
+          const prods = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product));
+          
+          // Cache if it's the 'All' landing
+          if (activeCategory === 'All' && !searchQuery) {
+            safeSetItem('shop_products_all', JSON.stringify(prods));
+          }
 
-        processProducts(prods);
+          processProducts(prods);
+          setLoading(false);
+        }, (error) => {
+          if (!isQuotaError(error) && !isOfflineError(error)) {
+            handleFirestoreError(error, OperationType.LIST, 'products');
+          } else {
+            console.warn("Using cached products due to quota limit or offline status");
+          }
+          setLoading(false);
+        });
+
       } catch (error) {
         if (!isQuotaError(error) && !isOfflineError(error)) {
           handleFirestoreError(error, OperationType.LIST, 'products');
         } else {
           console.warn("Using cached products due to quota limit or offline status");
-          // If we had a cached version, it's already set by the initial check
         }
-      } finally {
         setLoading(false);
       }
     }, 400); // 400ms debounce
@@ -153,7 +163,12 @@ export const BuyerHome: React.FC<BuyerHomeProps> = ({
       setProducts(filteredProds);
     };
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, [activeCategory, viewMode, searchQuery, userCoords, nearMeOnly]);
 
   // Clientside deduplication in case of database pollution

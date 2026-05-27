@@ -79,68 +79,87 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
     }
     setLoading(true);
     try {
-      // Create orders grouped or with the first farmer in selected items
-      const farmerId = selectedItems[0]?.farmerId || 'unknown_farmer'; 
-      
-      const orderRef = doc(collection(db, 'orders'));
-      const orderData = {
-        id: orderRef.id,
-        buyerId: user.uid,
-        farmerId,
-        items: selectedItems.map(i => ({
-          productId: i.id,
-          name: i.name,
-          quantity: i.quantity,
-          price: i.price,
-          image: i.images?.[0] || ""
-        })),
-        total: finalTotal,
-        discount: discount,
-        discountType: voucherApplied ? 'FIRST_BUYER_20' : null,
-        status: 'pending',
-        deliveryAddress,
-        contactNumber,
-        buyerMessage: buyerMessage || null,
-        paymentMethod: paymentOption === 'cod' ? 'Cash on Delivery' : paymentOption === 'gcash' ? 'GCash Sauté Transfer' : 'Credit/Debit Card',
-        shippingMethod: shippingType === 'express' ? 'Express Dispatch' : 'Standard Farm Route',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      await setDoc(orderRef, orderData);
-
-      // Subtract stock in real-time for each purchased crop
-      for (const item of selectedItems) {
-        try {
-          const productRef = doc(db, 'products', item.id);
-          const productSnap = await getDoc(productRef);
-          if (productSnap.exists()) {
-            const currentStock = productSnap.data().stock || 0;
-            const newStock = Math.max(0, currentStock - item.quantity);
-            await updateDoc(productRef, { stock: newStock });
-            console.log(`Deducted stock for ${item.id}: current=${currentStock}, new=${newStock}`);
-          }
-        } catch (stockErr) {
-          console.error(`Failed to deduct stock for product ${item.id}`, stockErr);
+      // Group selected items by their respective farmerId
+      const itemsByFarmer = new Map<string, typeof selectedItems>();
+      selectedItems.forEach(item => {
+        const fId = item.farmerId || 'unknown_farmer';
+        if (!itemsByFarmer.has(fId)) {
+          itemsByFarmer.set(fId, []);
         }
+        itemsByFarmer.get(fId)!.push(item);
+      });
+
+      const totalSubtotal = selectedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+      // Loop through each farmer group to create separate ords
+      for (const [farmerId, farmerItems] of itemsByFarmer.entries()) {
+        const farmerSubtotal = farmerItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        
+        // Compute proportional discount for this farmer's subtotal
+        const ratio = totalSubtotal > 0 ? (farmerSubtotal / totalSubtotal) : 0;
+        const farmerDiscount = Math.round(discount * ratio);
+        const farmerTotal = Math.max(0, farmerSubtotal - farmerDiscount);
+
+        const orderRef = doc(collection(db, 'orders'));
+        const orderData = {
+          id: orderRef.id,
+          buyerId: user.uid,
+          farmerId,
+          items: farmerItems.map(i => ({
+            productId: i.id,
+            name: i.name,
+            quantity: i.quantity,
+            price: i.price,
+            image: i.images?.[0] || ""
+          })),
+          total: farmerTotal,
+          discount: farmerDiscount,
+          discountType: voucherApplied ? 'FIRST_BUYER_20' : null,
+          status: 'pending',
+          deliveryAddress,
+          contactNumber,
+          buyerMessage: buyerMessage || null,
+          paymentMethod: paymentOption === 'cod' ? 'Cash on Delivery' : paymentOption === 'gcash' ? 'GCash Sauté Transfer' : 'Credit/Debit Card',
+          shippingMethod: shippingType === 'express' ? 'Express Dispatch' : 'Standard Farm Route',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+
+        await setDoc(orderRef, orderData);
+
+        // Deduct stock in real-time for each purchased crop
+        for (const item of farmerItems) {
+          try {
+            const productRef = doc(db, 'products', item.id);
+            const productSnap = await getDoc(productRef);
+            if (productSnap.exists()) {
+              const currentStock = productSnap.data().stock || 0;
+              const newStock = Math.max(0, currentStock - item.quantity);
+              await updateDoc(productRef, { stock: newStock });
+              console.log(`Deducted stock for ${item.id}: current=${currentStock}, new=${newStock}`);
+            }
+          } catch (stockErr) {
+            console.error(`Failed to deduct stock for product ${item.id}`, stockErr);
+          }
+        }
+
+        // Create notification for farmer
+        const notificationRef = doc(collection(db, 'notifications'));
+        await setDoc(notificationRef, {
+          id: notificationRef.id,
+          userId: farmerId,
+          title: 'New Order Sourced',
+          message: `You've received a fresh crop order of ${farmerItems.length} crops. Sourced Total: ₱${farmerTotal}`,
+          type: 'order',
+          relatedId: orderRef.id,
+          read: false,
+          createdAt: new Date().toISOString()
+        });
       }
 
       // Flush local caches to ensure immediate frontend reactivity
       localStorage.removeItem('shop_products_all');
       localStorage.removeItem('featured_products');
-
-      // Create notification for farmer
-      const notificationRef = doc(collection(db, 'notifications'));
-      await setDoc(notificationRef, {
-        id: notificationRef.id,
-        userId: farmerId,
-        title: 'New Order Sourced',
-        message: `You've received a fresh crop order of ${selectedItems.length} crops. Sourced Total: ₱${finalTotal}`,
-        type: 'order',
-        relatedId: orderRef.id,
-        read: false,
-        createdAt: new Date().toISOString()
-      });
 
       // Remove selected items from cart
       selectedItemIds.forEach(id => removeFromCart(id));
@@ -150,9 +169,11 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
         onClose();
         setIsCheckingOut(false);
         setStage('cart');
-      }, 3000);
+        alert(`Order Placed Successfully! Placed ${itemsByFarmer.size} separate orders grouped by each farmer.`);
+      }, 1500);
     } catch (err) {
       console.error(err);
+      alert("Failed to checkout. Please try again.");
     } finally {
       setLoading(false);
     }

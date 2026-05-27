@@ -327,6 +327,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await setDoc(doc(db, 'users', uid), adminProfile);
           setProfile(adminProfile);
           safeSetItem(`user_profile_${uid}`, JSON.stringify(adminProfile));
+        } else if (currentUser) {
+          // Stale auth session with missing/deleted profile document: Purge credentials so they can re-register
+          console.warn("User profile not found in database. Account has been deleted. Purging credentials...");
+          try {
+            const { deleteUser } = await import('firebase/auth');
+            await deleteUser(currentUser);
+          } catch (delErr) {
+            console.error("Failed to programmatically delete auth credentials, forcing logout:", delErr);
+            await signOut(auth);
+          }
+          localStorage.removeItem(`user_profile_${uid}`);
+          localStorage.removeItem('demo_user_session');
+          localStorage.removeItem('demo_profile_session');
+          setUser(null);
+          setProfile(null);
+          alert("Your account credentials or user profile has been deleted by an administrator. Your login has been cleared, and you can now register again under this email.");
+          window.location.href = '/';
         }
       }
     } catch (error) {

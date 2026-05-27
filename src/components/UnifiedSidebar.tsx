@@ -7,6 +7,7 @@ import {
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { useConfirm } from '../context/ConfirmContext';
 import { db } from '../lib/firebase';
 import { query, collection, where, onSnapshot } from 'firebase/firestore';
 
@@ -41,6 +42,7 @@ export const UnifiedSidebar: React.FC<UnifiedSidebarProps> = ({
 }) => {
   const { user, profile, logout } = useAuth();
   const { isOpen, setIsOpen } = useCart();
+  const { confirm } = useConfirm();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
 
@@ -510,7 +512,18 @@ export const UnifiedSidebar: React.FC<UnifiedSidebarProps> = ({
 
           {user && (
             <button 
-              onClick={logout}
+              onClick={async () => {
+                const confirmed = await confirm({
+                  title: 'Are you sure you want to logout???',
+                  message: 'You are logging out from your Farm To Home session. You will need to use your OTP next time you register or log in.',
+                  confirmText: 'Yes, Logout',
+                  cancelText: 'Cancel',
+                  type: 'logout'
+                });
+                if (confirmed) {
+                  logout();
+                }
+              }}
               title="Log Out"
               className="w-11 h-11 rounded-full flex items-center justify-center bg-white text-rose-500 shadow-sm border border-[#eceae3] hover:bg-rose-50 hover:border-rose-100 transition-all duration-300 shrink-0"
             >
@@ -547,7 +560,18 @@ export const UnifiedSidebar: React.FC<UnifiedSidebarProps> = ({
 
           {user && (
             <button 
-              onClick={logout}
+              onClick={async () => {
+                const confirmed = await confirm({
+                  title: 'Are you sure you want to logout???',
+                  message: 'You are logging out from your Farm To Home session. You will need to use your OTP next time you register or log in.',
+                  confirmText: 'Yes, Logout',
+                  cancelText: 'Cancel',
+                  type: 'logout'
+                });
+                if (confirmed) {
+                  logout();
+                }
+              }}
               className="w-full flex items-center gap-4 p-2 pl-2 pr-6 rounded-full transition-all duration-300 hover:bg-rose-50 border border-transparent hover:border-rose-100 font-medium text-rose-500 group"
             >
               <div className="w-11 h-11 rounded-full flex items-center justify-center bg-white text-rose-500 shadow-sm border border-[#eceae3] group-hover:scale-110 group-hover:text-rose-600 transition-all duration-300 shrink-0">

@@ -5,6 +5,7 @@ import { Post, UserProfile } from '../types';
 import { Heart, MessageCircle, Share2, MoreHorizontal, Send, Sparkles, Smile, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
+import { useConfirm } from '../context/ConfirmContext';
 
 interface EnrichedPost extends Post {
   farmer?: UserProfile;
@@ -22,6 +23,7 @@ interface EnrichedPost extends Post {
 
 export const SocialFeed: React.FC = () => {
   const { user, profile } = useAuth();
+  const { confirm } = useConfirm();
   const [posts, setPosts] = useState<EnrichedPost[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -179,7 +181,14 @@ export const SocialFeed: React.FC = () => {
   };
 
   const handleDeletePost = async (postId: string) => {
-    if (!confirm("Are you sure you want to delete this community post?")) return;
+    const confirmed = await confirm({
+      title: 'Delete community post?',
+      message: 'Are you sure you want to delete this community post??? This action cannot be undone and will remove it permanently.',
+      confirmText: 'Yes, Delete',
+      cancelText: 'Cancel',
+      type: 'danger'
+    });
+    if (!confirmed) return;
     try {
       const postRef = doc(db, 'posts', postId);
       await deleteDoc(postRef);

@@ -123,11 +123,26 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidOrder(incoming()) && isValidId(orderId) && orderId == incoming().id;
       allow update: if isSignedIn() && (
         isAdmin() || (
-          ( (isOwner(existing().buyerId) && incoming().status == 'cancelled' && incoming().diff(existing()).affectedKeys().hasOnly(['status'])) ||
-            (isOwner(existing().farmerId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'riderLocation', 'eta', 'updatedAt']))
-          ) && (existing().status != 'delivered' && existing().status != 'cancelled')
+          // Buyer-triggered Updates
+          isOwner(existing().buyerId) && (
+            // A. Buyer cancels the order (allowed keys: status, updatedAt, cancellationReason)
+            (incoming().status == 'cancelled' && 
+             incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'cancellationReason']) &&
+             existing().status != 'delivered' && existing().status != 'cancelled') ||
+            
+            // B. Buyer confirms delivery receipt (allowed keys: status, updatedAt)
+            (incoming().status == 'delivered' && 
+             incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+             existing().status != 'delivered' && existing().status != 'cancelled') ||
+            
+            // C. Buyer rates a delivered order (allowed keys: hasRated, updatedAt)
+            (existing().status == 'delivered' && 
+             incoming().diff(existing()).affectedKeys().hasOnly(['hasRated', 'updatedAt']))
+          )
         ) || (
-          isOwner(existing().buyerId) && existing().status == 'delivered' && incoming().diff(existing()).affectedKeys().hasOnly(['hasRated', 'updatedAt'])
+          // Farmer-triggered Updates (allowed keys: status, riderLocation, eta, updatedAt, cancellationReason, paymentStatus)
+          isOwner(existing().farmerId) && 
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'riderLocation', 'eta', 'updatedAt', 'cancellationReason', 'paymentStatus'])
         )
       );
     }

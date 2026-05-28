@@ -77,7 +77,7 @@ function generateMockResponse(message: string, language: string): string {
     return "Sorry, I can only assist you with Farm To Home related questions.";
   }
   
-  if (language === 'tagalog') {
+  if (language === 'tagalog' || language === 'tl') {
     if (msg.includes('order') || msg.includes('status') || msg.includes('track') || msg.includes('nasaan')) {
       return `Narito ang impormasyon sa iyong order:
 - **Order Tracking**: Maaari mong makita ang katayuan sa iyong Buyer Profile sa ilalim ng **My Purchases**.
@@ -451,11 +451,12 @@ async function startServer() {
   app.post("/api/gemini/support-chat", rateLimitMiddleware(10, 60000), async (req, res) => {
     let fallbackText = "Sorry, I'm having trouble understanding. Please ask again.";
     let userMessage = "";
-    let userLanguage = "english";
+    let userLanguage = "en";
     try {
-      const { message, language, history } = req.body || {};
+      const { message, language } = req.body;
+      const history = req.body.history;
       userMessage = message || "";
-      userLanguage = language || "english";
+      userLanguage = language || "en";
       console.log(`[Support Chat] New request: "${userMessage}" in ${userLanguage}`);
       
       fallbackText = generateMockResponse(userMessage, userLanguage);
@@ -566,32 +567,45 @@ async function startServer() {
         console.warn("[Support Chat] GEMINI_API_KEY is missing/invalid. Falling back to local offline smart response.");
         console.log(`[Support Chat] Returning fallback text: "${fallbackText.substring(0, 60)}..."`);
         return res.json({ success: true, text: fallbackText });
+      }      // Clean and map chat history to the structure the newer @google/genai SDK expects
+      let chatHistory = (history || []).map((msg: any) => {
+        const textVal = msg.parts?.[0]?.text || msg.text || "";
+        const roleVal = msg.role === 'model' || msg.role === 'bot' ? 'model' : 'user';
+        return {
+          role: roleVal,
+          parts: [{ text: textVal }]
+        };
+      });
+
+      // Gemini chats MUST start with a 'user' turn, so keep removing model turns at the beginning if any exist
+      while (chatHistory.length > 0 && chatHistory[0].role === 'model') {
+        chatHistory.shift();
       }
 
-      // Filter and map simple message history to the structure the newer @google/genai SDK expects
-      // High correctness: Gemini multi-turn chats MUST start with a 'user' turn
-      const filteredHistory = (history || []).filter((msg: any, idx: number) => {
-        if (idx === 0 && msg.role === 'bot') return false;
-        return true;
-      });
-
-      const chatHistory = filteredHistory.map((msg: any) => ({
-        role: msg.role === 'bot' ? 'model' : 'user',
-        parts: [{ text: msg.text || "" }]
-      }));
-
-      // Add the latest user message
-      chatHistory.push({
-        role: 'user',
-        parts: [{ text: userMessage }]
-      });
+      // If chatHistory is empty, construct a single-turn content array with the current message
+      if (chatHistory.length === 0) {
+        chatHistory.push({
+          role: 'user',
+          parts: [{ text: userMessage }]
+        });
+      } else {
+        // Ensure the last element in history corresponds to the current userMessage or we append it if missing
+        const lastMsg = chatHistory[chatHistory.length - 1];
+        if (lastMsg.role !== 'user' || lastMsg.parts[0]?.text !== userMessage) {
+          chatHistory.push({
+            role: 'user',
+            parts: [{ text: userMessage }]
+          });
+        }
+      }
 
       console.log(`[Support Chat] Sending history of ${chatHistory.length} turns to Gemini with rich live database context...`);
       const response = await client.models.generateContent({
         model: "gemini-3.5-flash",
         contents: chatHistory,
         config: {
-          systemInstruction: `You are the official FarmToHome genius assistant.
+          systemInstruction: `You are the official AI Assistant for the FarmToHome mobile app supporting local Filipino farmers and buyers. Keep answers concise for mobile views. Strictly obey the user's language preference ('en' for English, 'tl' for Tagalog/Taglish).
+
 You possess absolute, real-time knowledge of the entire FarmToHome application, database listings, community posts, reviews, and app features.
 
 PLATFORM PAGES & TARGET ROUTING CAPABILITY:
@@ -640,7 +654,7 @@ ${usersContext}
 IMPORTANT DIRECTIVES:
 - If a user asks "how many stocks of [crop name]", inspect the LIVE DATABASE LISTINGS above, match the crop, and report the EXACT stock quantity and price. Provide a product link like [View Cabbage](product:cabbage-id-xyz).
 - If a user asks "how many post of [crop name]", read the LIVE COMMUNITY FORUM POSTS above, count how many posts mention or talk about it, and report the exact quantity and details.
-- Always respond in ${userLanguage === 'tagalog' ? 'Tagalog' : 'English'}.
+- Active Language Setting: Current incoming language is '${userLanguage}'. Ensure your response perfectly matches this ('tl' -> Tagalog/Taglish, 'en' -> English).
 - Use Markdown formatting (bold, bullet points) for readable text layouts. Keep replies concise, helpful, and functionally useful.`
         }
       });

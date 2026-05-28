@@ -122,9 +122,9 @@ const renderSafeMessageContent = (text: string) => {
 export const AIChatbot: React.FC = () => {
   const { user, profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
-  const [language, setLanguage] = useState<'english' | 'tagalog'>('english');
-  const [messages, setMessages] = useState<{ role: 'user' | 'bot'; text: string }[]>([
-    { role: 'bot', text: "Hi! I'm your FarmToHome assistant. How can I help you today?" }
+  const [currentLanguage, setCurrentLanguage] = useState<'en' | 'tl'>('en');
+  const [messages, setMessages] = useState<{ role: 'user' | 'model'; parts: { text: string }[] }[]>([
+    { role: 'model', parts: [{ text: "Hi! I'm your FarmToHome assistant. How can I help you today?" }] }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -157,13 +157,13 @@ export const AIChatbot: React.FC = () => {
 
   // Update initial message when language changes
   useEffect(() => {
-    if (messages.length === 1 && messages[0].role === 'bot') {
-      const initialMsg = language === 'tagalog' 
+    if (messages.length === 1 && messages[0].role === 'model') {
+      const initialMsg = currentLanguage === 'tl' 
         ? "Kumusta! Ako ang iyong FarmToHome assistant. Paano kita matutulungan ngayon?"
         : "Hi! I'm your FarmToHome assistant. How can I help you today?";
-      setMessages([{ role: 'bot', text: initialMsg }]);
+      setMessages([{ role: 'model', parts: [{ text: initialMsg }] }]);
     }
-  }, [language]);
+  }, [currentLanguage]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -176,30 +176,31 @@ export const AIChatbot: React.FC = () => {
     if (!input.trim() || loading) return;
 
     const userMsg = input;
+    const updatedMessages = [...messages, { role: 'user' as const, parts: [{ text: userMsg }] }];
+    setMessages(updatedMessages);
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
     setLoading(true);
 
     try {
       const response = await fetch('/api/gemini/support-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userMsg,
-          language,
-          history: messages
+        body: JSON.stringify({ 
+          message: userMsg, 
+          language: currentLanguage,
+          history: updatedMessages
         })
       });
       const data = await response.json();
 
       if (data.success && data.text) {
-        setMessages(prev => [...prev, { role: 'bot', text: data.text }]);
+        setMessages(prev => [...prev, { role: 'model', parts: [{ text: data.text }] }]);
       } else {
-        setMessages(prev => [...prev, { role: 'bot', text: data.error || "I'm sorry, I couldn't process that. Can you try again?" }]);
+        setMessages(prev => [...prev, { role: 'model', parts: [{ text: data.error || "I'm sorry, I couldn't process that. Can you try again?" }] }]);
       }
     } catch (err) {
       console.error(err);
-      setMessages(prev => [...prev, { role: 'bot', text: "Sorry, I'm having trouble connecting right now. Please try again later." }]);
+      setMessages(prev => [...prev, { role: 'model', parts: [{ text: "Sorry, I'm having trouble connecting right now. Please try again later." }] }]);
     } finally {
       setLoading(false);
     }
@@ -285,14 +286,14 @@ export const AIChatbot: React.FC = () => {
                 {(profile?.role !== 'admin' || !isAdminPanelActive) && (
                   <div className="flex bg-white/10 rounded-lg p-0.5 mr-1 shrink-0">
                     <button 
-                      onClick={() => setLanguage('english')}
-                      className={`px-1.5 py-0.5 text-[9px] rounded-md transition-all select-none ${language === 'english' ? 'bg-white text-primary font-bold' : 'text-white hover:bg-white/5'}`}
+                      onClick={() => setCurrentLanguage('en')}
+                      className={`px-1.5 py-0.5 text-[9px] rounded-md transition-all select-none cursor-pointer ${currentLanguage === 'en' ? 'bg-white text-primary font-bold' : 'text-white hover:bg-white/5'}`}
                     >
                       EN
                     </button>
                     <button 
-                      onClick={() => setLanguage('tagalog')}
-                      className={`px-1.5 py-0.5 text-[9px] rounded-md transition-all select-none ${language === 'tagalog' ? 'bg-white text-primary font-bold' : 'text-white hover:bg-white/5'}`}
+                      onClick={() => setCurrentLanguage('tl')}
+                      className={`px-1.5 py-0.5 text-[9px] rounded-md transition-all select-none cursor-pointer ${currentLanguage === 'tl' ? 'bg-white text-primary font-bold' : 'text-white hover:bg-white/5'}`}
                     >
                       TL
                     </button>
@@ -367,16 +368,16 @@ export const AIChatbot: React.FC = () => {
                 <div ref={scrollRef} className="flex-grow overflow-y-auto p-4 space-y-4 bg-zinc-50">
                   {messages.map((m, i) => (
                     <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[90%] p-3 rounded-2xl text-sm shadow-sm ${
+                      <div className={`max-w-[85%] p-3 rounded-2xl text-sm shadow-sm break-words whitespace-pre-wrap ${
                         m.role === 'user' 
                           ? 'bg-primary text-white rounded-tr-none' 
                           : 'bg-white text-zinc-800 rounded-tl-none'
                       }`}>
                         {m.role === 'user' ? (
-                          m.text
+                          m.parts[0]?.text || ''
                         ) : (
                           <div className="chatbot-markdown max-w-none">
-                            {renderSafeMessageContent(m.text)}
+                            {renderSafeMessageContent(m.parts[0]?.text || '')}
                           </div>
                         )}
                       </div>
@@ -387,7 +388,7 @@ export const AIChatbot: React.FC = () => {
                       <div className="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin text-primary" />
                         <span className="text-xs text-zinc-400">
-                          {language === 'tagalog' ? "Nag-iisip..." : "Thinking..."}
+                          {currentLanguage === 'tl' ? "Nag-iisip..." : "Thinking..."}
                         </span>
                       </div>
                     </div>
@@ -399,7 +400,7 @@ export const AIChatbot: React.FC = () => {
                     type="text" 
                     value={input}
                     onChange={e => setInput(e.target.value)}
-                    placeholder={language === 'tagalog' ? "Mag-type ng mensahe..." : "Type a message..."}
+                    placeholder={currentLanguage === 'tl' ? "Mag-type ng mensahe..." : "Type a message..."}
                     className="flex-grow px-4 py-2 bg-zinc-150 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 bg-zinc-50"
                   />
                   <button 

@@ -279,7 +279,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
     setIsSavingProfile(true);
     try {
       const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
+      const updateData = {
         farmName: profileForm.farmName,
         contactNumber: profileForm.contactNumber,
         phone: profileForm.contactNumber,
@@ -288,7 +288,33 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
         primaryCrops: profileForm.primaryCrops,
         photoURL: profileForm.photoURL,
         farmStory: profileForm.farmStory,
-      });
+      };
+
+      // Clear local storage cache to bypass any stale reads
+      localStorage.removeItem(`user_profile_${user.uid}`);
+      
+      const isDemo = user.uid.startsWith('demo_');
+      if (isDemo) {
+        const storedDemoSession = localStorage.getItem('demo_profile_session');
+        if (storedDemoSession) {
+          try {
+            const parsed = JSON.parse(storedDemoSession);
+            const merged = { ...parsed, ...updateData };
+            localStorage.setItem('demo_profile_session', JSON.stringify(merged));
+          } catch (e) {}
+        }
+      }
+
+      if (!isDemo) {
+        await updateDoc(userRef, updateData);
+      } else {
+        try {
+          await setDoc(userRef, updateData, { merge: true });
+        } catch (e) {
+          console.warn("Firestore save skipped/failed for demo user:", e);
+        }
+      }
+
       await refreshProfile();
       alert("Account settings saved successfully!");
       handleCloseModal();

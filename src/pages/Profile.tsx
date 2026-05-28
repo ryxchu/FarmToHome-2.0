@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useConfirm } from '../context/ConfirmContext';
 import { PhotoEditorModal } from '../components/PhotoEditorModal';
-import { User, Mail, Phone, Shield, Calendar, MapPin, Award, X, Save, Loader2, Image as ImageIcon, Star, LogOut, Package, Clock } from 'lucide-react';
+import { User, Mail, Phone, Shield, Calendar, MapPin, Award, X, Save, Loader2, Image as ImageIcon, Star, LogOut, Package, Clock, Settings, Camera, RefreshCw, Sprout, ShoppingBag, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, auth } from '../lib/firebase';
-import { doc, updateDoc, collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
 
 enum OperationType {
   CREATE = 'create',
@@ -45,7 +45,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 }
 
 export const Profile: React.FC = () => {
-  const { profile, logout } = useAuth();
+  const { profile, logout, refreshProfile } = useAuth();
   const { confirm } = useConfirm();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -55,6 +55,21 @@ export const Profile: React.FC = () => {
   
   const [photoEditorOpen, setPhotoEditorOpen] = useState(false);
   const [tempImageSrc, setTempImageSrc] = useState('');
+  const [showPresetsInForm, setShowPresetsInForm] = useState(false);
+
+  const presetBuyerAvatars = [
+    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200&h=200", 
+    "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200&h=200", 
+    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200&h=200", 
+    "https://images.unsplash.com/photo-1628157582853-a796fa650a6a?auto=format&fit=crop&q=80&w=200&h=200"
+  ];
+
+  const presetFarmerAvatars = [
+    "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200&h=200", 
+    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200&h=200", 
+    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200&h=200", 
+    "https://images.unsplash.com/photo-1628157582853-a796fa650a6a?auto=format&fit=crop&q=80&w=200&h=200"
+  ];
   
   const [editForm, setEditForm] = useState({
     fullName: profile?.fullName || '',
@@ -160,7 +175,32 @@ export const Profile: React.FC = () => {
         updateData.certifications = editForm.certifications.split(',').map(s => s.trim()).filter(s => s !== '');
       }
 
-      await updateDoc(userRef, updateData);
+      // Clear local storage cache to bypass any stale reads
+      localStorage.removeItem(`user_profile_${profile.uid}`);
+      
+      const isDemo = profile.uid.startsWith('demo_');
+      if (isDemo) {
+        const storedDemoSession = localStorage.getItem('demo_profile_session');
+        if (storedDemoSession) {
+          try {
+            const parsed = JSON.parse(storedDemoSession);
+            const merged = { ...parsed, ...updateData };
+            localStorage.setItem('demo_profile_session', JSON.stringify(merged));
+          } catch (e) {}
+        }
+      }
+
+      if (!isDemo) {
+        await updateDoc(userRef, updateData);
+      } else {
+        try {
+          await setDoc(userRef, updateData, { merge: true });
+        } catch (e) {
+          console.warn("Firestore save skipped/failed for demo user:", e);
+        }
+      }
+      
+      await refreshProfile();
       setIsEditing(false);
     } catch (err: any) {
       setError(err.message);
@@ -198,77 +238,95 @@ export const Profile: React.FC = () => {
         className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 forest-shadow animate-fade-in"
       >
         {/* Banner */}
-        <div className="h-32 sm:h-44 bg-gradient-to-r from-emerald-800 to-primary relative overflow-hidden">
-          <div className="absolute inset-0 opacity-20">
-            <img src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=2000" className="w-full h-full object-cover grayscale" />
-          </div>
-          <div className="absolute -bottom-10 sm:-bottom-14 left-1/2 -translate-x-1/2 sm:left-12 sm:translate-x-0 p-1 bg-white rounded-2xl sm:rounded-3xl shadow-xl border-2 sm:border-4 border-accent-light">
-            <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-xl sm:rounded-2xl bg-accent-light flex items-center justify-center overflow-hidden border border-primary/5">
-              {profile.photoURL ? (
-                <img src={profile.photoURL} alt="Profile Picture" className="w-full h-full object-contain bg-slate-50" />
-              ) : (
-                <User className="w-10 h-10 sm:w-16 sm:h-16 text-primary opacity-20" />
-              )}
-            </div>
+        <div className="h-28 sm:h-36 bg-[#0c4128] relative overflow-hidden">
+          <div className="absolute inset-0">
+            <img 
+              src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=2000" 
+              className="w-full h-full object-cover opacity-35 mix-blend-luminosity brightness-75 contrast-125" 
+              alt="Vegetable pattern overlay"
+            />
+            {/* Soft dark-green gradient overlay for depth */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0c4128]/70 via-transparent to-[#0c4128]/10" />
           </div>
         </div>
 
-        <div className="pt-12 sm:pt-16 px-4 sm:px-8 md:px-12 pb-6 sm:pb-10 animate-fade-in">
-          <div className="flex flex-col md:flex-row justify-between items-center sm:items-start md:items-center gap-4 sm:gap-6 mb-6 sm:mb-8 text-center sm:text-left">
-            <div className="flex flex-col items-center sm:items-start w-full md:w-auto">
-              <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
-                <div className="w-1.5 h-8 bg-secondary rounded-full hidden sm:block" />
-                <h1 className="text-2xl sm:text-3.5xl md:text-4xl font-bold text-slate-800 tracking-tighter font-serif italic text-balance">{profile.fullName}</h1>
-              </div>
-              <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4">
-                <span className="px-4 py-1.5 bg-primary text-white text-[8.5px] sm:text-[9.5px] font-bold uppercase tracking-[0.3em] rounded-full shadow-md shadow-primary/20">
-                  {profile.role === 'buyer' ? 'Local Buyer' : 'Local Farmer'}
-                </span>
-                <span className="flex items-center gap-1.5 text-slate-400 text-[8.5px] sm:text-[9.5px] font-bold uppercase tracking-widest text-center">
-                  <MapPin className="w-3 h-3 text-primary shrink-0" />
-                  {profile.role === 'farmer' ? (profile.farmAddress || 'Farm Address Not Set') : (profile.address || 'Address Not Set')}
-                </span>
+        <div className="py-6 sm:py-10 px-6 sm:px-12 pb-6 sm:pb-10 animate-fade-in">
+          {/* Main profile row aligned in the white container */}
+          <div className="flex flex-col md:flex-row items-start gap-6 sm:gap-8 mb-8 pb-8 border-b border-stone-100 text-left w-full">
+            {/* Contained circular avatar at the top left of the white panel */}
+            <div className="p-1 bg-slate-55 rounded-full border border-stone-100 shadow-sm shrink-0 self-start">
+              <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full bg-accent-light flex items-center justify-center overflow-hidden border border-stone-100">
+                {profile.photoURL ? (
+                  <img 
+                    src={profile.photoURL} 
+                    alt="Profile Picture" 
+                    className="w-full h-full object-cover bg-slate-50 hover:scale-105 transition-transform duration-300" 
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <User className="w-10 h-10 sm:w-16 sm:h-16 text-primary opacity-20" />
+                )}
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto shrink-0">
-              <button 
-                onClick={openEdit}
-                className="group flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-3 bg-accent-light text-primary rounded-full font-bold border border-primary/10 hover:border-primary/25 transition-all active:scale-95 text-[9px] uppercase tracking-widest shadow-sm shrink-0 font-sans"
-              >
-                <Save className="w-3.5 h-3.5 group-hover:rotate-12 transition-transform" />
-                Edit Profile
-              </button>
-              <button 
-                onClick={async () => {
-                  const confirmed = await confirm({
-                    title: 'Are you sure you want to logout???',
-                    message: 'You are logging out from your Farm To Home session. You will need to use your OTP next time you register or log in.',
-                    confirmText: 'Yes, Logout',
-                    cancelText: 'Cancel',
-                    type: 'logout'
-                  });
-                  if (!confirmed) return;
-                  try {
-                    // Synchronously purge active local demo sessions
-                    localStorage.removeItem('demo_user_session');
-                    localStorage.removeItem('demo_profile_session');
-                    
-                    // Await standard and demo logout processes completely
-                    await logout();
-                    
-                    // Instantly redirect to the landing page to tear down and reset JS heap
-                    window.location.href = '/';
-                  } catch (e) {
-                    console.error("Sign out handling error:", e);
-                    // Clear state via state setter as safety fallback
-                    logout();
-                  }
-                }}
-                className="group flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-3 bg-rose-50 text-rose-600 rounded-full font-bold border border-rose-100 hover:border-rose-200 transition-all active:scale-95 text-[9px] uppercase tracking-widest shadow-sm shrink-0 font-sans"
-              >
-                <LogOut className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
-                Sign Out
-              </button>
+
+            {/* Profile key information and actions */}
+            <div className="flex-1 flex flex-col md:flex-row justify-between items-start gap-4 sm:gap-6 w-full">
+              <div className="flex flex-col items-start text-left">
+                <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+                  <div className="w-1.5 h-8 bg-emerald-950 rounded-full shrink-0" />
+                  <h1 className="text-2xl sm:text-3.5xl md:text-4xl font-bold text-slate-800 tracking-tighter font-serif italic text-balance">{profile.fullName}</h1>
+                </div>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
+                  <span className="px-4 py-1.5 bg-primary text-white text-[8.5px] sm:text-[9.5px] font-bold uppercase tracking-[0.3em] rounded-full shadow-md shadow-primary/20 shrink-0">
+                    {profile.role === 'buyer' ? 'Local Buyer' : 'Local Farmer'}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-slate-400 text-[8.5px] sm:text-[9.5px] font-bold uppercase tracking-widest text-left">
+                    <MapPin className="w-3 h-3 text-primary shrink-0" />
+                    {profile.role === 'farmer' ? (profile.farmAddress || 'Farm Address Not Set') : (profile.address || 'Address Not Set')}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-row items-center gap-2.5 w-full sm:w-auto shrink-0 mt-3 md:mt-0">
+                <button 
+                  onClick={openEdit}
+                  className="group flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-3 bg-accent-light text-primary rounded-full font-bold border border-primary/10 hover:border-primary/25 transition-all active:scale-95 text-[9px] uppercase tracking-widest shadow-sm font-sans cursor-pointer"
+                >
+                  <Save className="w-3.5 h-3.5 group-hover:rotate-12 transition-transform" />
+                  Edit Profile
+                </button>
+                <button 
+                  onClick={async () => {
+                    const confirmed = await confirm({
+                      title: 'Are you sure you want to logout???',
+                      message: 'You are logging out from your Farm To Home session. You will need to use your OTP next time you register or log in.',
+                      confirmText: 'Yes, Logout',
+                      cancelText: 'Cancel',
+                      type: 'logout'
+                    });
+                    if (!confirmed) return;
+                    try {
+                      // Synchronously purge active local demo sessions
+                      localStorage.removeItem('demo_user_session');
+                      localStorage.removeItem('demo_profile_session');
+                      
+                      // Await standard and demo logout processes completely
+                      await logout();
+                      
+                      // Instantly redirect to the landing page to tear down and reset JS heap
+                      window.location.href = '/';
+                    } catch (e) {
+                      console.error("Sign out handling error:", e);
+                      // Clear state via state setter as safety fallback
+                      logout();
+                    }
+                  }}
+                  className="group flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-3 bg-rose-50 text-rose-600 rounded-full font-bold border border-rose-100 hover:border-rose-200 transition-all active:scale-95 text-[9px] uppercase tracking-widest shadow-sm font-sans cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+                  Sign Out
+                </button>
+              </div>
             </div>
           </div>
 
@@ -468,44 +526,90 @@ export const Profile: React.FC = () => {
       {/* Edit Modal */}
       <AnimatePresence>
         {isEditing && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[999] bg-stone-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
             <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white w-full max-w-xl rounded-[2.5rem] overflow-hidden shadow-2xl border border-emerald-50 max-h-[90vh] overflow-y-auto no-scrollbar"
+              initial={{ y: "100%", opacity: 0.5 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: "100%", opacity: 0.5 }}
+              transition={{ type: "spring", damping: 26, stiffness: 210 }}
+              className="bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full sm:max-w-lg shadow-2xl flex flex-col overflow-hidden border border-slate-100 max-h-[90vh] md:max-h-[85vh]"
             >
-              <div className="p-8 sm:p-10">
-                <div className="flex justify-between items-center mb-8">
-                  <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Edit Profile</h2>
-                  <button 
-                    onClick={() => setIsEditing(false)} 
-                    className="p-2.5 bg-slate-50 hover:bg-slate-100 hover:text-slate-600 text-slate-400 rounded-full transition-all border border-slate-100"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+              {/* Header */}
+              <div className="flex justify-between items-center px-6 py-5 border-b border-stone-100 shrink-0">
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-slate-800 flex items-center gap-1.5 leading-none shadow-none">
+                    <Settings className="w-4 h-4 text-primary animate-spin-slow" /> Account Settings
+                  </h3>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                    {profile.role === 'buyer' ? 'Update delivery & primary contact details' : 'Update farm & primary contact details'}
+                  </p>
                 </div>
+                <button 
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="p-2 hover:bg-slate-50 active:scale-95 text-slate-400 hover:text-slate-600 rounded-full transition-all cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-                {error && (
-                  <div className="mb-6 p-4 bg-rose-50 border border-rose-100 text-rose-600 text-xs font-bold rounded-2xl flex items-center gap-2">
-                    <X className="w-4 h-4" /> {error}
+              {/* Form and Scroll Area */}
+              <form onSubmit={handleUpdate} className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto space-y-4 p-6 bg-slate-50/50 max-h-[60vh] md:max-h-[55vh]">
+                  {error && (
+                    <div className="p-4 bg-rose-50 border border-rose-100 text-rose-600 text-xs font-bold rounded-2xl flex items-center gap-2">
+                      <X className="w-4 h-4" /> {error}
+                    </div>
+                  )}
+
+                  {/* Identity Header Banner */}
+                  <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary shrink-0 animate-pulse">
+                      {profile.role === 'buyer' ? (
+                        <ShoppingBag className="w-5 h-5 stroke-[2.5]" />
+                      ) : (
+                        <Sprout className="w-5 h-5 stroke-[2.5]" />
+                      )}
+                    </div>
+                    <div className="text-left">
+                      <p className="text-[10px] font-black uppercase text-emerald-800 tracking-wider">
+                        {profile.role === 'buyer' ? 'Sourced Buyer Identity' : 'Operational Identity'}
+                      </p>
+                      <p className="text-[9px] text-emerald-600 font-medium leading-relaxed mt-0.5">
+                        {profile.role === 'buyer' 
+                          ? 'Let local farming families know where to deliver your harvest. Keep details up-to-date for seamless drop-offs.'
+                          : 'Let local chefs know who is preparing their harvest. Keep your details current to build trust.'}
+                      </p>
+                    </div>
                   </div>
-                )}
 
-                <form onSubmit={handleUpdate} className="space-y-6">
-                  {/* Photo Upload Section */}
-                  <div className="flex flex-col items-center gap-4 mb-8">
-                    <div className="relative group">
-                      <div className="w-24 h-24 rounded-3xl overflow-hidden bg-slate-100 border-2 border-slate-200">
+                  {/* Photo Upload Section with Presets */}
+                  <div className="space-y-2 text-center">
+                    <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-widest text-center">
+                      Profile Avatar
+                    </label>
+                    <div className="relative">
+                      <div 
+                        onClick={() => document.getElementById('profile-settings-file-input')?.click()}
+                        className="w-24 h-24 rounded-full bg-slate-100 border-2 border-emerald-500 relative flex items-center justify-center overflow-hidden mx-auto group cursor-pointer hover:ring-4 hover:ring-emerald-500/10 active:scale-95 transition-all shadow-md"
+                      >
                         {editForm.photoURL ? (
-                          <img src={editForm.photoURL} alt="Preview" className="w-full h-full object-contain bg-slate-50" />
+                          <img 
+                            src={editForm.photoURL} 
+                            alt="Avatar Preview" 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform" 
+                            referrerPolicy="no-referrer"
+                          />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-slate-300">
-                            <User className="w-10 h-10" />
+                          <div className="text-slate-400 group-hover:text-emerald-600 transition-colors flex flex-col items-center">
+                            <User className="w-8 h-8 stroke-[1.5]" />
+                            <span className="text-[8px] font-bold uppercase tracking-wider mt-1">Upload</span>
                           </div>
                         )}
+                        
                         <input 
-                          type="file" accept="image/*"
+                          type="file"
+                          id="profile-settings-file-input"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
@@ -518,120 +622,228 @@ export const Profile: React.FC = () => {
                             }
                             e.target.value = '';
                           }}
-                          className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                          accept="image/*"
+                          className="hidden"
                         />
-                      </div>
-                      <div className="absolute -bottom-2 -right-2 p-2 bg-primary text-white rounded-xl shadow-lg ring-4 ring-white">
-                        <ImageIcon className="w-4 h-4" />
+
+                        {/* Icon Overlay Badge representing camera action */}
+                        <div className="absolute bottom-0 right-0 bg-emerald-600 text-white p-1.5 rounded-full shadow hover:bg-emerald-700 transition-colors z-10">
+                          <Camera className="w-3.5 h-3.5 stroke-[2]" />
+                        </div>
                       </div>
                     </div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Change Photo</p>
+
+                    {/* Preselected Filipino / Local Avatars */}
+                    <div className="mt-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setShowPresetsInForm(!showPresetsInForm)}
+                        className="inline-flex items-center gap-1 text-[8.5px] font-black uppercase text-emerald-700 hover:text-emerald-800 tracking-wider bg-emerald-50/50 px-2.5 py-1 rounded-lg transition-all active:scale-95 cursor-pointer border border-emerald-100/55 mx-auto"
+                      >
+                        <RefreshCw className="w-2.5 h-2.5" />
+                        {showPresetsInForm ? "Hide Presets" : "Use Preset Avatar"}
+                      </button>
+
+                      {showPresetsInForm && (
+                        <div className="mt-2.5 p-2 bg-white rounded-xl border border-dashed border-slate-200 flex justify-center gap-3">
+                          {(profile.role === 'farmer' ? presetFarmerAvatars : presetBuyerAvatars).map((url, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                setEditForm(prev => ({ ...prev, photoURL: url }));
+                                setShowPresetsInForm(false);
+                              }}
+                              className={`w-9 h-9 rounded-full overflow-hidden border-2 transition-all hover:scale-110 active:scale-90 ${editForm.photoURL === url ? 'border-emerald-600 scale-105 shadow' : 'border-white hover:border-slate-300'}`}
+                            >
+                              <img src={url} alt={`Preset ${idx + 1}`} className="w-full h-full object-cover" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="group">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-2 px-1">Full Name</label>
+                  {/* Full Name Field */}
+                  <div className="space-y-1.5 text-left">
+                    <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-widest">
+                      Full Name
+                    </label>
+                    <div className="relative">
                       <input 
-                        type="text" value={editForm.fullName} 
-                        onChange={e => setEditForm({ ...editForm, fullName: e.target.value })}
+                        type="text" 
                         required
-                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:bg-white focus:outline-none transition-all" 
+                        value={editForm.fullName}
+                        onChange={(e) => setEditForm(v => ({ ...v, fullName: e.target.value }))}
+                        placeholder="e.g. Chef Andrea Delgado" 
+                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary transition-all text-slate-800"
+                        disabled={loading}
                       />
                     </div>
-                    <div className="group">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-2 px-1">Phone Number</label>
-                      <input 
-                        type="tel" value={editForm.phone} 
-                        onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
-                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:bg-white focus:outline-none transition-all" 
-                      />
-                    </div>
+                  </div>
 
-                    {profile.role !== 'farmer' && (
-                      <div className="group sm:col-span-2">
-                        <div className="flex justify-between items-center mb-2 px-1">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block">Delivery Address</label>
+                  {/* Phone Number Field */}
+                  <div className="space-y-1.5 text-left">
+                    <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-widest">
+                      Mobile Contact Number
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                        <Phone className="w-4 h-4" />
+                      </span>
+                      <input 
+                        type="tel" 
+                        required
+                        value={editForm.phone}
+                        onChange={(e) => setEditForm(v => ({ ...v, phone: e.target.value }))}
+                        placeholder="e.g. +63 917 123 4567" 
+                        className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary transition-all text-slate-800"
+                        disabled={loading}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Buyer Specific: Delivery Address */}
+                  {profile.role !== 'farmer' && (
+                    <div className="space-y-1.5 text-left">
+                      <div className="flex justify-between items-center">
+                        <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-widest">
+                          Delivery Logistics Address
+                        </label>
+                        <button 
+                          type="button" 
+                          onClick={() => detectLocation('address')}
+                          className="text-[9px] font-bold text-emerald-600 hover:text-emerald-700 uppercase tracking-widest hover:underline flex items-center gap-1"
+                          disabled={loading}
+                        >
+                          <MapPin className="w-3 h-3 text-emerald-600 animate-pulse" />
+                          {loading ? 'Detecting...' : 'Detect Location'}
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <span className="absolute left-4 top-3 text-slate-400">
+                          <MapPin className="w-4 h-4" />
+                        </span>
+                        <textarea 
+                          required
+                          rows={3}
+                          value={editForm.address}
+                          onChange={(e) => setEditForm(v => ({ ...v, address: e.target.value }))}
+                          placeholder="e.g. Suite 402, Green Bistro Building, Pasig City" 
+                          className="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary transition-all text-slate-800 resize-none leading-relaxed"
+                          disabled={loading}
+                        />
+                      </div>
+                      {editForm.coordinates && (
+                        <p className="mt-1 text-[8px] font-bold text-emerald-600 uppercase tracking-wider text-left leading-none">✨ Satellite navigation coordinates locked</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Farmer Specific: Farm Details */}
+                  {profile.role === 'farmer' && (
+                    <>
+                      {/* Farm Name */}
+                      <div className="space-y-1.5 text-left">
+                        <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-widest">
+                          Farm Name
+                        </label>
+                        <div className="relative">
+                          <input 
+                            type="text" 
+                            required
+                            value={editForm.farmName}
+                            onChange={(e) => setEditForm(v => ({ ...v, farmName: e.target.value }))}
+                            placeholder="e.g. Cordillera Greens Farm" 
+                            className="w-full px-4 py-3 bg-white border border-slate-205 rounded-xl text-xs font-semibold focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary transition-all text-slate-800"
+                            disabled={loading}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Farm Address */}
+                      <div className="space-y-1.5 text-left">
+                        <div className="flex justify-between items-center">
+                          <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-widest">
+                            Farm Logistics Address
+                          </label>
                           <button 
                             type="button" 
-                            onClick={() => detectLocation('address')}
-                            className="text-[9px] font-bold text-primary uppercase tracking-widest hover:underline flex items-center gap-1"
+                            onClick={() => detectLocation('farmAddress')}
+                            className="text-[9px] font-bold text-emerald-600 hover:text-emerald-700 uppercase tracking-widest hover:underline flex items-center gap-1"
+                            disabled={loading}
                           >
-                            <MapPin className="w-3 h-3" /> Detect Location
+                            <MapPin className="w-3 h-3 text-emerald-600 animate-pulse" />
+                            Detect Farm Location
                           </button>
                         </div>
-                        <input 
-                          type="text" value={editForm.address} 
-                          onChange={e => setEditForm({ ...editForm, address: e.target.value })}
-                          className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:bg-white focus:outline-none transition-all" 
-                        />
+                        <div className="relative">
+                          <span className="absolute left-4 top-3 text-slate-400">
+                            <MapPin className="w-4 h-4" />
+                          </span>
+                          <textarea 
+                            required
+                            rows={3}
+                            value={editForm.farmAddress}
+                            onChange={(e) => setEditForm(v => ({ ...v, farmAddress: e.target.value }))}
+                            placeholder="e.g. Sitio Benson, Ambassador, Tublay, Benguet" 
+                            className="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-205 rounded-xl text-xs font-semibold focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary transition-all text-slate-800 resize-none leading-relaxed"
+                            disabled={loading}
+                          />
+                        </div>
                         {editForm.coordinates && (
-                          <p className="mt-2 text-[9px] font-bold text-primary uppercase tracking-widest px-1">Location Coordinates Saved ✨</p>
+                          <p className="mt-1 text-[8px] font-bold text-emerald-600 uppercase tracking-wider text-left leading-none">✨ Coordinates synched with farm boundary</p>
                         )}
                       </div>
-                    )}
 
-                    {profile.role === 'farmer' && (
-                      <>
-                        <div className="group sm:col-span-2">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-2 px-1">Farm Name</label>
-                          <input 
-                            type="text" value={editForm.farmName} 
-                            onChange={e => setEditForm({ ...editForm, farmName: e.target.value })}
-                            className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:bg-white focus:outline-none transition-all" 
-                          />
-                        </div>
-                        <div className="group sm:col-span-2">
-                          <div className="flex justify-between items-center mb-2 px-1">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block">Farm Address</label>
-                            <button 
-                              type="button" 
-                              onClick={() => detectLocation('farmAddress')}
-                              className="text-[9px] font-bold text-primary uppercase tracking-widest hover:underline flex items-center gap-1"
-                            >
-                              <MapPin className="w-3 h-3" /> Detect Farm Location
-                            </button>
-                          </div>
-                          <input 
-                            type="text" value={editForm.farmAddress} 
-                            onChange={e => setEditForm({ ...editForm, farmAddress: e.target.value })}
-                            className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:bg-white focus:outline-none transition-all" 
-                          />
-                          {editForm.coordinates && (
-                            <p className="mt-2 text-[9px] font-bold text-primary uppercase tracking-widest px-1">Farm Coordinates Saved ✨</p>
-                          )}
-                        </div>
-                        <div className="group sm:col-span-2">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-2 px-1">Farm Story</label>
-                          <textarea 
-                            value={editForm.farmStory} 
-                            onChange={e => setEditForm({ ...editForm, farmStory: e.target.value })}
-                            className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:bg-white focus:outline-none transition-all h-24 resize-none"
-                            placeholder="Tell us about your farm's history and mission..."
-                          />
-                        </div>
-                        <div className="group">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-2 px-1">Farming Methods</label>
-                          <input 
-                            type="text" value={editForm.farmingMethods} 
-                            onChange={e => setEditForm({ ...editForm, farmingMethods: e.target.value })}
-                            className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:bg-white focus:outline-none transition-all"
-                            placeholder="e.g. Organic, Hydroponic" 
-                          />
-                        </div>
-                        <div className="group">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-2 px-1">Certifications</label>
-                          <input 
-                            type="text" value={editForm.certifications} 
-                            onChange={e => setEditForm({ ...editForm, certifications: e.target.value })}
-                            className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:bg-white focus:outline-none transition-all"
-                            placeholder="e.g. GAP Certified" 
-                          />
-                        </div>
-                      </>
-                    )}
-                  </div>
+                      {/* Farm Story */}
+                      <div className="space-y-1.5 text-left">
+                        <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-widest">
+                          Farmer's Story / Background
+                        </label>
+                        <textarea 
+                          value={editForm.farmStory} 
+                          onChange={(e) => setEditForm(v => ({ ...v, farmStory: e.target.value }))}
+                          rows={3}
+                          placeholder="Tell local chefs and home cooks about your farming mission..."
+                          className="w-full px-4 py-3 bg-white border border-slate-205 rounded-xl text-xs font-semibold focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary transition-all text-slate-800 h-24 resize-none leading-relaxed"
+                          disabled={loading}
+                        />
+                      </div>
 
-                  {/* Quick Mobile Log Out Section */}
+                      {/* Growing Methods */}
+                      <div className="space-y-1.5 text-left">
+                        <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-widest">
+                          Farming / Growing Methods
+                        </label>
+                        <input 
+                          type="text" 
+                          value={editForm.farmingMethods} 
+                          onChange={(e) => setEditForm(v => ({ ...v, farmingMethods: e.target.value }))}
+                          placeholder="e.g. Natural Pest-Control, Organic Fertilizer"
+                          className="w-full px-4 py-3 bg-white border border-slate-205 rounded-xl text-xs font-semibold focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary transition-all text-slate-800" 
+                          disabled={loading}
+                        />
+                      </div>
+
+                      {/* Certifications */}
+                      <div className="space-y-1.5 text-left">
+                        <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-widest">
+                          Cooperative Certifications
+                        </label>
+                        <input 
+                          type="text" 
+                          value={editForm.certifications} 
+                          onChange={(e) => setEditForm(v => ({ ...v, certifications: e.target.value }))}
+                          placeholder="e.g. GAP Certified, Cooperative Member"
+                          className="w-full px-4 py-3 bg-white border border-slate-205 rounded-xl text-xs font-semibold focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary transition-all text-slate-800"
+                          disabled={loading}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {/* Session Management (Logout is inside this scroll area for premium access too) */}
                   <div className="mt-6 pt-6 border-t border-slate-200/60 text-center">
                     <p className="text-[10px] font-black uppercase text-rose-500 tracking-widest mb-1">Session Management</p>
                     <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-3">Finished exploring local cooperative harvests?</p>
@@ -647,14 +859,9 @@ export const Profile: React.FC = () => {
                         });
                         if (!confirmed) return;
                         try {
-                          // Synchronously purge demo cache so page reload cannot restore the session
                           localStorage.removeItem('demo_user_session');
                           localStorage.removeItem('demo_profile_session');
-                          
-                          // Await standard and demo logout processes completely
                           await logout();
-                          
-                          // Force immediate browser redirect to landing page to wipe Javascript memory
                           window.location.href = '/';
                         } catch (e) {
                           console.error("Log out handling error:", e);
@@ -666,24 +873,36 @@ export const Profile: React.FC = () => {
                       <LogOut className="w-3.5 h-3.5" /> Log Out
                     </button>
                   </div>
+                </div>
 
-                  <div className="pt-6 flex gap-3">
-                    <button 
-                      type="button" onClick={() => setIsEditing(false)}
-                      className="flex-1 py-4 px-6 bg-slate-50 text-slate-600 rounded-[1.25rem] font-bold hover:bg-slate-100 transition-all"
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      type="submit" disabled={loading}
-                      className="flex-1 py-4 px-6 bg-primary text-white rounded-[1.25rem] font-bold shadow-xl shadow-primary/20 hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                      {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                      Save Changes
-                    </button>
-                  </div>
-                </form>
-              </div>
+                {/* Footer sticky action area matching exact Farmer style */}
+                <div className="p-4 bg-white border-t border-slate-100 flex gap-3.5 shrink-0">
+                  <button 
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-600 font-bold text-[10px] uppercase tracking-widest rounded-xl transition-all cursor-pointer border border-slate-200"
+                    disabled={loading}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10.5px] uppercase tracking-widest rounded-xl transition-all shadow-md shadow-emerald-600/10 flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white/35 border-t-white rounded-full animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4 stroke-[2.5]" /> Save Changes
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}

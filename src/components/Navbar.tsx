@@ -317,8 +317,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                         aria-label="Edit Profile"
                       >
                         <div className="w-full h-full rounded-lg overflow-hidden bg-primary/20 flex items-center justify-center">
-                          {user.photoURL || profile.photoURL ? (
-                            <img src={user.photoURL || profile.photoURL} alt="Avatar" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          {profile?.photoURL || user?.photoURL ? (
+                            <img src={profile?.photoURL || user?.photoURL} alt="Avatar" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                           ) : (
                             <User className="w-4 h-4 text-white" />
                           )}
@@ -448,8 +448,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                     <div className="w-12 h-12 rounded-[1.25rem] bg-accent-light p-1 group-hover/btn:scale-110 transition-all duration-500 shadow-sm border border-primary/5">
                       <div className="w-full h-full rounded-[1rem] bg-primary/20 flex items-center justify-center overflow-hidden">
-                        {user.photoURL ? (
-                          <img src={user.photoURL} alt="Avatar" className="w-full h-full object-contain bg-accent-light" />
+                        {profile?.photoURL || user?.photoURL ? (
+                          <img src={profile?.photoURL || user?.photoURL} alt="Avatar" className="w-full h-full object-cover" />
                         ) : (
                           <User className="w-5 h-5 text-primary" />
                         )}

@@ -358,8 +358,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    if (user) await fetchProfile(user.uid);
-  }, [user, fetchProfile]);
+    if (user) {
+      await fetchProfile(user.uid);
+    }
+    
+    if (simulatedUser) {
+      // Prioritize client-only simulation session cache so updates apply to the whole UI instantly
+      const savedDemoProfile = localStorage.getItem('demo_profile_session');
+      if (savedDemoProfile) {
+        try {
+          const parsed = JSON.parse(savedDemoProfile) as UserProfile;
+          setSimulatedProfile(parsed);
+        } catch (e) {
+          console.error("Failed to parse demo profile on refresh:", e);
+        }
+      }
+
+      try {
+        const snapshot = await getDoc(doc(db, 'users', simulatedUser.uid));
+        if (snapshot.exists()) {
+          const data = { ...snapshot.data(), uid: snapshot.id } as UserProfile;
+          setSimulatedProfile(data);
+          safeSetItem('demo_profile_session', JSON.stringify(data));
+        }
+      } catch (e) {
+        // No-op for simulated users without database records
+      }
+    }
+  }, [user, simulatedUser, fetchProfile]);
 
   useEffect(() => {
     const savedDemoUser = localStorage.getItem('demo_user_session');

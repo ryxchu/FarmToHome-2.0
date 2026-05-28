@@ -217,29 +217,31 @@ export const AIChatbot: React.FC = () => {
 
   return (
     <>
-      <button 
-        onClick={() => {
-          setIsOpen(true);
-          if (profile?.role === 'admin') {
-            setIsAdminPanelActive(true);
-          }
-        }}
-        className="fixed bottom-[90px] lg:bottom-8 right-4 lg:right-8 p-4 bg-primary text-white rounded-full shadow-2xl hover:scale-110 active:scale-95 transition-all z-[100] cursor-pointer"
-        id="floater-fab-btn"
-      >
-        {profile?.role === 'admin' ? (
-          <div className="relative">
-            <Bell className="w-6 h-6" />
-            {pendingFarmers.length > 0 && (
-              <span className="absolute -top-2 -right-2 bg-rose-500 text-white font-extrabold text-[10px] w-5 h-5 flex items-center justify-center rounded-full animate-bounce shadow-md">
-                {pendingFarmers.length}
-              </span>
-            )}
-          </div>
-        ) : (
-          <MessageCircle className="w-6 h-6" />
-        )}
-      </button>
+      {!isOpen && (
+        <button 
+          onClick={() => {
+            setIsOpen(true);
+            if (profile?.role === 'admin') {
+              setIsAdminPanelActive(true);
+            }
+          }}
+          className="fixed bottom-[90px] lg:bottom-8 right-4 lg:right-8 p-4 bg-primary text-white rounded-full shadow-2xl hover:scale-110 active:scale-95 transition-all z-[9999] cursor-pointer border-2 border-white"
+          id="floater-fab-btn"
+        >
+          {profile?.role === 'admin' ? (
+            <div className="relative">
+              <Bell className="w-6 h-6" />
+              {pendingFarmers.length > 0 && (
+                <span className="absolute -top-2 -right-2 bg-rose-500 text-white font-extrabold text-[10px] w-5 h-5 flex items-center justify-center rounded-full animate-bounce shadow-md">
+                  {pendingFarmers.length}
+                </span>
+              )}
+            </div>
+          ) : (
+            <MessageCircle className="w-6 h-6" />
+          )}
+        </button>
+      )}
 
       <AnimatePresence>
         {isOpen && (
@@ -247,7 +249,7 @@ export const AIChatbot: React.FC = () => {
             initial={{ opacity: 0, scale: 0.9, y: 100 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 100 }}
-            className="fixed bottom-[160px] lg:bottom-24 right-4 lg:right-8 w-full max-w-[calc(100%-2rem)] sm:max-w-[380px] h-[450px] sm:h-[500px] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden z-[100] border border-zinc-100"
+            className="fixed bottom-[160px] lg:bottom-24 right-4 lg:right-8 w-full max-w-[calc(100%-2rem)] sm:max-w-[380px] h-[450px] sm:h-[500px] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden z-[9999] border border-zinc-100"
           >
             {/* Header */}
             <div className="p-4 bg-primary text-white flex justify-between items-center sm:gap-1.5 shrink-0">
@@ -419,3 +421,5 @@ export const AIChatbot: React.FC = () => {
     </>
   );
 };
+
+export default AIChatbot;

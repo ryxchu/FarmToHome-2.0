@@ -7,6 +7,22 @@ import otpRouter from "./server/otpRouter";
 import { db } from "./src/lib/firebase";
 import { rateLimitMiddleware } from "./server/rateLimit";
 import { collection, getDocs, query, where, limit } from "firebase/firestore";
+import admin from "firebase-admin";
+import firebaseConfig from "./firebase-applet-config.json";
+
+let adminDb: any = null;
+try {
+  if (admin.apps.length === 0) {
+    admin.initializeApp({
+      projectId: firebaseConfig.projectId,
+    });
+  }
+  adminDb = firebaseConfig.firestoreDatabaseId
+    ? (admin as any).firestore(firebaseConfig.firestoreDatabaseId)
+    : admin.firestore();
+} catch (error) {
+  console.error("Failed to initialize firebase-admin SDK:", error);
+}
 
 const _cleanFilename = typeof import.meta !== "undefined" && import.meta.url
   ? fileURLToPath(import.meta.url)
@@ -506,60 +522,114 @@ async function startServer() {
       let reviewsContext = "Currently, there are no product reviews registered in our database.";
       let usersContext = "Currently, there are no users registered in our database.";
 
-      try {
-        const prodQuery = query(collection(db, 'products'), where('isPublished', '==', true), limit(100));
-        const prodSnapshot = await getDocs(prodQuery);
-        if (!prodSnapshot.empty) {
-          const prods = prodSnapshot.docs.map(doc => {
-            const d = doc.data();
-            return `- **Crop Name**: ${d.name}, **Price**: ₱${d.price}/unit, **Stock**: ${d.stock || 0} units, **Id**: ${doc.id}, **Category**: ${d.category || 'General'}, **Description**: ${d.description || ''}`;
-          });
-          productsContext = prods.join("\n");
+      if (adminDb) {
+        try {
+          const prodSnapshot = await adminDb.collection('products').where('isPublished', '==', true).limit(100).get();
+          if (!prodSnapshot.empty) {
+            const prods = prodSnapshot.docs.map((doc: any) => {
+              const d = doc.data();
+              return `- **Crop Name**: ${d.name}, **Price**: ₱${d.price}/unit, **Stock**: ${d.stock || 0} units, **Id**: ${doc.id}, **Category**: ${d.category || 'General'}, **Description**: ${d.description || ''}`;
+            });
+            productsContext = prods.join("\n");
+          }
+        } catch (err) {
+          console.error("[Support Chat] Failed to fetch live products catalog via firebase-admin:", err);
         }
-      } catch (err) {
-        console.error("[Support Chat] Failed to fetch live products catalog for context:", err);
-      }
 
-      try {
-        const postsQuery = query(collection(db, 'posts'), limit(100));
-        const postsSnapshot = await getDocs(postsQuery);
-        if (!postsSnapshot.empty) {
-          const posts = postsSnapshot.docs.map(doc => {
-            const d = doc.data();
-            return `- **Post ID**: ${doc.id}, **Title**: ${d.title || 'Untitled'}, **Content**: ${d.content || ''}, **Author**: ${d.authorName || 'Anonymous'}`;
-          });
-          postsContext = posts.join("\n");
+        try {
+          const postsSnapshot = await adminDb.collection('posts').limit(100).get();
+          if (!postsSnapshot.empty) {
+            const posts = postsSnapshot.docs.map((doc: any) => {
+              const d = doc.data();
+              return `- **Post ID**: ${doc.id}, **Title**: ${d.title || 'Untitled'}, **Content**: ${d.content || ''}, **Author**: ${d.authorName || 'Anonymous'}`;
+            });
+            postsContext = posts.join("\n");
+          }
+        } catch (err) {
+          console.error("[Support Chat] Failed to fetch live posts context via firebase-admin:", err);
         }
-      } catch (err) {
-        console.error("[Support Chat] Failed to fetch live posts context:", err);
-      }
 
-      try {
-        const reviewsQuery = query(collection(db, 'reviews'), limit(50));
-        const reviewsSnapshot = await getDocs(reviewsQuery);
-        if (!reviewsSnapshot.empty) {
-          const revs = reviewsSnapshot.docs.map(doc => {
-            const d = doc.data();
-            return `- **Review ID**: ${doc.id}, **Product ID**: ${d.productId}, **Rating**: ${d.rating} stars, **Comment**: ${d.comment || ''}, **Buyer**: ${d.buyerName || 'Buyer'}`;
-          });
-          reviewsContext = revs.join("\n");
+        try {
+          const reviewsSnapshot = await adminDb.collection('reviews').limit(50).get();
+          if (!reviewsSnapshot.empty) {
+            const revs = reviewsSnapshot.docs.map((doc: any) => {
+              const d = doc.data();
+              return `- **Review ID**: ${doc.id}, **Product ID**: ${d.productId}, **Rating**: ${d.rating} stars, **Comment**: ${d.comment || ''}, **Buyer**: ${d.buyerName || 'Buyer'}`;
+            });
+            reviewsContext = revs.join("\n");
+          }
+        } catch (err) {
+          console.error("[Support Chat] Failed to fetch live reviews context via firebase-admin:", err);
         }
-      } catch (err) {
-        console.error("[Support Chat] Failed to fetch live reviews context:", err);
-      }
 
-      try {
-        const usersQuery = query(collection(db, 'users'), limit(50));
-        const usersSnapshot = await getDocs(usersQuery);
-        if (!usersSnapshot.empty) {
-          const users = usersSnapshot.docs.map(doc => {
-            const d = doc.data();
-            return `- **User**: ${d.fullName || d.email || 'Anonymous'}, **Role**: ${d.role || 'buyer'}, **Status**: ${d.status || 'unverified'}, **ID**: ${doc.id}`;
-          });
-          usersContext = users.join("\n");
+        try {
+          const usersSnapshot = await adminDb.collection('users').limit(50).get();
+          if (!usersSnapshot.empty) {
+            const users = usersSnapshot.docs.map((doc: any) => {
+              const d = doc.data();
+              return `- **User**: ${d.fullName || d.email || 'Anonymous'}, **Role**: ${d.role || 'buyer'}, **Status**: ${d.status || 'unverified'}, **ID**: ${doc.id}`;
+            });
+            usersContext = users.join("\n");
+          }
+        } catch (err) {
+          console.error("[Support Chat] Failed to fetch live users context via firebase-admin:", err);
         }
-      } catch (err) {
-        console.error("[Support Chat] Failed to fetch live users context:", err);
+      } else {
+        try {
+          const prodQuery = query(collection(db, 'products'), where('isPublished', '==', true), limit(100));
+          const prodSnapshot = await getDocs(prodQuery);
+          if (!prodSnapshot.empty) {
+            const prods = prodSnapshot.docs.map(doc => {
+              const d = doc.data();
+              return `- **Crop Name**: ${d.name}, **Price**: ₱${d.price}/unit, **Stock**: ${d.stock || 0} units, **Id**: ${doc.id}, **Category**: ${d.category || 'General'}, **Description**: ${d.description || ''}`;
+            });
+            productsContext = prods.join("\n");
+          }
+        } catch (err) {
+          console.error("[Support Chat] Failed to fetch live products catalog for context:", err);
+        }
+
+        try {
+          const postsQuery = query(collection(db, 'posts'), limit(100));
+          const postsSnapshot = await getDocs(postsQuery);
+          if (!postsSnapshot.empty) {
+            const posts = postsSnapshot.docs.map(doc => {
+              const d = doc.data();
+              return `- **Post ID**: ${doc.id}, **Title**: ${d.title || 'Untitled'}, **Content**: ${d.content || ''}, **Author**: ${d.authorName || 'Anonymous'}`;
+            });
+            postsContext = posts.join("\n");
+          }
+        } catch (err) {
+          console.error("[Support Chat] Failed to fetch live posts context:", err);
+        }
+
+        try {
+          const reviewsQuery = query(collection(db, 'reviews'), limit(50));
+          const reviewsSnapshot = await getDocs(reviewsQuery);
+          if (!reviewsSnapshot.empty) {
+            const revs = reviewsSnapshot.docs.map(doc => {
+              const d = doc.data();
+              return `- **Review ID**: ${doc.id}, **Product ID**: ${d.productId}, **Rating**: ${d.rating} stars, **Comment**: ${d.comment || ''}, **Buyer**: ${d.buyerName || 'Buyer'}`;
+            });
+            reviewsContext = revs.join("\n");
+          }
+        } catch (err) {
+          console.error("[Support Chat] Failed to fetch live reviews context:", err);
+        }
+
+        try {
+          const usersQuery = query(collection(db, 'users'), limit(50));
+          const usersSnapshot = await getDocs(usersQuery);
+          if (!usersSnapshot.empty) {
+            const users = usersSnapshot.docs.map(doc => {
+              const d = doc.data();
+              return `- **User**: ${d.fullName || d.email || 'Anonymous'}, **Role**: ${d.role || 'buyer'}, **Status**: ${d.status || 'unverified'}, **ID**: ${doc.id}`;
+            });
+            usersContext = users.join("\n");
+          }
+        } catch (err) {
+          console.error("[Support Chat] Failed to fetch live users context:", err);
+        }
       }
 
       const client = getGeminiClient();

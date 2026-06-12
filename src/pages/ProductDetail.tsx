@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useCart } from '../context/CartContext';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../context/AuthContext';
+import { getProductHighlights } from '../lib/utils';
 
 interface ProductDetailProps {
   productId: string;
@@ -235,7 +236,16 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onBack,
         {/* Info */}
         <div className="flex flex-col py-2">
           <div className="mb-3">
-            <span className="inline-block py-0.5 px-2 bg-emerald-50 text-emerald-600 text-[8.5px] font-bold rounded-md mb-1.5 uppercase tracking-widest border border-emerald-100">{product.category}</span>
+            <div className="flex flex-wrap gap-2 items-center mb-1.5">
+              <span className="inline-block py-0.5 px-2 bg-emerald-50 text-emerald-600 text-[8.5px] font-bold rounded-md uppercase tracking-widest border border-emerald-100">{product.category}</span>
+              {/* Dynamic Highlights from Description */}
+              {getProductHighlights(product.description || '', product.category).map((tag, idx) => (
+                <span key={idx} className="inline-block py-0.5 px-2 bg-slate-50 text-slate-600 text-[8.5px] font-bold rounded-md uppercase tracking-widest border border-slate-200">
+                  {tag}
+                </span>
+              ))}
+            </div>
+            
             <h1 className="text-xl sm:text-3xl font-extrabold text-slate-800 tracking-tighter leading-tight mb-1">{product.name}</h1>
             <div className="flex items-center gap-1.5">
               {[...Array(5)].map((_ , i) => (
@@ -245,9 +255,19 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onBack,
             </div>
           </div>
 
-          <div className="mb-3 flex items-baseline gap-1.5">
-            <p className="text-2xl font-bold text-slate-800 tracking-tighter">₱{product.price}</p>
-            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">per {product.unit}</p>
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-baseline gap-1.5">
+              <p className="text-2xl font-bold text-slate-800 tracking-tighter">₱{product.price}</p>
+              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">per {product.unit}</p>
+            </div>
+            
+            {/* Unified Available Stock Banner on Detail Page */}
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${product.stock > 0 ? (product.stock <= 10 ? 'bg-amber-500 animate-pulse' : 'bg-primary animate-pulse') : 'bg-rose-500'}`} />
+              <span className={`text-[10px] font-bold uppercase tracking-widest ${product.stock > 0 ? (product.stock <= 10 ? 'text-amber-600 font-black' : 'text-slate-500') : 'text-rose-500 font-black'}`}>
+                {product.stock > 0 ? `${product.stock} ${product.unit}${product.stock > 1 && product.unit !== 'kg' ? 's' : ''} left` : 'Sold Out'}
+              </span>
+            </div>
           </div>
 
           {/* Action Row - Placed directly under price for immediate checkout! */}

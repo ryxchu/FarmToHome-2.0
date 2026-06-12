@@ -306,7 +306,16 @@ export const UnifiedSidebar: React.FC<UnifiedSidebarProps> = ({
   ];
 
   return (
-    <aside className={`hidden lg:flex ${isCollapsed ? 'w-20 px-3 py-6' : 'w-72 p-6'} bg-[#F5F4F0] border-r border-[#eceae3] flex-col shrink-0 h-full select-none transition-all duration-300 relative`}>
+    <>
+      {/* Dummy Placeholder to preserve layout space */}
+      <div 
+        className={`hidden lg:block shrink-0 transition-all duration-300 ${
+          isCollapsed ? 'w-20' : 'w-72'
+        } h-full pointer-events-none opacity-0`}
+      />
+
+      {/* Real Fixed Sidebar */}
+      <aside className={`hidden lg:flex ${isCollapsed ? 'w-20 px-3 py-6' : 'w-72 p-6'} bg-white border-r border-[#eceae3] flex-col shrink-0 h-[calc(100vh-64px)] md:h-[calc(100vh-80px)] fixed left-0 top-16 md:top-20 z-30 select-none overflow-hidden transition-all duration-300`}>
       {/* Brand Logo Header */}
       {isCollapsed ? (
         <div className="flex flex-col items-center gap-3 mb-10 mt-2">
@@ -343,7 +352,7 @@ export const UnifiedSidebar: React.FC<UnifiedSidebarProps> = ({
       )}
 
       {/* Main Role Navigation Section */}
-      <div className={`flex-1 overflow-y-auto no-scrollbar space-y-8 pr-1 ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
+      <div className={`flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-8 pr-1 ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
         {isCollapsed ? (
           <nav className="space-y-4 w-full flex flex-col items-center">
             {navItems.map((item: any) => {
@@ -585,5 +594,6 @@ export const UnifiedSidebar: React.FC<UnifiedSidebarProps> = ({
         </div>
       )}
     </aside>
+    </>
   );
 };

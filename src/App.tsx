@@ -86,6 +86,103 @@ function AppContent() {
   const [highlightedOrderId, setHighlightedOrderId] = useState<string | null>(null);
   const [farmerProfileModalOpen, setFarmerProfileModalOpen] = useState(false);
 
+  const renderFooterComponent = () => {
+    return (
+      <footer className={`bg-stone-900 text-stone-100 pt-16 ${user ? 'pb-28' : 'pb-10'} md:pb-10 px-8 mt-auto relative overflow-hidden border-t border-stone-800 w-full shrink-0`}>
+        <div className="absolute bottom-0 left-0 w-[40vw] h-[40vw] bg-primary/5 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/4" />
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 relative z-10 text-center md:text-left">
+          <div className="col-span-1 md:col-span-2 flex flex-col items-center md:items-start">
+            <div 
+              className="h-16 mb-4 cursor-pointer flex items-center justify-center md:justify-start" 
+              onClick={() => {
+                if (user) {
+                  if (profile?.role === 'admin') setCurrentView('admin-dashboard');
+                  else if (profile?.role === 'farmer') setCurrentView('dashboard');
+                  else setCurrentView('home');
+                } else {
+                  setCurrentView('landing');
+                }
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            >
+              <img 
+                src="/logo.png" 
+                alt="FarmToHome Logo" 
+                className="h-full w-auto object-contain brightness-0 invert opacity-90" 
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  const parent = e.currentTarget.parentElement;
+                  if (parent && !parent.querySelector('h3')) {
+                    const h3 = document.createElement('h3');
+                    h3.className = "text-2xl font-bold tracking-tighter font-serif italic text-accent";
+                    h3.innerText = 'FarmToHome';
+                    parent.appendChild(h3);
+                  }
+                }}
+              />
+            </div>
+            <p className="text-stone-400 max-w-sm leading-relaxed mb-6 text-xs md:text-sm">Connecting local farms directly to your home. Fresh produce, straight to your door.</p>
+            <div className="flex gap-4 justify-center md:justify-start">
+              <div 
+                className="w-10 h-10 rounded-xl bg-stone-800/80 border border-stone-700/50 flex items-center justify-center hover:bg-stone-700 transition-all cursor-pointer group shadow-inner"
+                onClick={() => {
+                  if (user) {
+                    if (profile?.role === 'admin') setCurrentView('admin-dashboard');
+                    else if (profile?.role === 'farmer') setCurrentView('dashboard');
+                    else setCurrentView('home');
+                  } else {
+                    setCurrentView('landing');
+                  }
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              >
+                <Sprout className="w-4 h-4 group-hover:rotate-12 transition-transform text-accent" />
+              </div>
+              <div 
+                className="w-10 h-10 rounded-xl bg-stone-800/80 border border-stone-700/50 flex items-center justify-center hover:bg-stone-700 transition-all cursor-pointer group shadow-inner"
+                onClick={() => {
+                  setCurrentView('home');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  setTimeout(() => {
+                    const searchBox = document.querySelector('input[placeholder*="Search"]');
+                    if (searchBox) {
+                      (searchBox as HTMLInputElement).focus();
+                    }
+                  }, 150);
+                }}
+              >
+                <Search className="w-4 h-4 group-hover:scale-110 transition-transform text-accent" />
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col items-center md:items-start">
+            <h4 className="text-[10px] font-bold uppercase tracking-[0.4em] mb-4 text-accent/80">The Platform</h4>
+            <ul className="space-y-3.5 text-stone-400 font-bold text-[9px] uppercase tracking-widest">
+              <li className="hover:text-accent cursor-pointer transition-colors" onClick={() => { setInfoModalSection('stories'); setShowInfoModal(true); }}>Our Stories</li>
+              <li className="hover:text-accent cursor-pointer transition-colors" onClick={() => { setInfoModalSection('care'); setShowInfoModal(true); }}>Product Care</li>
+              <li className="hover:text-accent cursor-pointer transition-colors" onClick={() => { setInfoModalSection('impact'); setShowInfoModal(true); }}>Community Impact</li>
+              <li className="hover:text-accent cursor-pointer transition-colors" onClick={() => { setInfoModalSection('map'); setShowInfoModal(true); }}>Farm Map</li>
+            </ul>
+          </div>
+          <div className="flex flex-col items-center md:items-start">
+            <h4 className="text-[10px] font-bold uppercase tracking-[0.4em] mb-4 text-accent/80 cursor-pointer hover:underline" onClick={() => { setInfoModalSection('contact'); setShowInfoModal(true); }}>Contact</h4>
+            <p className="text-stone-200 font-bold mb-1.5 tracking-tight text-sm cursor-pointer hover:text-accent transition-colors" onClick={() => { setInfoModalSection('contact'); setShowInfoModal(true); }}>farmtohomee11@gmail.com</p>
+            <p className="text-stone-200 font-bold mb-4 tracking-tight text-sm cursor-pointer hover:text-accent transition-colors" onClick={() => { setInfoModalSection('contact'); setShowInfoModal(true); }}>09193604094</p>
+            <p className="text-stone-500 text-[8.5px] font-bold uppercase tracking-widest leading-relaxed">Manila Base • Support Network for Local Agriculture</p>
+          </div>
+        </div>
+        <div className="max-w-7xl mx-auto border-t border-stone-800/80 mt-12 pt-6 flex flex-col md:flex-row justify-between items-center gap-4 text-stone-500 text-[8.5px] font-bold uppercase tracking-[0.3em]">
+          <span>© 2026 Local Farmers Network.</span>
+          <div className="flex flex-wrap justify-center gap-6">
+            <span className="hover:text-stone-300 cursor-pointer transition-colors" onClick={() => { setInfoModalSection('about'); setShowInfoModal(true); }}>About Us</span>
+            <span className="hover:text-stone-300 cursor-pointer transition-colors" onClick={() => { setInfoModalSection('guidelines'); setShowInfoModal(true); }}>Guidelines</span>
+            <span className="hover:text-stone-300 cursor-pointer transition-colors" onClick={() => { setInfoModalSection('certifications'); setShowInfoModal(true); }}>Certification</span>
+          </div>
+        </div>
+      </footer>
+    );
+  };
+
   useEffect(() => {
     const handleInterrupt = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -412,74 +509,89 @@ function AppContent() {
 
               <main className={`flex-1 flex flex-col no-scrollbar ${
                 currentView === 'messages' 
-                  ? 'h-full overflow-hidden p-0' 
-                  : 'p-4 sm:p-8 lg:p-12 pb-28 md:pb-12 overflow-y-auto'
+                  ? 'h-full overflow-hidden' 
+                  : 'overflow-y-auto bg-[#FAF9F5]'
               }`}>
-                {user && profile?.role === 'farmer' && currentView === 'dashboard' ? (
-                  <FarmerDashboard 
-                    onEditProfile={() => setFarmerProfileModalOpen(true)} 
-                    showProfileFormProp={farmerProfileModalOpen}
-                    onCloseProfileForm={() => setFarmerProfileModalOpen(false)}
-                    activeTabProp={dashboardTab} 
-                    onTabChange={setDashboardTab}
-                    highlightedOrderId={highlightedOrderId}
-                    onClearHighlightedOrder={() => setHighlightedOrderId(null)}
-                  />
-                ) : user && profile?.role === 'admin' && currentView === 'admin-dashboard' ? (
-                  <AdminDashboard activeTabProp={adminTab} onTabChange={setAdminTab} />
-                ) : (
-                  <>
-                    {currentView === 'home' && (
-                      <BuyerHome 
-                        category={selectedCategory}
-                        onCategoryChange={setSelectedCategory}
-                        searchQuery={searchQuery}
-                        onSearch={setSearchQuery}
-                        viewMode={marketViewMode}
-                        onViewModeChange={setMarketViewMode}
-                        userCoords={userCoords}
-                        nearMeOnly={nearMeEnabled}
-                        onProductClick={(id) => {
-                          setSelectedProductId(id);
-                          setCurrentView('product');
-                        }} 
-                      />
-                    )}
-                    {currentView === 'admin-dashboard' && profile?.role === 'admin' && (
-                      <AdminDashboard activeTabProp={adminTab} onTabChange={setAdminTab} />
-                    )}
-                  </>
-                )}
-                
-                {currentView === 'product' && selectedProductId && (
-                  <ProductDetail 
-                    productId={selectedProductId} 
-                    onBack={() => setCurrentView('home')} 
-                    onFarmerClick={(farmerId) => {
-                      setSelectedFarmerId(farmerId);
-                      setCurrentView('farmer-profile');
-                    }}
-                  />
-                )}
-                {currentView === 'farmer-profile' && selectedFarmerId && (
-                  <FarmerProfile 
-                    farmerId={selectedFarmerId} 
-                    onBack={() => setCurrentView('product')}
-                    onProductClick={(productId) => {
-                      setSelectedProductId(productId);
-                      setCurrentView('product');
-                    }}
-                  />
-                )}
-                {currentView === 'tracking' && (
-                  <OrderTracking onBack={() => setCurrentView('home')} />
-                )}
-                {currentView === 'profile' && (
-                  <Profile />
-                )}
-                {currentView === 'messages' && (
-                  <Messages setView={setCurrentView} />
-                )}
+                <div className={`flex-1 flex flex-col ${
+                  currentView === 'messages'
+                    ? 'p-0 h-full'
+                    : 'p-4 sm:p-8 lg:p-12 pb-28 md:pb-12'
+                }`}>
+                  {user && profile?.role === 'farmer' && currentView === 'dashboard' ? (
+                    <FarmerDashboard 
+                      onEditProfile={() => setFarmerProfileModalOpen(true)} 
+                      showProfileFormProp={farmerProfileModalOpen}
+                      onCloseProfileForm={() => setFarmerProfileModalOpen(false)}
+                      activeTabProp={dashboardTab} 
+                      onTabChange={setDashboardTab}
+                      highlightedOrderId={highlightedOrderId}
+                      onClearHighlightedOrder={() => setHighlightedOrderId(null)}
+                    />
+                  ) : user && profile?.role === 'admin' && currentView === 'admin-dashboard' ? (
+                    <AdminDashboard activeTabProp={adminTab} onTabChange={setAdminTab} />
+                  ) : (
+                    <>
+                      {currentView === 'home' && (
+                        <BuyerHome 
+                          category={selectedCategory}
+                          onCategoryChange={setSelectedCategory}
+                          searchQuery={searchQuery}
+                          onSearch={setSearchQuery}
+                          viewMode={marketViewMode}
+                          onViewModeChange={setMarketViewMode}
+                          userCoords={userCoords}
+                          nearMeOnly={nearMeEnabled}
+                          onProductClick={(id) => {
+                            setSelectedProductId(id);
+                            setCurrentView('product');
+                          }} 
+                        />
+                      )}
+                      {currentView === 'admin-dashboard' && profile?.role === 'admin' && (
+                        <AdminDashboard activeTabProp={adminTab} onTabChange={setAdminTab} />
+                      )}
+                    </>
+                  )}
+                  
+                  {currentView === 'product' && selectedProductId && (
+                    <ProductDetail 
+                      productId={selectedProductId} 
+                      onBack={() => setCurrentView('home')} 
+                      onFarmerClick={(farmerId) => {
+                        setSelectedFarmerId(farmerId);
+                        setCurrentView('farmer-profile');
+                      }}
+                    />
+                  )}
+                  {currentView === 'farmer-profile' && selectedFarmerId && (
+                    <FarmerProfile 
+                      farmerId={selectedFarmerId} 
+                      onBack={() => setCurrentView('product')}
+                      onProductClick={(productId) => {
+                        setSelectedProductId(productId);
+                        setCurrentView('product');
+                      }}
+                    />
+                  )}
+                  {currentView === 'tracking' && (
+                    <OrderTracking onBack={() => setCurrentView('home')} />
+                  )}
+                  {currentView === 'profile' && (
+                    <Profile />
+                  )}
+                  {currentView === 'messages' && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="h-full"
+                    >
+                      <Messages setView={setCurrentView} />
+                    </motion.div>
+                  )}
+                </div>
+
+                {currentView !== 'messages' && renderFooterComponent()}
               </main>
             </div>
             </>
@@ -531,98 +643,7 @@ function AppContent() {
         />
       )}
       
-      <footer className={`bg-stone-900 text-stone-100 pt-16 ${user ? 'pb-28' : 'pb-10'} md:pb-10 px-8 mt-auto relative overflow-hidden border-t border-stone-800`}>
-        <div className="absolute bottom-0 left-0 w-[40vw] h-[40vw] bg-primary/5 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/4" />
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 relative z-10 text-center md:text-left">
-          <div className="col-span-1 md:col-span-2 flex flex-col items-center md:items-start">
-            <div 
-              className="h-16 mb-4 cursor-pointer flex items-center justify-center md:justify-start" 
-              onClick={() => {
-                if (user) {
-                  if (profile?.role === 'admin') setCurrentView('admin-dashboard');
-                  else if (profile?.role === 'farmer') setCurrentView('dashboard');
-                  else setCurrentView('home');
-                } else {
-                  setCurrentView('landing');
-                }
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-            >
-              <img 
-                src="/logo.png" 
-                alt="FarmToHome Logo" 
-                className="h-full w-auto object-contain brightness-0 invert opacity-90" 
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                  const parent = e.currentTarget.parentElement;
-                  if (parent && !parent.querySelector('h3')) {
-                    const h3 = document.createElement('h3');
-                    h3.className = "text-2xl font-bold tracking-tighter font-serif italic text-accent";
-                    h3.innerText = 'FarmToHome';
-                    parent.appendChild(h3);
-                  }
-                }}
-              />
-            </div>
-            <p className="text-stone-400 max-w-sm leading-relaxed mb-6 text-xs md:text-sm">Connecting local farms directly to your home. Fresh produce, straight to your door.</p>
-            <div className="flex gap-4 justify-center md:justify-start">
-              <div 
-                className="w-10 h-10 rounded-xl bg-stone-800/80 border border-stone-700/50 flex items-center justify-center hover:bg-stone-700 transition-all cursor-pointer group shadow-inner"
-                onClick={() => {
-                  if (user) {
-                    if (profile?.role === 'admin') setCurrentView('admin-dashboard');
-                    else if (profile?.role === 'farmer') setCurrentView('dashboard');
-                    else setCurrentView('home');
-                  } else {
-                    setCurrentView('landing');
-                  }
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              >
-                <Sprout className="w-4 h-4 group-hover:rotate-12 transition-transform text-accent" />
-              </div>
-              <div 
-                className="w-10 h-10 rounded-xl bg-stone-800/80 border border-stone-700/50 flex items-center justify-center hover:bg-stone-700 transition-all cursor-pointer group shadow-inner"
-                onClick={() => {
-                  setCurrentView('home');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                  setTimeout(() => {
-                    const searchBox = document.querySelector('input[placeholder*="Search"]');
-                    if (searchBox) {
-                      (searchBox as HTMLInputElement).focus();
-                    }
-                  }, 150);
-                }}
-              >
-                <Search className="w-4 h-4 group-hover:scale-110 transition-transform text-accent" />
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col items-center md:items-start">
-            <h4 className="text-[10px] font-bold uppercase tracking-[0.4em] mb-4 text-accent/80">The Platform</h4>
-            <ul className="space-y-3.5 text-stone-400 font-bold text-[9px] uppercase tracking-widest">
-              <li className="hover:text-accent cursor-pointer transition-colors" onClick={() => { setInfoModalSection('stories'); setShowInfoModal(true); }}>Our Stories</li>
-              <li className="hover:text-accent cursor-pointer transition-colors" onClick={() => { setInfoModalSection('care'); setShowInfoModal(true); }}>Product Care</li>
-              <li className="hover:text-accent cursor-pointer transition-colors" onClick={() => { setInfoModalSection('impact'); setShowInfoModal(true); }}>Community Impact</li>
-              <li className="hover:text-accent cursor-pointer transition-colors" onClick={() => { setInfoModalSection('map'); setShowInfoModal(true); }}>Farm Map</li>
-            </ul>
-          </div>
-          <div className="flex flex-col items-center md:items-start">
-            <h4 className="text-[10px] font-bold uppercase tracking-[0.4em] mb-4 text-accent/80 cursor-pointer hover:underline" onClick={() => { setInfoModalSection('contact'); setShowInfoModal(true); }}>Contact</h4>
-            <p className="text-stone-200 font-bold mb-1.5 tracking-tight text-sm cursor-pointer hover:text-accent transition-colors" onClick={() => { setInfoModalSection('contact'); setShowInfoModal(true); }}>farmtohomee11@gmail.com</p>
-            <p className="text-stone-200 font-bold mb-4 tracking-tight text-sm cursor-pointer hover:text-accent transition-colors" onClick={() => { setInfoModalSection('contact'); setShowInfoModal(true); }}>09193604094</p>
-            <p className="text-stone-500 text-[8.5px] font-bold uppercase tracking-widest leading-relaxed">Manila Base • Support Network for Local Agriculture</p>
-          </div>
-        </div>
-        <div className="max-w-7xl mx-auto border-t border-stone-800/80 mt-12 pt-6 flex flex-col md:flex-row justify-between items-center gap-4 text-stone-500 text-[8.5px] font-bold uppercase tracking-[0.3em]">
-          <span>© 2026 Local Farmers Network.</span>
-          <div className="flex flex-wrap justify-center gap-6">
-            <span className="hover:text-stone-300 cursor-pointer transition-colors" onClick={() => { setInfoModalSection('about'); setShowInfoModal(true); }}>About Us</span>
-            <span className="hover:text-stone-300 cursor-pointer transition-colors" onClick={() => { setInfoModalSection('guidelines'); setShowInfoModal(true); }}>Guidelines</span>
-            <span className="hover:text-stone-300 cursor-pointer transition-colors" onClick={() => { setInfoModalSection('certifications'); setShowInfoModal(true); }}>Certification</span>
-          </div>
-        </div>
-      </footer>
+      {currentView === 'landing' && renderFooterComponent()}
     </div>
   );
 }

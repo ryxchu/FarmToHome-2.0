@@ -7,6 +7,7 @@ import { motion } from 'motion/react';
 import { SocialFeed } from '../components/SocialFeed';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { getProductHighlights } from '../lib/utils';
 
 interface BuyerHomeProps {
   onProductClick: (id: string) => void;
@@ -422,21 +423,37 @@ const ProductCard: React.FC<{ product: Product; onClick: () => void; distance?: 
             {product.name}
           </h4>
           
+          {/* Dynamic "Short Info" badges based on product description */}
+          <div className="flex flex-wrap gap-1 mt-1 mb-1.5 shrink-0">
+            {getProductHighlights(product.description, product.category).map((tag, tIdx) => (
+              <span key={tIdx} className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[7.5px] sm:text-[8.5px] font-extrabold uppercase tracking-wider">
+                {tag}
+              </span>
+            ))}
+          </div>
+
+          {product.description && (
+            <p className="text-[10px] sm:text-xs text-slate-500 line-clamp-1 mt-1 font-medium italic">
+              {product.description}
+            </p>
+          )}
+          
           <div className="flex items-baseline gap-1 mt-1 sm:mt-2">
             <span className="text-sm sm:text-lg font-black text-primary tracking-tight">₱{product.price}</span>
             <span className="text-[8px] sm:text-[10px] font-bold text-slate-400">/ {product.unit}</span>
           </div>
         </div>
         
+        {/* Unified Non-Redundant Stock Indicator */}
         <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
-          <div className="flex items-center gap-1 text-[8.5px] sm:text-[10px] font-bold text-slate-600 truncate">
-            <span className="text-secondary font-black">{product.stock} left</span>
-          </div>
+          <span className="text-[8.5px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">
+            Stock Level
+          </span>
           
-          <div className="flex items-center gap-1 shrink-0">
-            <div className={`w-1.5 h-1.5 rounded-full ${product.stock > 0 ? 'bg-primary animate-pulse' : 'bg-secondary'}`} />
-            <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-              {product.stock > 0 ? `${product.stock} kg left` : 'Out'}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className={`w-1.5 h-1.5 rounded-full ${product.stock > 0 ? (product.stock <= 10 ? 'bg-amber-500 animate-pulse' : 'bg-primary animate-pulse') : 'bg-rose-500'}`} />
+            <span className={`text-[9px] sm:text-[11px] font-black tracking-tight ${product.stock > 0 ? (product.stock <= 10 ? 'text-amber-500' : 'text-slate-700') : 'text-rose-500'}`}>
+              {product.stock > 0 ? `${product.stock} ${product.unit}${product.stock > 1 && product.unit !== 'kg' ? 's' : ''} left` : 'Sold Out'}
             </span>
           </div>
         </div>

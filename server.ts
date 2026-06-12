@@ -7,19 +7,23 @@ import otpRouter from "./server/otpRouter";
 import { db } from "./src/lib/firebase";
 import { rateLimitMiddleware } from "./server/rateLimit";
 import { collection, getDocs, query, where, limit } from "firebase/firestore";
-import admin from "firebase-admin";
+import { initializeApp, getApps } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 import firebaseConfig from "./firebase-applet-config.json";
 
 let adminDb: any = null;
 try {
-  if (admin.apps.length === 0) {
-    admin.initializeApp({
+  let adminApp;
+  if (getApps().length === 0) {
+    adminApp = initializeApp({
       projectId: firebaseConfig.projectId,
     });
+  } else {
+    adminApp = getApps()[0];
   }
   adminDb = firebaseConfig.firestoreDatabaseId
-    ? (admin as any).firestore(firebaseConfig.firestoreDatabaseId)
-    : admin.firestore();
+    ? getFirestore(adminApp, firebaseConfig.firestoreDatabaseId)
+    : getFirestore(adminApp);
 } catch (error) {
   console.error("Failed to initialize firebase-admin SDK:", error);
 }
@@ -54,101 +58,197 @@ function getGeminiClient(): GoogleGenAI | null {
 // Highly helpful and friendly mock AI assistant responses as fallback on standard review/preview envs
 function generateMockResponse(message: string, language: string): string {
   const msg = message.toLowerCase();
-  
-  // Custom out-of-context filter to stay localized to FarmToHome
+  const isTagalog = language === 'tagalog' || language === 'tl' || msg.includes('kumusta') || msg.includes('salamat') || msg.includes('nasaan') || msg.includes('magsasaka');
+
+  // Comprehensive custom out-of-context filter to stay localized to FarmToHome
   const oocKeywords = ['code', 'math', 'write', 'html', 'python', 'java', 'c++', 'joke', 'capital of', 'translate', 'solve', 'weather in', 'who is', 'world cup', 'generic', 'recipe', 'movie', 'history', 'science', 'physics', 'tell me a story about'];
+  
+  // Expanded whitelist keywords representing all aspects of FarmToHome, agriculture, systems, and user communication
+  const whitelistKeywords = [
+    'farm', 'home', 'order', 'shopp', 'vegetable', 'fruit', 'mango', 'cabbage', 'pechay', 'onion', 'tomat', 'ginger', 
+    'pay', 'gcash', 'cod', 'sell', 'crop', 'agriculture', 'support', 'status', 'track', 'post', 'review', 'stock', 
+    'farmer', 'buyer', 'feature', 'app', 'how to', 'fresh', 'harvest', 'system', 'role', 'account', 'user', 'member', 
+    'admin', 'moderator', 'profile', 'address', 'location', 'price', 'cost', 'magkano', 'how much', 'delivery', 
+    'deliver', 'galing', 'sariwa', 'bili', 'cart', 'basket', 'checkout', 'register', 'rehistro', 'verify', 'cert', 
+    'legal', 'magsasaka', 'message', 'chat', 'usap', 'hello', 'hi', 'kumusta', 'thanks', 'thank you', 'salamat', 
+    'ok', 'okay', 'help', 'tulong'
+  ];
+
   const hasOoc = oocKeywords.some(keyword => msg.includes(keyword)) || 
-                 (msg.length > 35 && 
-                  !msg.includes('farm') && 
-                  !msg.includes('home') && 
-                  !msg.includes('order') && 
-                  !msg.includes('shopp') && 
-                  !msg.includes('vegetable') && 
-                  !msg.includes('fruit') && 
-                  !msg.includes('mango') && 
-                  !msg.includes('cabbage') && 
-                  !msg.includes('pechay') && 
-                  !msg.includes('onion') && 
-                  !msg.includes('tomat') && 
-                  !msg.includes('ginger') && 
-                  !msg.includes('pay') && 
-                  !msg.includes('gcash') && 
-                  !msg.includes('cod') && 
-                  !msg.includes('sell') && 
-                  !msg.includes('crop') && 
-                  !msg.includes('agriculture') && 
-                  !msg.includes('support') && 
-                  !msg.includes('status') && 
-                  !msg.includes('track') &&
-                  !msg.includes('post') &&
-                  !msg.includes('review') &&
-                  !msg.includes('stock') &&
-                  !msg.includes('farmer') &&
-                  !msg.includes('buyer') &&
-                  !msg.includes('feature') &&
-                  !msg.includes('app') &&
-                  !msg.includes('how to'));
+                 (msg.length > 45 && !whitelistKeywords.some(word => msg.includes(word)));
   
   if (hasOoc) {
     return "Sorry, I can only assist you with Farm To Home related questions.";
   }
   
-  if (language === 'tagalog' || language === 'tl') {
-    if (msg.includes('order') || msg.includes('status') || msg.includes('track') || msg.includes('nasaan')) {
-      return `Narito ang impormasyon sa iyong order:
-- **Order Tracking**: Maaari mong makita ang katayuan sa iyong Buyer Profile sa ilalim ng **My Purchases**.
-- **Delivery**: Karaniwang dumarating ito sa loob ng 1-2 araw mula nang ma-harvest ng magsasaka.
-- **Tulong**: Makipag-ugnayan sa aming suporta sa farmtohomee11@gmail.com kung kailangan mo ng mabilis na update.`;
+  if (isTagalog) {
+    // 1. Roles and Features info in Tagalog
+    if (msg.includes('role') || msg.includes('tungkulin') || msg.includes('feature') || msg.includes('paggana') || msg.includes('magagawa') || msg.includes('ginagawa')) {
+      return `Narito ang mga feature at magagawa ng bawat role sa FarmToHome:
+- **Buyer (Mamimili)**:
+  * Maaaring mag-browse ng mga sariwang organic crops sa **Shop**.
+  * Magdagdag sa cart, mag-checkout (gamit ang **COD** o **GCash**).
+  * Makipag-chat nang real-time sa mga magsasaka.
+  * Mag-track ng delivery at mag-lagay ng ratings/reviews.
+- **Farmer (Magsasaka/Nagbebenta)**:
+  * Maaaring mag-post at pamahalaan ang kanilang mga ani (presyo, stock).
+  * Mag-upload ng land credentials para sa real-time na pag-verify sa security console.
+  * Makakita ng graphics ng benta sa kanilang Dashboard.
+  * Direktang makipag-transaksyon sa mamimili (100% ng kita ay sa kanila).
+- **Admin / System**:
+  * Pag-apruba sa mga pending farmer registrations.
+  * Pamamahala ng community forum feed laban sa spam.
+  * Pag-monitor ng mga pangunahing sukat ng system.`;
     }
-    if (msg.includes('magsasaka') || msg.includes('benta') || msg.includes('farmer') || msg.includes('sell') || msg.includes('rehistro')) {
-      return `Maging kasosyo sa FarmToHome bilang magsasaka:
-- Mag-register sa aming platform at piliin ang **Farmer** na tungkulin.
-- Kumpletuhin ang iyong profile at mag-post ng iyong mga ani tulad ng gulay, prutas, at iba pa.
-- Makakakuha ka ng makatwirang presyo nang walang middleman!`;
+
+    // 2. Orders & Tracking in Tagalog
+    if (msg.includes('order') || msg.includes('status') || msg.includes('track') || msg.includes('nasaan') || msg.includes('deliver') || msg.includes('padala')) {
+      return `Gusto mo bang malaman ang status ng iyong order? Narito ang guide:
+- **Buyer Dashboard**: Pumunta sa iyong Profile, i-click ang **My Purchases** tab upang makita ang current progress (Pending, Verified, Out for Delivery, Received).
+- **Delivery Timeline**: Karaniwang dumarating ang mga sariwang ani sa loob ng 1-2 araw diretso galing bukid pagkatapos ma-harvest.
+- **Support**: Para sa tulong, mag-email sa farmtohomee11@gmail.com o gumamit ng in-app direct chat para kausapin ang farmers!`;
     }
-    if (msg.includes('mango') || msg.includes('manga') || msg.includes('prutas') || msg.includes('gulay') || msg.includes('vegetable')) {
-      return `Masaya kaming nag-aalok ng mga sariwa at organikong produkto:
-- **Harvest**: Direktang inaani kapag may order upang matiyak ang kasariwaan.
-- **Pesticide-Free**: Walang kemikal na pamatay-peste ang karamihan sa aming mga kasosyong sakahan.
-- **Bumili**: Pumunta lamang sa online store at mag-add to cart ngayon!`;
+
+    // 3. Farmer certification & Registration in Tagalog
+    if (msg.includes('farmer') || msg.includes('magsasaka') || msg.includes('sell') || msg.includes('rehistro') || msg.includes('benta') || msg.includes('cert') || msg.includes('credentials')) {
+      return `Gabay sa pagsali bilang Magsasaka (Farmer Partner):
+- **Rehistro**: Gumawa ng account sa FarmToHome at piliin ang **Farmer** role.
+- **Dokumento**: Pumunta sa **Dashboard** at mag-upload ng iyong Land Trust o government certificate para sa certification.
+- **Benta**: Matapos ma-approve ng Admin, maari mo nang i-post ang iyong sariwang ani nang walang kahit anong middleman cut!`;
     }
-    if (msg.includes('bayad') || msg.includes('payment') || msg.includes('gcash') || msg.includes('cod') || msg.includes('barya')) {
-      return `Mga paraan ng pagbabayad sa FarmToHome:
-- **Cash on Delivery (COD)**: Magbayad nang cash sa rider pagdating ng deliver.
-- **GCash**: Magbayad nang ligtas at digital sa aming checkout system.
-- **Safe Transaction**: Lahat ng bayad ay protektado ng aming buyer-protection guarantee.`;
+
+    // 4. Products & Inventory in Tagalog
+    if (msg.includes('gulay') || msg.includes('prutas') || msg.includes('vegetable') || msg.includes('crop') || msg.includes('fresh') || msg.includes('mango') || msg.includes('cabbage') || msg.includes('pechay')) {
+      return `Mga sariwa at organikong produkto sa FarmToHome:
+- **Harvest on Demand**: Direktang inaani kapag may order lamang para garantisadong sariwa.
+- **Organik**: Pesticide-free at ligtas para sa kalusugan ng iyong pamilya.
+- **Paano bumili**: Pumunta sa Shop, i-click ang produkto at i-tap ang "Add to Cart" para makabili kaagad!`;
     }
-    return `Salamat sa pagtawag! Ako ang iyong FarmToHome assistant.
-- Paano ko matutulungan ang iyong pamimili ng sariwang gulay at prutas ngayon?
-- Maaari mong itanong ang katayuan tungkol sa **pag-order**, **magsasaka rehistro**, **GCash at COD**, o aming mga **gulay at prutas**!`;
+
+    // 5. Payments in Tagalog
+    if (msg.includes('bayad') || msg.includes('payment') || msg.includes('gcash') || msg.includes('cod') || msg.includes('presyo') || msg.includes('price')) {
+      return `Mga paraan ng pagbabayad at presyo sa FarmToHome:
+- **Cash on Delivery (COD)**: Abutin ang bayad sa rider pagdating ng mga sariwang gulay o prutas.
+- **GCash**: Magbayad nang digital at secure sa checkout.
+- **Fair Pricing**: Direktang itinakda ng magsasaka ang presyo base sa lokal na bukid para sa patas na komersyo.`;
+    }
+
+    // 6. Direct chat/contact in Tagalog
+    if (msg.includes('chat') || msg.includes('message') || msg.includes('usap') || msg.includes('mensahe') || msg.includes('kausap')) {
+      return `Makipag-usap nang direkta gamit ang in-app Chat:
+- Pumunta sa messenger tab o i-click ang **Contact Farmer** sa profile ng farmer na napili mo.
+- Maari kang magtanong tungkol sa bulk order, discount, o custom harvest times!`;
+    }
+
+    // 7. Greetings in Tagalog
+    if (msg.includes('hello') || msg.includes('hi') || msg.includes('kumusta') || msg.includes('hey')) {
+      return `Kumusta! Ako ang iyong FarmToHome assistant. Paano kita matutulungan ngayon?
+Maaari kang magtanong sa akin tungkol sa:
+- **Tungkulin at Feature** ng bawat user (Buyer, Farmer, Admin)
+- Paano mag-track ng **order status** o magbayad sa pamamagitan ng **GCash at COD**
+- Paano sumali ang mga **magsasaka** at ma-verify ang land documents
+- Aming mga organikong **gulay at prutas**!`;
+    }
+
+    // Polite closing
+    if (msg.includes('salamat') || msg.includes('thanks') || msg.includes('ok') || msg.includes('sige')) {
+      return `Walang anuman! Masaya akong makatulong sa iyong FarmToHome journey. May iba pa ba akong maitutulong tungkol sa mga sariwang gulay at prutas?`;
+    }
+
+    // Default conversational Tagalog response (avoid loops)
+    return `Salamat sa iyong mensahe! Naka-activate ako ngayon sa Local Simulation Helper mode.
+Maaari mong itanong sa akin ang:
+1. Mga **feature at tungkulin** ng Buyer o Farmer sa system.
+2. Katayuan ng iyong **order tracking o pagbili**.
+3. Paggamit ng **GCash o Cash on Delivery (COD)**.
+4. Paano mag-register at mag-verify bilang **magsasaka**.
+Ano ang nais mong talakayin ngayon?`;
+
   } else {
     // English
-    if (msg.includes('order') || msg.includes('status') || msg.includes('track') || msg.includes('where')) {
-      return `Here is your order tracking guide:
-- **Check Status**: Simply go to your **Buyer Profile** and select the **My Purchases** view.
-- **Delivery Timeline**: Typically dispatched within 24-48 hours directly after fresh farm harvest.
-- **Support**: For expedited requests, please email us at farmtohomee11@gmail.com.`;
+    // 1. Roles and Features info in English
+    if (msg.includes('role') || msg.includes('feature') || msg.includes('do in') || msg.includes('can do') || msg.includes('system') || msg.includes('buyer') || msg.includes('farmer') || msg.includes('seller') || msg.includes('admin')) {
+      return `Here are the official roles and platform features available in FarmToHome:
+- **Buyer**:
+  * **Shop**: Browse organic, certified fresh crops (Pechay, Cabbage, Mangoes, etc.).
+  * **Seamless Ordering**: Add items to basket, check out with **GCash** or **Cash on Delivery (COD)**.
+  * **Order Tracking**: Track real-time status under purchases history.
+  * **Direct Chat**: Message local farmers directly in real-time.
+  * **Reviews**: Leave ratings and stars feedback.
+- **Farmer (Seller)**:
+  * **Crop Management**: Create listings, customize pricing, and manage stocks.
+  * **Trust Credentials**: Upload land certifications to get verified by administrators.
+  * **Sales Analytics**: View visual charts of revenue and sales trends.
+  * **Direct Profits**: Benefit from a zero middleman markup.
+- **Admin / System**:
+  * **Security Console**: Approve pending farmer land trust credentials.
+  * **Moderation**: Maintain a safe environment by moderating community feeds.
+  * **Global Logs**: Monitor system audits and agricultural activities.`;
     }
-    if (msg.includes('farmer') || msg.includes('sell') || msg.includes('register') || msg.includes('join')) {
-      return `Join FarmToHome as a Farmer Partner:
-- Register an account and choose the **Farmer** role.
-- Complete your profile and start uploading fresh organic listings.
-- Enjoy zero intermediary cuts and retain 100% of fair-market agricultural pricing!`;
+
+    // 2. Orders & Tracking in English
+    if (msg.includes('order') || msg.includes('status') || msg.includes('track') || msg.includes('where') || msg.includes('deliver') || msg.includes('ship')) {
+      return `Here is your quick guide to delivery and tracking:
+- **Tracking Purchases**: Navigate to your **Buyer Profile** and select the **My Purchases** panel to view delivery steps (Pending, Confirmed, Shipped, Delivered).
+- **Timeline**: Deliveries take roughly 24 to 48 hours because they are freshly harvested by the farmer upon check-out!
+- **Support Support**: For immediate issues, contact our support desk at farmtohomee11@gmail.com.`;
     }
-    if (msg.includes('mango') || msg.includes('fruit') || msg.includes('vegetable') || msg.includes('cabbage') || msg.includes('fresh')) {
+
+    // 3. Farmer Registration & Land Credentials in English
+    if (msg.includes('farmer') || msg.includes('seller') || msg.includes('sell') || msg.includes('register') || msg.includes('join') || msg.includes('credentials') || msg.includes('certify')) {
+      return `Welcome aboard! To join FarmToHome as a Farmer Partner:
+- **Registration**: Create your profile and select the **Farmer** role at sign-up.
+- **Verification**: Fill out your profile and upload land certificates or legal credentials.
+- **Organic Sales**: Once verified by our Admin team, you will have complete freedom to upload crop listings and retain 100% of fair sales pricing!`;
+    }
+
+    // 4. Products & Inventory in English
+    if (msg.includes('mango') || msg.includes('fruit') || msg.includes('vegetable') || msg.includes('cabbage') || msg.includes('fresh') || msg.includes('crop') || msg.includes('pechay')) {
       return `Our Fresh Agri Harvest standards:
-- **Freshest Produce**: Harvested on-demand, ensuring no cold storage degradation.
-- **Natural and Organic**: Standard pesticide-free or verified organic choices.
-- **Shop**: Head over to the store tab and secure your basket!`;
+- **Freshest Produce**: All organic produce is harvested on-demand upon purchase, preventing nutrient loss in coolers.
+- **Natural Methods**: Pesticide-free or verified natural bio-fertilizers.
+- **How to Buy**: Visit the marketplace, tap your choice, select count, and proceed to cart checkout.`;
     }
-    if (msg.includes('pay') || msg.includes('payment') || msg.includes('gcash') || msg.includes('cod')) {
-      return `Accepted payment options:
-- **Cash on Delivery (COD)**: Settle directly in cash with the delivery courier.
-- **GCash & Digital**: Securely pay with GCash at checkout.
-- **Buyer Guarantee**: Secure, protected transactions throughout the lifecycle.`;
+
+    // 5. Payments in English
+    if (msg.includes('pay') || msg.includes('payment') || msg.includes('gcash') || msg.includes('cod') || msg.includes('price') || msg.includes('cost')) {
+      return `Payment and Pricing policies on FarmToHome:
+- **Cash on Delivery (COD)**: Conveniently pay our dispatch riders upon delivery.
+- **GCash**: Safe mobile digital transaction system integrated directly into checkout.
+- **Fair Trade**: Farmers are empowered to set their own marketplace rates to make sustainable livings.`;
     }
-    return `Hello! I'm your FarmToHome support assistant:
-- Let me know if you need help with **orders**, **joining as a farmer**, **GCash & COD payment channels**, or exploring our **fruits and vegetables**!`;
+
+    // 6. Direct chat in English
+    if (msg.includes('chat') || msg.includes('message') || msg.includes('contact') || msg.includes('inbox')) {
+      return `Direct messaging feature:
+- Communication is key! You can message your farmer partner directly from their profile page.
+- Perfect for custom packaging requests, harvest status updates, or high-volume wholesale discounts.`;
+    }
+
+    // 7. Greetings in English
+    if (msg.includes('hello') || msg.includes('hi') || msg.includes('hey') || msg.includes('morning')) {
+      return `Hello! I'm your FarmToHome AI support assistant. How can I guide you today?
+Ask me anything about:
+- **App features and user roles** (Buyer vs Farmer)
+- Checking and **tracking an order**
+- Registering as a **Farmer partner** and document certification
+- **GCash or COD** payment pathways
+- Our healthy, local **fruits and organic vegetables**!`;
+    }
+
+    // Polite closing
+    if (msg.includes('thank') || msg.includes('thanks') || msg.includes('ok') || msg.includes('okay')) {
+      return `You're very welcome! If there's anything else you need about FarmToHome, feel free to ask. Stay healthy!`;
+    }
+
+    // Default conversational English response (avoid loops)
+    return `Thank you for reaching out! I am running on the local/offline safe support system right now.
+I can explain everything about the FarmToHome platform:
+1. **User Roles & App Features** (Buyer options, Farmer Dashboard, Admin console)
+2. **Order Tracking** and delivery timelines
+3. Using **GCash or Cash on Delivery (COD)**
+4. How to **publish fresh organic vegetables** (Pechay, Cabbage, Mangoes)
+What would you like to explore?`;
   }
 }
 

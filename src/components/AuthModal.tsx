@@ -31,6 +31,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   const [resendCooldown, setResendCooldown] = useState(0);
   const [devOtp, setDevOtp] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [isInAppBrowser, setIsInAppBrowser] = useState(false);
+
+  // Validation tracking states
+  const [touched, setTouched] = useState<{ [key: string] : boolean }>({});
+  const [formSubmitted, setFormSubmitted] = useState(false);
+
+  // Detect restricted webviews (like FB Messenger, Viber, Line, Telegram, etc.)
+  useEffect(() => {
+    const ua = navigator.userAgent || navigator.vendor || (window as any).opera || '';
+    const isRestrictedWebview = /FBAN|FBAV|Instagram|Messenger|Viber|Line|Telegram|WeChat|Snapchat/i.test(ua);
+    setIsInAppBrowser(isRestrictedWebview);
+  }, []);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -45,6 +57,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       setPhone('');
       setOtp(['', '', '', '', '', '']);
       setDevOtp('');
+      setTouched({});
+      setFormSubmitted(false);
     }
   }, [isOpen, initialMode, initialRole]);
 
@@ -77,6 +91,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     setMode(newMode);
     setError(''); // CRITICAL: Clear error when switching modes
     setSuccessMessage('');
+    setTouched({});
+    setFormSubmitted(false);
   };
 
   // Password validation
@@ -88,10 +104,96 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     match: confirmPassword && password === confirmPassword
   };
 
-  const isFormValid = mode === 'login' ? (email && password) : (email && fullName && phone && Object.values(passChecks).every(v => v));
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const phoneRegex = /^(09|\+63|9)\d{9}$|^[0-9]{10,12}$/;
+
+  const getFieldError = (fieldName: string): string => {
+    if (mode === 'login') {
+      if (fieldName === 'email') {
+        if (!email) return 'Email is required';
+        if (!emailRegex.test(email)) return 'Please enter a valid email address (e.g., name@domain.com)';
+      }
+      if (fieldName === 'password') {
+        if (!password) return 'Password is required';
+      }
+    } else if (mode === 'register') {
+      if (fieldName === 'fullName') {
+        if (!fullName.trim()) return 'Full name is required';
+        if (fullName.trim().length < 2) return 'Full name must be at least 2 characters';
+        if (/\d/.test(fullName)) return 'Full name must not contain numbers';
+      }
+      if (fieldName === 'phone') {
+        if (!phone.trim()) return 'Phone number is required';
+        if (!phoneRegex.test(phone.trim())) return 'Please enter a valid 10-12 digit phone number';
+      }
+      if (fieldName === 'email') {
+        if (!email) return 'Email is required';
+        if (!emailRegex.test(email)) return 'Please enter a valid email address (e.g., name@domain.com)';
+      }
+      if (fieldName === 'password') {
+        if (!password) return 'Password is required';
+        if (password.length < 8) return 'Password must be at least 8 characters';
+        if (!/[A-Z]/.test(password)) return 'Password must contain at least one uppercase letter';
+        if (!/[0-9]/.test(password)) return 'Password must contain at least one number';
+        if (!/[^A-Za-z0-9]/.test(password)) return 'Password must contain at least one special character';
+      }
+      if (fieldName === 'confirmPassword') {
+        if (!confirmPassword) return 'Please confirm your password';
+        if (password !== confirmPassword) return 'Passwords do not match';
+      }
+    }
+    return '';
+  };
+
+  const isFormValid = (() => {
+    if (mode === 'login') {
+      return !!(email && emailRegex.test(email) && password);
+    } else if (mode === 'register') {
+      return !!(
+        fullName.trim().length >= 2 &&
+        !/\d/.test(fullName) &&
+        phoneRegex.test(phone.trim()) &&
+        email && emailRegex.test(email) &&
+        Object.values(passChecks).every(v => v)
+      );
+    }
+    return true;
+  })();
+
+  const getInputStyles = (fieldName: string) => {
+    const hasError = getFieldError(fieldName);
+    const isTouchedOrSubmitted = touched[fieldName] || formSubmitted;
+    
+    if (isTouchedOrSubmitted && hasError) {
+      return "w-full px-6 py-4 md:px-8 md:py-5 bg-rose-50/50 border-2 border-rose-500 rounded-2xl text-sm focus:border-rose-500 focus:bg-white focus:outline-none transition-all font-medium placeholder:text-slate-400 shadow-sm";
+    }
+    return "w-full px-6 py-4 md:px-8 md:py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300 shadow-xs";
+  };
+
+  const renderFieldError = (fieldName: string) => {
+    const errorMsg = getFieldError(fieldName);
+    const isTouchedOrSubmitted = touched[fieldName] || formSubmitted;
+    if (isTouchedOrSubmitted && errorMsg) {
+      return (
+        <span className="text-[10px] text-rose-500 font-bold uppercase tracking-wider block mt-1.5 ml-2">
+          ⚠️ {errorMsg}
+        </span>
+      );
+    }
+    return null;
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormSubmitted(true);
+    
+    const fields = mode === 'login' ? ['email', 'password'] : ['fullName', 'phone', 'email', 'password', 'confirmPassword'];
+    const newTouched = { ...touched };
+    fields.forEach(f => {
+      newTouched[f] = true;
+    });
+    setTouched(newTouched);
+
     if (!isFormValid) return;
     setError('');
     setLoading(true);
@@ -347,8 +449,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) {
-      setError('Please enter your email address.');
+    setFormSubmitted(true);
+    setTouched(prev => ({ ...prev, email: true }));
+    const emailErr = getFieldError('email');
+    if (emailErr) {
+      setError(emailErr);
       return;
     }
     setLoading(true);
@@ -487,7 +592,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                 <button 
                   type="button" 
                   onClick={handleGoogleSignIn}
-                  className="w-full py-4.5 bg-white shadow-sm border border-slate-200 hover:border-slate-300 hover:bg-slate-50 active:scale-95 rounded-2xl flex items-center justify-center gap-3 transition-all group font-sans"
+                  className="w-full py-4.5 bg-white shadow-sm border border-slate-200 hover:border-slate-300 hover:bg-slate-50 active:scale-95 rounded-2xl flex items-center justify-center gap-3 transition-all group font-sans animate-pulse"
                   title="Continue with Google"
                 >
                   <svg className="w-5 h-5 group-hover:scale-105 transition-transform" viewBox="0 0 24 24">
@@ -498,6 +603,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                   </svg>
                   <span className="text-[11px] font-black text-slate-700 uppercase tracking-widest group-hover:text-primary transition-colors">Continue with Google</span>
                 </button>
+                {isInAppBrowser && (
+                  <div className="p-4 bg-amber-50 border border-amber-200/60 rounded-2xl text-amber-900 text-[10px] font-bold uppercase tracking-wider flex flex-col gap-2 text-start">
+                    <span className="flex items-center gap-1.5 text-amber-800">
+                      <span className="w-2 h-2 bg-amber-500 rounded-full animate-ping shrink-0" />
+                      ⚠️ Restricted Webview Detected (Messenger / Viber)
+                    </span>
+                    <p className="normal-case text-slate-500 font-medium text-[10px] leading-relaxed">
+                      Social log-ins are blocked inside custom chat apps. Tap the three dots <strong>(...)</strong> in the top-right corner of your screen & select <strong>"Open in Browser / Chrome"</strong> to sign in securely, or register below using <strong>email & password</strong>.
+                    </p>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <div className="h-px flex-1 bg-slate-100" />
                   <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest shrink-0">or sign up with email</span>
@@ -505,7 +621,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                 </div>
               </div>
             ) : (
-              <div className="mb-8">
+              <div className="mb-8 flex flex-col gap-4">
                 <button 
                   type="button"
                   onClick={handleGoogleSignIn}
@@ -519,6 +635,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                   </svg>
                   <span className="text-[11px] font-black text-slate-700 uppercase tracking-widest group-hover:text-primary transition-colors">Continue with Google</span>
                 </button>
+                {isInAppBrowser && (
+                  <div className="p-4 bg-amber-50 border border-amber-200/60 rounded-2xl text-amber-900 text-[10px] font-bold uppercase tracking-wider flex flex-col gap-2 text-start">
+                    <span className="flex items-center gap-1.5 text-amber-800">
+                      <span className="w-2 h-2 bg-amber-500 rounded-full animate-ping shrink-0" />
+                      ⚠️ Restricted Webview Detected (Messenger / Viber)
+                    </span>
+                    <p className="normal-case text-slate-500 font-medium text-[10px] leading-relaxed">
+                      Social log-ins are blocked inside custom chat apps. Tap the three dots <strong>(...)</strong> in the top-right corner of your screen & select <strong>"Open in Browser / Chrome"</strong> to sign in securely, or use your <strong>email & password</strong>.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -601,124 +728,160 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
               ) : (
                 <>
                   {mode === 'register' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <div className="relative group">
-                    <input 
-                      type="text" placeholder="Full Name" value={fullName} onChange={(e) => setFullName(e.target.value)}
-                      className="w-full px-6 py-4 md:px-8 md:py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
-                    />
-                  </div>
-                  <div className="relative group">
-                    <input 
-                      type="tel" placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)}
-                      className="w-full px-6 py-4 md:px-8 md:py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
-                    />
-                  </div>
-                </div>
-              )}
- 
-              <div className="relative group">
-                <input 
-                  type="email" placeholder="Email Address" value={email} onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-6 py-4 md:px-8 md:py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
-                  required
-                />
-              </div>
- 
-              {mode === 'login' && (
-                <div className="space-y-4">
-                  <div className="relative group text-start">
-                    <input 
-                      type={showPassword ? "text" : "password"} placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-6 py-4 md:px-8 md:py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
-                      required
-                    />
-                    <button 
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-6 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-slate-300 hover:text-primary transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  <div className="flex justify-end">
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        setMode('forgot-password');
-                        setError('');
-                      }}
-                      className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-primary transition-colors"
-                    >
-                      Forgot Password?
-                    </button>
-                  </div>
-                </div>
-              )}
- 
-              {mode === 'register' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-start">
-                  <div className="relative group text-start">
-                    <input 
-                      type={showPassword ? "text" : "password"} placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-6 py-4 md:px-8 md:py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
-                      required
-                    />
-                    <button 
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-6 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-slate-300 hover:text-primary transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      <div className="relative group text-start">
+                        <input 
+                          type="text" 
+                          placeholder="Full Name" 
+                          value={fullName} 
+                          onChange={(e) => setFullName(e.target.value)}
+                          onBlur={() => setTouched(prev => ({ ...prev, fullName: true }))}
+                          className={getInputStyles('fullName')}
+                        />
+                        {renderFieldError('fullName')}
+                      </div>
+                      <div className="relative group text-start">
+                        <input 
+                          type="tel" 
+                          placeholder="Phone" 
+                          value={phone} 
+                          onChange={(e) => setPhone(e.target.value)}
+                          onBlur={() => setTouched(prev => ({ ...prev, phone: true }))}
+                          className={getInputStyles('phone')}
+                        />
+                        {renderFieldError('phone')}
+                      </div>
+                    </div>
+                  )}
  
                   <div className="relative group text-start">
                     <input 
-                      type={showConfirmPassword ? "text" : "password"} placeholder="Confirm" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full px-6 py-4 md:px-8 md:py-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:border-primary focus:bg-white transition-all font-medium placeholder:text-slate-300"
+                      type="email" 
+                      placeholder="Email Address" 
+                      value={email} 
+                      onChange={(e) => setEmail(e.target.value)}
+                      onBlur={() => setTouched(prev => ({ ...prev, email: true }))}
+                      className={getInputStyles('email')}
                       required
                     />
-                    <button 
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-6 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-slate-300 hover:text-primary transition-colors"
-                    >
-                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+                    {renderFieldError('email')}
                   </div>
-                </div>
-              )}
  
-              {mode === 'register' && password && (
-                <div className="flex flex-wrap gap-x-4 gap-y-2 p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                  <div className={`flex items-center gap-1.5 ${passChecks.length ? 'text-primary' : 'text-slate-200'}`}>
-                    <Check className={`w-2.5 h-2.5 ${passChecks.length ? 'opacity-100' : 'opacity-20'}`} />
-                    <span className="text-[10px] font-bold uppercase tracking-tight">8+ Chars</span>
-                  </div>
-                  <div className={`flex items-center gap-1.5 ${passChecks.upper ? 'text-primary' : 'text-slate-200'}`}>
-                    <Check className={`w-2.5 h-2.5 ${passChecks.upper ? 'opacity-100' : 'opacity-20'}`} />
-                    <span className="text-[10px] font-bold uppercase tracking-tight">Upper</span>
-                  </div>
-                  <div className={`flex items-center gap-1.5 ${passChecks.number ? 'text-primary' : 'text-slate-200'}`}>
-                    <Check className={`w-2.5 h-2.5 ${passChecks.number ? 'opacity-100' : 'opacity-20'}`} />
-                    <span className="text-[10px] font-bold uppercase tracking-tight">Number</span>
-                  </div>
-                  <div className={`flex items-center gap-1.5 ${passChecks.special ? 'text-primary' : 'text-slate-200'}`}>
-                    <Check className={`w-2.5 h-2.5 ${passChecks.special ? 'opacity-100' : 'opacity-20'}`} />
-                    <span className="text-[10px] font-bold uppercase tracking-tight">Special</span>
-                  </div>
-                  <div className={`flex items-center gap-1.5 ${passChecks.match ? 'text-emerald-500' : 'text-slate-200'}`}>
-                    <Check className={`w-2.5 h-2.5 ${passChecks.match ? 'opacity-100' : 'opacity-20'}`} />
-                    <span className="text-[10px] font-bold uppercase tracking-tight">Match</span>
-                  </div>
-                </div>
-              )}
+                  {mode === 'login' && (
+                    <div className="space-y-4">
+                      <div className="relative group text-start">
+                        <div className="relative">
+                          <input 
+                            type={showPassword ? "text" : "password"} 
+                            placeholder="Password" 
+                            value={password} 
+                            onChange={(e) => setPassword(e.target.value)}
+                            onBlur={() => setTouched(prev => ({ ...prev, password: true }))}
+                            className={getInputStyles('password')}
+                            required
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-6 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-slate-300 hover:text-primary transition-colors"
+                          >
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                        {renderFieldError('password')}
+                      </div>
+                      <div className="flex justify-end">
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setMode('forgot-password');
+                            setError('');
+                          }}
+                          className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-primary transition-colors"
+                        >
+                          Forgot Password?
+                        </button>
+                      </div>
+                    </div>
+                  )}
+ 
+                  {mode === 'register' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-start">
+                      <div className="relative group text-start">
+                        <div className="relative">
+                          <input 
+                            type={showPassword ? "text" : "password"} 
+                            placeholder="Password" 
+                            value={password} 
+                            onChange={(e) => setPassword(e.target.value)}
+                            onBlur={() => setTouched(prev => ({ ...prev, password: true }))}
+                            className={getInputStyles('password')}
+                            required
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-6 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-slate-300 hover:text-primary transition-colors"
+                          >
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                        {renderFieldError('password')}
+                      </div>
+ 
+                      <div className="relative group text-start">
+                        <div className="relative">
+                          <input 
+                            type={showConfirmPassword ? "text" : "password"} 
+                            placeholder="Confirm" 
+                            value={confirmPassword} 
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            onBlur={() => setTouched(prev => ({ ...prev, confirmPassword: true }))}
+                            className={getInputStyles('confirmPassword')}
+                            required
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            className="absolute right-6 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-slate-300 hover:text-primary transition-colors"
+                          >
+                            {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                        {renderFieldError('confirmPassword')}
+                      </div>
+                    </div>
+                  )}
+ 
+                  {mode === 'register' && (
+                    <div className="flex flex-wrap gap-x-2 gap-y-2 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all ${passChecks.length ? 'text-primary bg-primary/5 border-primary/10' : 'text-rose-500 bg-rose-50 border-rose-100'}`}>
+                        {passChecks.length ? <Check className="w-3 h-3 text-primary" /> : <X className="w-3 h-3 text-rose-500" />}
+                        <span className="text-[10px] font-bold uppercase tracking-tight">8+ Chars</span>
+                      </div>
+                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all ${passChecks.upper ? 'text-primary bg-primary/5 border-primary/10' : 'text-rose-500 bg-rose-50 border-rose-100'}`}>
+                        {passChecks.upper ? <Check className="w-3 h-3 text-primary" /> : <X className="w-3 h-3 text-rose-500" />}
+                        <span className="text-[10px] font-bold uppercase tracking-tight">Upper</span>
+                      </div>
+                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all ${passChecks.number ? 'text-primary bg-primary/5 border-primary/10' : 'text-rose-500 bg-rose-50 border-rose-100'}`}>
+                        {passChecks.number ? <Check className="w-3 h-3 text-primary" /> : <X className="w-3 h-3 text-rose-500" />}
+                        <span className="text-[10px] font-bold uppercase tracking-tight">Number</span>
+                      </div>
+                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all ${passChecks.special ? 'text-primary bg-primary/5 border-primary/10' : 'text-rose-500 bg-rose-50 border-rose-100'}`}>
+                        {passChecks.special ? <Check className="w-3 h-3 text-primary" /> : <X className="w-3 h-3 text-rose-500" />}
+                        <span className="text-[10px] font-bold uppercase tracking-tight">Special</span>
+                      </div>
+                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all ${passChecks.match ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : 'text-rose-500 bg-rose-50 border-rose-100'}`}>
+                        {passChecks.match ? <Check className="w-3 h-3 text-emerald-600" /> : <X className="w-3 h-3 text-rose-500" />}
+                        <span className="text-[10px] font-bold uppercase tracking-tight">Match</span>
+                      </div>
+                    </div>
+                  )}
  
                   <div className="pt-4 flex flex-col sm:flex-row sm:items-center sm:gap-6">
                     <button 
                       type="submit"
-                      disabled={loading || !isFormValid}
+                      disabled={loading}
                       className="w-full sm:w-auto px-14 py-5 bg-slate-800 text-white rounded-full font-bold text-[11px] uppercase tracking-[0.3em] hover:bg-primary transition-all active:scale-95 disabled:opacity-40"
                     >
                       {loading ? 'Processing...' : mode === 'login' ? 'Sign In' : mode === 'forgot-password' ? 'Send Link' : 'Sign Up'}

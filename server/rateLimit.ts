@@ -11,9 +11,12 @@ const rateLimits = new Map<string, { count: number; resetTime: number }>();
  */
 export const rateLimitMiddleware = (limit: number, windowMs: number) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const rawIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'unknown';
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const rawIp = typeof forwardedFor === 'string'
+      ? forwardedFor
+      : (Array.isArray(forwardedFor) ? forwardedFor[0] : (req.socket?.remoteAddress || 'unknown'));
     // Resolve the first IP index in case of proxy chains (e.g., Cloud Run)
-    const ip = rawIp.split(',')[0].trim();
+    const ip = typeof rawIp === 'string' ? rawIp.split(',')[0].trim() : 'unknown';
     const clientKey = `${req.baseUrl || ''}${req.path}_${ip}`;
     const now = Date.now();
     const entry = rateLimits.get(clientKey);

@@ -306,7 +306,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      const snapshot = await getDoc(doc(db, 'users', uid));
+      let snapshot = await getDoc(doc(db, 'users', uid));
+
+      // Solve race-conditions in registering/Google redirect flows: Wait and re-try fetching if profile is not present immediately
+      if (!snapshot.exists()) {
+        console.warn("Profile document not found on first attempt, waiting 1.5s for pending write tasks...");
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        snapshot = await getDoc(doc(db, 'users', uid));
+      }
+
       if (snapshot.exists()) {
         const data = { ...snapshot.data(), uid: snapshot.id } as UserProfile;
         setProfile(data);
@@ -328,22 +336,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setProfile(adminProfile);
           safeSetItem(`user_profile_${uid}`, JSON.stringify(adminProfile));
         } else if (currentUser) {
-          // Stale auth session with missing/deleted profile document: Purge credentials so they can re-register
-          console.warn("User profile not found in database. Account has been deleted. Purging credentials...");
-          try {
-            const { deleteUser } = await import('firebase/auth');
-            await deleteUser(currentUser);
-          } catch (delErr) {
-            console.error("Failed to programmatically delete auth credentials, forcing logout:", delErr);
-            await signOut(auth);
+          // Check if user is newly registered (created within the last 45 seconds) or signed up with social providers
+          const isNewUser = !!(currentUser.metadata.creationTime && 
+            (Date.now() - new Date(currentUser.metadata.creationTime).getTime() < 45000));
+          
+          const isSocialAuth = currentUser.providerData.some(
+            p => p.providerId === 'google.com' || p.providerId === 'facebook.com'
+          );
+
+          if (isNewUser || isSocialAuth) {
+            // Self-repair: Create a verified user profile dynamically instead of triggering deletion error
+            const chosenRole = (localStorage.getItem('auth_intent_role') as any) || 'buyer';
+            const defaultProfile: UserProfile = {
+              uid,
+              email: currentUser.email || '',
+              fullName: currentUser.displayName || 'New User',
+              phone: currentUser.phoneNumber || '',
+              role: currentUser.email?.toLowerCase() === 'ryzabasas16@gmail.com' ? 'admin' : chosenRole,
+              status: 'verified',
+              createdAt: new Date().toISOString()
+            };
+            await setDoc(doc(db, 'users', uid), defaultProfile);
+            setProfile(defaultProfile);
+            safeSetItem(`user_profile_${uid}`, JSON.stringify(defaultProfile));
+            console.log("Automatically self-healed and bootstrapped profile for new/social auth user:", uid);
+          } else {
+            // Stale auth session with missing/deleted profile document: Purge credentials so they can re-register
+            console.warn("User profile not found in database. Account has been deleted. Purging credentials...");
+            try {
+              const { deleteUser } = await import('firebase/auth');
+              await deleteUser(currentUser);
+            } catch (delErr) {
+              console.error("Failed to programmatically delete auth credentials, forcing logout:", delErr);
+              await signOut(auth);
+            }
+            localStorage.removeItem(`user_profile_${uid}`);
+            localStorage.removeItem('demo_user_session');
+            localStorage.removeItem('demo_profile_session');
+            setUser(null);
+            setProfile(null);
+            alert("Your account credentials or user profile has been deleted by an administrator. Your login has been cleared, and you can now register again under this email.");
+            window.location.href = '/';
           }
-          localStorage.removeItem(`user_profile_${uid}`);
-          localStorage.removeItem('demo_user_session');
-          localStorage.removeItem('demo_profile_session');
-          setUser(null);
-          setProfile(null);
-          alert("Your account credentials or user profile has been deleted by an administrator. Your login has been cleared, and you can now register again under this email.");
-          window.location.href = '/';
         }
       }
     } catch (error) {

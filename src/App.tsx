@@ -21,8 +21,9 @@ import { Cart } from './components/Cart';
 import { MyOrders as OrderTracking } from './pages/OrderTracking';
 import { AIChatbot } from './components/AIChatbot';
 import { InfoModal, InfoSectionType } from './components/InfoModal';
+import { LegalModal } from './components/LegalModal';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sprout, Search, ShoppingBag, Radio, Lock, MapPin } from 'lucide-react';
+import { Sprout, Search, ShoppingBag, Radio, Lock, MapPin, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useCart } from './context/CartContext';
 import { seedProducts, cleanupDuplicates } from './lib/seed';
 import { UnifiedSidebar } from './components/UnifiedSidebar';
@@ -59,10 +60,13 @@ function AppContent() {
     openAuth,
     refreshProfile
   } = useAuth();
-  const { isOpen: showCart, setIsOpen: setShowCart } = useCart();
+  const { isOpen: showCart, setIsOpen: setShowCart, clearCart } = useCart();
+  const [showMabuhaySuccess, setShowMabuhaySuccess] = useState(false);
   const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [infoModalSection, setInfoModalSection] = useState<InfoSectionType>('about');
+  const [showLegalModal, setShowLegalModal] = useState(false);
+  const [legalModalTab, setLegalModalTab] = useState<'privacy' | 'terms'>('privacy');
   
   useEffect(() => {
     if (profile?.status === 'banned') {
@@ -85,6 +89,10 @@ function AppContent() {
   const [dbInterrupted, setDbInterrupted] = useState<{ isQuota: boolean; isOffline: boolean; message: string } | null>(null);
   const [highlightedOrderId, setHighlightedOrderId] = useState<string | null>(null);
   const [farmerProfileModalOpen, setFarmerProfileModalOpen] = useState(false);
+  
+  // Payment URL Query Parameter States
+  const [paymentSuccessNotification, setPaymentSuccessNotification] = useState(false);
+  const [paymentCancelNotification, setPaymentCancelNotification] = useState(false);
 
   const renderFooterComponent = () => {
     return (
@@ -177,6 +185,8 @@ function AppContent() {
             <span className="hover:text-stone-300 cursor-pointer transition-colors" onClick={() => { setInfoModalSection('about'); setShowInfoModal(true); }}>About Us</span>
             <span className="hover:text-stone-300 cursor-pointer transition-colors" onClick={() => { setInfoModalSection('guidelines'); setShowInfoModal(true); }}>Guidelines</span>
             <span className="hover:text-stone-300 cursor-pointer transition-colors" onClick={() => { setInfoModalSection('certifications'); setShowInfoModal(true); }}>Certification</span>
+            <span className="hover:text-stone-300 cursor-pointer transition-colors" onClick={() => { setLegalModalTab('privacy'); setShowLegalModal(true); }}>Privacy Policy</span>
+            <span className="hover:text-stone-300 cursor-pointer transition-colors" onClick={() => { setLegalModalTab('terms'); setShowLegalModal(true); }}>Terms of Service</span>
           </div>
         </div>
       </footer>
@@ -195,6 +205,37 @@ function AppContent() {
 
     window.addEventListener('firestore-service-interrupted', handleInterrupt);
     return () => window.removeEventListener('firestore-service-interrupted', handleInterrupt);
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pStatus = params.get('paymentStatus');
+    if (pStatus === 'success') {
+      try {
+        clearCart();
+      } catch (err) {
+        console.error("Failed to clear cart:", err);
+      }
+      setPaymentSuccessNotification(true);
+      setShowMabuhaySuccess(true);
+      // Clean query params so refresh doesn't trigger again
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {
+        console.error("Failed to replace navigation state", e);
+      }
+    } else if (pStatus === 'cancel') {
+      setPaymentCancelNotification(true);
+      // Seamlessly reopen the shopping cart since selection remains intact
+      setTimeout(() => {
+        setShowCart(true);
+      }, 300);
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {
+        console.error("Failed to replace navigation state", e);
+      }
+    }
   }, []);
 
   const handleNearMeClick = () => {
@@ -454,6 +495,48 @@ function AppContent() {
             </button>
           </motion.div>
         )}
+        {paymentSuccessNotification && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="bg-emerald-50 text-emerald-800 border-b-2 border-emerald-200 px-6 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-[10px] sm:text-[10.5px] font-bold uppercase tracking-wider relative z-[100]"
+          >
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="text-center sm:text-left leading-snug">
+                GCash payment cleared! Your direct upland harvest selection was verified and sent to rural farmers.
+              </span>
+            </div>
+            <button 
+              onClick={() => setPaymentSuccessNotification(false)}
+              className="px-3.5 py-1.5 bg-emerald-100 text-emerald-800 hover:bg-white rounded-xl tracking-widest text-[8.5px] uppercase border border-emerald-200 shadow-sm transition-all text-xs shrink-0 cursor-pointer"
+            >
+              Okay, Beautiful!
+            </button>
+          </motion.div>
+        )}
+        {paymentCancelNotification && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="bg-rose-50 text-rose-800 border-b-2 border-rose-200 px-6 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-[10px] sm:text-[10.5px] font-bold uppercase tracking-wider relative z-[100]"
+          >
+            <div className="flex items-center gap-2.5">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span className="text-center sm:text-left leading-snug">
+                Authorized secure payment cancelled by buyer. Settle checkout again anytime.
+              </span>
+            </div>
+            <button 
+              onClick={() => setPaymentCancelNotification(false)}
+              className="px-3.5 py-1.5 bg-rose-100 text-rose-800 hover:bg-white rounded-xl tracking-widest text-[8.5px] uppercase border border-rose-200 shadow-sm transition-all text-xs shrink-0 cursor-pointer"
+            >
+              Dismiss alert
+            </button>
+          </motion.div>
+        )}
       </AnimatePresence>
       <Navbar 
         onAuthClick={() => openAuth('login', 'buyer')} 
@@ -618,7 +701,74 @@ function AppContent() {
           />
         )}
       </AnimatePresence>
+      <AnimatePresence>
+        {showLegalModal && (
+          <LegalModal
+            isOpen={showLegalModal}
+            onClose={() => setShowLegalModal(false)}
+            initialTab={legalModalTab}
+          />
+        )}
+      </AnimatePresence>
       <Cart isOpen={showCart} onClose={() => setShowCart(false)} />
+      
+      <AnimatePresence>
+        {showMabuhaySuccess && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white w-full max-w-sm rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden flex flex-col font-sans p-8 text-center items-center relative"
+            >
+              <div className="w-20 h-20 bg-emerald-500 rounded-[2rem] flex items-center justify-center shadow-xl shadow-emerald-500/10 border-4 border-white mb-6 animate-bounce">
+                <CheckCircle2 className="w-10 h-10 text-white" />
+              </div>
+              
+              <div className="space-y-2 mb-6">
+                <h3 className="text-2xl font-bold text-slate-800 font-serif italic">Mabuhay! Order Confirmed</h3>
+                <p className="text-slate-500 text-xs font-semibold leading-relaxed max-w-xs text-balance">
+                  Your secure payment transaction succeeded! Your fresh direct upland farm harvest selection has been verified and reserved. We have alerted the local agricultural hub!
+                </p>
+              </div>
+
+              <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 w-full text-left mb-6 space-y-1.5 text-xs text-slate-600 font-bold">
+                <div className="flex justify-between uppercase tracking-wider text-[10px] text-slate-400">
+                  <span>Authorized Gateway</span>
+                  <span className="text-emerald-700 font-black">PayMongo (GCash/Maya/Card)</span>
+                </div>
+                <div className="flex justify-between uppercase tracking-wider text-[10px] text-slate-400">
+                  <span>Dispatch Direct</span>
+                  <span className="text-slate-700">Cooperative Hub</span>
+                </div>
+              </div>
+
+              <div className="w-full space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMabuhaySuccess(false);
+                    setCurrentView('tracking');
+                  }}
+                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-[0.1em] shadow-lg shadow-emerald-600/15 transition-all text-center cursor-pointer block"
+                >
+                  Track My Orders
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMabuhaySuccess(false);
+                  }}
+                  className="w-full py-2.5 bg-stone-150 hover:bg-stone-200 text-slate-600 rounded-xl font-bold text-xs uppercase tracking-[0.05em] transition-all text-center cursor-pointer block"
+                >
+                  Continue Shopping
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <AIChatbot />
       
       {user && (

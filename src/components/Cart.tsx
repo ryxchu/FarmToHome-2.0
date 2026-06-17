@@ -4,7 +4,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
-import { collection, doc, setDoc, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, updateDoc, getDoc, query, where, limit, getDocs } from 'firebase/firestore';
+import { GCashSandboxModal } from './GCashSandboxModal';
+import { PayMongoRedirectModal } from './PayMongoRedirectModal';
 
 interface CartProps {
   isOpen: boolean;
@@ -13,11 +15,13 @@ interface CartProps {
 
 export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
   const { items, removeFromCart, updateQuantity, subtotal, clearCart } = useCart();
-  const { user, openAuth } = useAuth();
+  const { user, profile, openAuth } = useAuth();
   
   const [stage, setStage] = useState<'cart' | 'checkout'>('cart');
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showGCashSandbox, setShowGCashSandbox] = useState(false);
+  const [paymongoCheckoutUrl, setPaymongoCheckoutUrl] = useState<string | null>(null);
   
   // Interactive checkout details
   const [deliveryAddress, setDeliveryAddress] = useState('Central Heights, Tower B, Manila, Philippines 1000');
@@ -32,7 +36,80 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
   
   // Checkbox select items state
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
-  const [voucherApplied, setVoucherApplied] = useState(true);
+  
+  const [promoCode, setPromoCode] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<string | null>('FIRSTBUYER20');
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [promoSuccessMsg, setPromoSuccessMsg] = useState<string | null>(null);
+  const [hasExistingOrders, setHasExistingOrders] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!user) {
+      setHasExistingOrders(null);
+      return;
+    }
+    const checkExistingOrders = async () => {
+      try {
+        const q = query(
+          collection(db, 'orders'),
+          where('buyerId', '==', user.uid),
+          limit(1)
+        );
+        const snapshot = await getDocs(q);
+        const hasOrders = !snapshot.empty;
+        setHasExistingOrders(hasOrders);
+        if (hasOrders && appliedPromo === 'FIRSTBUYER20') {
+          setAppliedPromo(null);
+          setPromoError('FIRSTBUYER20 code was automatically removed because it is only for first-time buyers.');
+        }
+      } catch (err) {
+        console.error("Error checking existing orders: ", err);
+        setHasExistingOrders(false);
+      }
+    };
+    checkExistingOrders();
+  }, [user, appliedPromo]);
+
+  const handleApplyPromo = () => {
+    setPromoError(null);
+    setPromoSuccessMsg(null);
+    const code = promoCode.trim().toUpperCase();
+
+    if (!code) {
+      setPromoError('Please enter a voucher or promo code.');
+      return;
+    }
+
+    if (code === 'FIRSTBUYER20' || code === 'FIRST_BUYER_20') {
+      if (hasExistingOrders === true) {
+        setPromoError('This voucher code is exclusively for first-time buyers.');
+        return;
+      }
+      setAppliedPromo('FIRSTBUYER20');
+      setPromoSuccessMsg('Success! 20% FIRSTBUYER discounts applied!');
+      setPromoCode('');
+    } else if (code === 'FRESHCROP10') {
+      setAppliedPromo('FRESHCROP10');
+      setPromoSuccessMsg('Success! 10% Fresh Crops promo applied!');
+      setPromoCode('');
+    } else if (code === 'HARVEST15') {
+      setAppliedPromo('HARVEST15');
+      setPromoSuccessMsg('Success! 15% Seasonal Harvest promo applied!');
+      setPromoCode('');
+    } else if (code === 'COOP50') {
+      setAppliedPromo('COOP50');
+      setPromoSuccessMsg('Success! ₱50 cooperative discount applied!');
+      setPromoCode('');
+    } else {
+      setPromoError('Invalid voucher or promo code. Try codes like FRESHCROP10, HARVEST15, or COOP50!');
+    }
+  };
+
+  const handleRemovePromo = () => {
+    setAppliedPromo(null);
+    setPromoError(null);
+    setPromoSuccessMsg(null);
+  };
 
   // Sync selectedItems when the cart items load
   useEffect(() => {
@@ -60,7 +137,20 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
   const selectedSubtotal = selectedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
   const coinsDeduction = redeemCoins ? 35 : 0;
   const deliveryFee = selectedItems.length > 0 ? (shippingType === 'express' ? 95 : 50) : 0;
-  const discount = (voucherApplied && selectedItems.length > 0) ? Math.floor(selectedSubtotal * 0.2) : 0;
+  
+  let discount = 0;
+  if (selectedItems.length > 0 && appliedPromo) {
+    if (appliedPromo === 'FIRSTBUYER20') {
+      discount = Math.floor(selectedSubtotal * 0.2);
+    } else if (appliedPromo === 'FRESHCROP10') {
+      discount = Math.floor(selectedSubtotal * 0.1);
+    } else if (appliedPromo === 'HARVEST15') {
+      discount = Math.floor(selectedSubtotal * 0.15);
+    } else if (appliedPromo === 'COOP50') {
+      discount = Math.min(selectedSubtotal, 50);
+    }
+  }
+
   const finalTotal = Math.max(0, selectedSubtotal + deliveryFee - discount - coinsDeduction);
 
   const handleNextStage = () => {
@@ -72,6 +162,101 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
     setStage('checkout');
   };
 
+  const executeOrderSubmission = async (
+    paymentIsCompleted: boolean, 
+    paymentStatusValue: string,
+    clearCartFromItems: boolean = true
+  ) => {
+    // Group selected items by their respective farmerId
+    const itemsByFarmer = new Map<string, typeof selectedItems>();
+    selectedItems.forEach(item => {
+      const fId = item.farmerId || 'unknown_farmer';
+      if (!itemsByFarmer.has(fId)) {
+        itemsByFarmer.set(fId, []);
+      }
+      itemsByFarmer.get(fId)!.push(item);
+    });
+
+    const totalSubtotal = selectedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+    // Loop through each farmer group to create separate orders
+    for (const [farmerId, farmerItems] of itemsByFarmer.entries()) {
+      const farmerSubtotal = farmerItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      
+      // Compute proportional discount for this farmer's subtotal
+      const ratio = totalSubtotal > 0 ? (farmerSubtotal / totalSubtotal) : 0;
+      const farmerDiscount = Math.round(discount * ratio);
+      const farmerTotal = Math.max(0, farmerSubtotal - farmerDiscount);
+
+      const orderRef = doc(collection(db, 'orders'));
+      const orderData = {
+        id: orderRef.id,
+        buyerId: user!.uid,
+        farmerId,
+        items: farmerItems.map(i => ({
+          productId: i.id,
+          name: i.name,
+          quantity: i.quantity,
+          price: i.price,
+          image: i.images?.[0] || ""
+        })),
+        total: farmerTotal,
+        discount: farmerDiscount,
+        discountType: appliedPromo || null,
+        status: 'pending',
+        deliveryAddress,
+        contactNumber,
+        buyerMessage: buyerMessage || null,
+        paymentMethod: paymentOption === 'cod' ? 'Cash on Delivery' : paymentOption === 'gcash' ? 'GCash Fast Transfer' : 'Credit or Debit Card',
+        paymentStatus: paymentStatusValue,
+        isPaid: paymentIsCompleted,
+        shippingMethod: shippingType === 'express' ? 'Express Dispatch' : 'Standard Farm Route',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      await setDoc(orderRef, orderData);
+
+      // Deduct stock in real-time for each purchased crop
+      for (const item of farmerItems) {
+        try {
+          const productRef = doc(db, 'products', item.id);
+          const productSnap = await getDoc(productRef);
+          if (productSnap.exists()) {
+            const currentStock = productSnap.data().stock || 0;
+            const newStock = Math.max(0, currentStock - item.quantity);
+            await updateDoc(productRef, { stock: newStock });
+            console.log(`Deducted stock for ${item.id}: current=${currentStock}, new=${newStock}`);
+          }
+        } catch (stockErr) {
+          console.error(`Failed to deduct stock for product ${item.id}`, stockErr);
+        }
+      }
+
+      // Create notification for farmer
+      const notificationRef = doc(collection(db, 'notifications'));
+      await setDoc(notificationRef, {
+        id: notificationRef.id,
+        userId: farmerId,
+        title: 'New Order Sourced',
+        message: `You've received a fresh crop order of ${farmerItems.length} crops. Sourced Total: ₱${farmerTotal}. Status: ${paymentStatusValue}`,
+        type: 'order',
+        relatedId: orderRef.id,
+        read: false,
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    // Flush local caches to ensure immediate frontend reactivity
+    localStorage.removeItem('shop_products_all');
+    localStorage.removeItem('featured_products');
+
+    if (clearCartFromItems) {
+      // Remove selected items from cart
+      selectedItemIds.forEach(id => removeFromCart(id));
+    }
+  };
+
   const handlePlaceOrder = async () => {
     if (!user) {
       openAuth('login', 'buyer');
@@ -79,101 +264,60 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
     }
     setLoading(true);
     try {
-      // Group selected items by their respective farmerId
-      const itemsByFarmer = new Map<string, typeof selectedItems>();
-      selectedItems.forEach(item => {
-        const fId = item.farmerId || 'unknown_farmer';
-        if (!itemsByFarmer.has(fId)) {
-          itemsByFarmer.set(fId, []);
-        }
-        itemsByFarmer.get(fId)!.push(item);
-      });
-
-      const totalSubtotal = selectedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-      // Loop through each farmer group to create separate ords
-      for (const [farmerId, farmerItems] of itemsByFarmer.entries()) {
-        const farmerSubtotal = farmerItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-        
-        // Compute proportional discount for this farmer's subtotal
-        const ratio = totalSubtotal > 0 ? (farmerSubtotal / totalSubtotal) : 0;
-        const farmerDiscount = Math.round(discount * ratio);
-        const farmerTotal = Math.max(0, farmerSubtotal - farmerDiscount);
-
-        const orderRef = doc(collection(db, 'orders'));
-        const orderData = {
-          id: orderRef.id,
-          buyerId: user.uid,
-          farmerId,
-          items: farmerItems.map(i => ({
-            productId: i.id,
-            name: i.name,
-            quantity: i.quantity,
-            price: i.price,
-            image: i.images?.[0] || ""
-          })),
-          total: farmerTotal,
-          discount: farmerDiscount,
-          discountType: voucherApplied ? 'FIRST_BUYER_20' : null,
-          status: 'pending',
-          deliveryAddress,
-          contactNumber,
-          buyerMessage: buyerMessage || null,
-          paymentMethod: paymentOption === 'cod' ? 'Cash on Delivery' : paymentOption === 'gcash' ? 'GCash Sauté Transfer' : 'Credit/Debit Card',
-          shippingMethod: shippingType === 'express' ? 'Express Dispatch' : 'Standard Farm Route',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-
-        await setDoc(orderRef, orderData);
-
-        // Deduct stock in real-time for each purchased crop
-        for (const item of farmerItems) {
-          try {
-            const productRef = doc(db, 'products', item.id);
-            const productSnap = await getDoc(productRef);
-            if (productSnap.exists()) {
-              const currentStock = productSnap.data().stock || 0;
-              const newStock = Math.max(0, currentStock - item.quantity);
-              await updateDoc(productRef, { stock: newStock });
-              console.log(`Deducted stock for ${item.id}: current=${currentStock}, new=${newStock}`);
-            }
-          } catch (stockErr) {
-            console.error(`Failed to deduct stock for product ${item.id}`, stockErr);
-          }
-        }
-
-        // Create notification for farmer
-        const notificationRef = doc(collection(db, 'notifications'));
-        await setDoc(notificationRef, {
-          id: notificationRef.id,
-          userId: farmerId,
-          title: 'New Order Sourced',
-          message: `You've received a fresh crop order of ${farmerItems.length} crops. Sourced Total: ₱${farmerTotal}`,
-          type: 'order',
-          relatedId: orderRef.id,
-          read: false,
-          createdAt: new Date().toISOString()
+      if (paymentOption === 'cod') {
+        await executeOrderSubmission(false, 'Pending Cash Settlement');
+        setIsCheckingOut(true);
+      } else {
+        console.log('[Payment System] Contacting backend to compile checkout session...');
+        const res = await fetch('/api/payment/create-checkout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            items: selectedItems,
+            totalAmount: finalTotal,
+            shippingFee: deliveryFee,
+            discount: discount,
+            customerName: profile?.fullName || user.displayName || 'Farmer Customer',
+            customerEmail: user.email || 'customer@farmtohome.ph',
+            customerPhone: contactNumber,
+            deliveryAddress: deliveryAddress
+          })
         });
+
+        const result = await res.json();
+
+        if (!res.ok) {
+          throw new Error(result.error || 'Failed to initialize payment gateway.');
+        }
+
+        if (result.mode === 'sandbox') {
+           // Open localized high fidelity GCash secure simulator modal
+           setShowGCashSandbox(true);
+         } else if (result.mode === 'live' && result.checkoutUrl) {
+           // Create the order traces beforehand as unpaid pending payment
+           await executeOrderSubmission(false, 'Waiting for Gateway Settlement', false);
+           // Launch the Secure Redirect Modal to open payment window cleanly in new tab
+           setPaymongoCheckoutUrl(result.checkoutUrl);
+         }
       }
-
-      // Flush local caches to ensure immediate frontend reactivity
-      localStorage.removeItem('shop_products_all');
-      localStorage.removeItem('featured_products');
-
-      // Remove selected items from cart
-      selectedItemIds.forEach(id => removeFromCart(id));
-      
-      setIsCheckingOut(true);
-      setTimeout(() => {
-        onClose();
-        setIsCheckingOut(false);
-        setStage('cart');
-        alert(`Order Placed Successfully! Placed ${itemsByFarmer.size} separate orders grouped by each farmer.`);
-      }, 1500);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Failed to checkout. Please try again.");
+      alert(`Payment Processing Alert: ${err.message || 'The checkout service is currently compiling lines.'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSandboxSuccess = async () => {
+    try {
+      setLoading(true);
+      await executeOrderSubmission(true, 'GCash Payment Cleared');
+      setIsCheckingOut(true);
+    } catch (err) {
+      console.error('Failed to complete sandbox payment order writes:', err);
+      alert('Failed to authorize transaction state.');
     } finally {
       setLoading(false);
     }
@@ -241,7 +385,7 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
                     Your fresh farm yields have been successfully reserved! We have alerted the local agricultural hub.
                   </p>
                 </div>
-                <div className="bg-stone-50 p-4 rounded-2xl border border-stone-200 w-full max-w-xs text-left">
+                <div className="bg-stone-50 p-4 rounded-2xl border border-stone-200 w-full max-w-xs text-left mb-2">
                   <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                     <span>Recipient</span>
                     <span className="text-slate-700">{contactNumber}</span>
@@ -251,6 +395,18 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
                     <span className="text-slate-700">{shippingType === 'express' ? 'Express Dispatch' : 'Standard Hub Carrier'}</span>
                   </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    setIsCheckingOut(false);
+                    setStage('cart');
+                  }}
+                  className="w-full max-w-xs py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-[0.1em] shadow-lg shadow-emerald-600/15 transition-all text-center cursor-pointer mt-4"
+                >
+                  Continue Shopping
+                </button>
               </motion.div>
             ) : stage === 'cart' ? (
               /* STAGE: EDIT SHOPPING CART LIST (INSPIRATION: 3RD SCREEN) */
@@ -580,19 +736,149 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
         {/* BOTTOM ACTION BAR & SUBSTANTIATIVE TOTALS BREAKDOWN */}
         {items.length > 0 && !isCheckingOut && (
           <div className="p-6 bg-white border-t border-stone-150 space-y-5 shadow-2xl relative z-20">
-            {/* TICKET COUPONS NOTIFICATION */}
-            {stage === 'cart' && voucherApplied && selectedItems.length > 0 && (
-              <div className="bg-[#e9faf2] border border-[#a3e4c7] px-4 py-3 rounded-2xl flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600">
-                    <Ticket className="w-4.5 h-4.5" />
+            {/* VOUCHER / PROMO INPUT & AUTO CHIPS */}
+            {stage === 'cart' && selectedItems.length > 0 && (
+              <div className="bg-stone-50 border border-stone-150 p-4 rounded-2xl space-y-3">
+                <div className="flex items-center gap-2">
+                  <Ticket className="w-4 h-4 text-primary" />
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-700">Farm Voucher & Promo Codes</span>
+                </div>
+                
+                {/* Applied status or input */}
+                {appliedPromo ? (
+                  <div className="bg-[#e9faf2] border border-[#a3e4c7] p-3 rounded-xl flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded bg-emerald-500/10 flex items-center justify-center text-emerald-600 font-mono text-xs font-bold">
+                        %
+                      </div>
+                      <div>
+                        <h6 className="text-xs font-black text-emerald-800 tracking-wide uppercase">{appliedPromo}</h6>
+                        <p className="text-[10px] text-emerald-700 font-bold font-serif italic">
+                          {appliedPromo === 'FIRSTBUYER20' && 'First Buyer 20% Off'}
+                          {appliedPromo === 'FRESHCROP10' && 'Fresh Crop 10% Off'}
+                          {appliedPromo === 'HARVEST15' && 'Seasonal Harvest 15% Off'}
+                          {appliedPromo === 'COOP50' && '₱50 Flat Cooperative Discount'}
+                        </p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={handleRemovePromo}
+                      className="text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline px-2 py-1 cursor-pointer"
+                    >
+                      Remove
+                    </button>
                   </div>
-                  <div>
-                    <h5 className="text-[9px] font-black text-emerald-800 uppercase tracking-wider">FIRSTBUYER20 Applied</h5>
-                    <p className="text-xs text-slate-700 font-bold font-serif italic">20% Off local sourced crops</p>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={promoCode}
+                      onChange={(e) => {
+                        setPromoCode(e.target.value);
+                        setPromoError(null);
+                        setPromoSuccessMsg(null);
+                      }}
+                      placeholder="e.g. FRESHCROP10"
+                      className="flex-1 bg-white border border-stone-300 rounded-xl px-3 py-2 text-xs font-bold focus:outline-none focus:border-primary uppercase placeholder-stone-400"
+                    />
+                    <button
+                      onClick={handleApplyPromo}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer transition-colors"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                )}
+
+                {/* Promo messages */}
+                {promoError && (
+                  <p className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-100 p-2 rounded-lg">
+                    {promoError}
+                  </p>
+                )}
+                {promoSuccessMsg && (
+                  <p className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 p-2 rounded-lg">
+                    {promoSuccessMsg}
+                  </p>
+                )}
+
+                {/* Preset Chips */}
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[9px] text-stone-400 font-extrabold uppercase tracking-widest block">Available Coop Tapping Promos:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {/* FIRSTBUYER20 */}
+                    <button
+                      onClick={() => {
+                        if (hasExistingOrders === true) {
+                          setPromoError("This voucher code is exclusively for first-time buyers.");
+                          setPromoSuccessMsg(null);
+                          return;
+                        }
+                        setAppliedPromo('FIRSTBUYER20');
+                        setPromoSuccessMsg('Success! 20% FIRSTBUYER discounts applied!');
+                        setPromoError(null);
+                      }}
+                      disabled={hasExistingOrders === true}
+                      className={`text-[9px] font-mono font-bold px-2 py-1 rounded-lg border flex items-center gap-1 transition-all cursor-pointer ${
+                        appliedPromo === 'FIRSTBUYER20'
+                          ? 'bg-emerald-600 border-emerald-600 text-white'
+                          : hasExistingOrders === true
+                          ? 'bg-stone-100 border-stone-200 text-stone-400 line-through opacity-60 cursor-not-allowed'
+                          : 'bg-white border-stone-200 text-slate-700 hover:bg-stone-100'
+                      }`}
+                    >
+                      FIRSTBUYER20 {hasExistingOrders === true && "🚷"}
+                    </button>
+
+                    {/* FRESHCROP10 */}
+                    <button
+                      onClick={() => {
+                        setAppliedPromo('FRESHCROP10');
+                        setPromoSuccessMsg('Success! 10% Fresh Crops promo applied!');
+                        setPromoError(null);
+                      }}
+                      className={`text-[9px] font-mono font-bold px-2 py-1 rounded-lg border transition-all cursor-pointer ${
+                        appliedPromo === 'FRESHCROP10'
+                          ? 'bg-emerald-600 border-emerald-600 text-white'
+                          : 'bg-white border-stone-200 text-slate-700 hover:bg-stone-100'
+                      }`}
+                    >
+                      FRESHCROP10 (10%)
+                    </button>
+
+                    {/* HARVEST15 */}
+                    <button
+                      onClick={() => {
+                        setAppliedPromo('HARVEST15');
+                        setPromoSuccessMsg('Success! 15% Seasonal Harvest promo applied!');
+                        setPromoError(null);
+                      }}
+                      className={`text-[9px] font-mono font-bold px-2 py-1 rounded-lg border transition-all cursor-pointer ${
+                        appliedPromo === 'HARVEST15'
+                          ? 'bg-emerald-600 border-emerald-600 text-white'
+                          : 'bg-white border-stone-200 text-slate-700 hover:bg-stone-100'
+                      }`}
+                    >
+                      HARVEST15 (15%)
+                    </button>
+
+                    {/* COOP50 */}
+                    <button
+                      onClick={() => {
+                        setAppliedPromo('COOP50');
+                        setPromoSuccessMsg('Success! ₱50 cooperative discount applied!');
+                        setPromoError(null);
+                      }}
+                      className={`text-[9px] font-mono font-bold px-2 py-1 rounded-lg border transition-all cursor-pointer ${
+                        appliedPromo === 'COOP50'
+                          ? 'bg-emerald-600 border-emerald-600 text-white'
+                          : 'bg-white border-stone-200 text-slate-700 hover:bg-stone-100'
+                      }`}
+                    >
+                      COOP50 (₱50)
+                    </button>
                   </div>
                 </div>
-                <span className="text-xs font-black text-emerald-600">-₱{discount}</span>
               </div>
             )}
 
@@ -608,9 +894,9 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
                   {selectedItems.length > 0 ? `₱${deliveryFee}` : '₱0'}
                 </span>
               </div>
-              {voucherApplied && selectedItems.length > 0 && (
+              {appliedPromo && selectedItems.length > 0 && (
                 <div className="flex justify-between text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest">
-                  <span>Sourced Promo Save</span>
+                  <span>Sourced Promo Save ({appliedPromo})</span>
                   <span className="font-serif italic">-₱{discount}</span>
                 </div>
               )}
@@ -659,6 +945,23 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
           </div>
         )}
       </motion.div>
+
+      <GCashSandboxModal
+        isOpen={showGCashSandbox}
+        onClose={() => setShowGCashSandbox(false)}
+        total={finalTotal}
+        phone={contactNumber}
+        name={profile?.fullName || user?.displayName || 'Farmer Customer'}
+        onSuccess={handleSandboxSuccess}
+      />
+
+      <PayMongoRedirectModal
+        isOpen={!!paymongoCheckoutUrl}
+        onClose={() => setPaymongoCheckoutUrl(null)}
+        checkoutUrl={paymongoCheckoutUrl || ''}
+        total={finalTotal}
+        onRedirect={() => onClose()}
+      />
     </div>
   );
 };

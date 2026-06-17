@@ -5,6 +5,7 @@ import { auth, db } from '../lib/firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, FacebookAuthProvider, browserPopupRedirectResolver, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
+import { LegalModal } from './LegalModal';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -32,6 +33,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   const [devOtp, setDevOtp] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isInAppBrowser, setIsInAppBrowser] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [showLegal, setShowLegal] = useState(false);
+  const [legalTab, setLegalTab] = useState<'privacy' | 'terms'>('privacy');
 
   // Validation tracking states
   const [touched, setTouched] = useState<{ [key: string] : boolean }>({});
@@ -43,6 +47,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     const isRestrictedWebview = /FBAN|FBAV|Instagram|Messenger|Viber|Line|Telegram|WeChat|Snapchat/i.test(ua);
     setIsInAppBrowser(isRestrictedWebview);
   }, []);
+
+  // Persist role selection in localStorage so social auth flows in AuthContext can reference it during registration
+  useEffect(() => {
+    localStorage.setItem('auth_intent_role', role);
+  }, [role]);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -154,7 +163,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         !/\d/.test(fullName) &&
         phoneRegex.test(phone.trim()) &&
         email && emailRegex.test(email) &&
-        Object.values(passChecks).every(v => v)
+        Object.values(passChecks).every(v => v) &&
+        agreedToTerms
       );
     }
     return true;
@@ -497,8 +507,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         className="bg-white w-full max-w-5xl rounded-[3rem] md:rounded-[4rem] shadow-2xl relative border-4 border-white forest-shadow my-auto overflow-hidden flex flex-col md:flex-row"
       >
-        <button onClick={onClose} className="absolute top-4 right-4 sm:top-6 sm:right-6 p-3 sm:p-4 bg-slate-50 md:bg-white/10 hover:bg-slate-100 md:hover:bg-white hover:scale-110 active:scale-90 transition-all z-20 border border-slate-200/50 md:border-white/20 shadow-md md:shadow-xl group rounded-2xl">
-          <X className="w-5 h-5 text-slate-500 md:text-white group-hover:rotate-90 transition-transform duration-300" />
+        {/* Dynmically styled Close button to preserve high accessibility & visibility regardless of mode placement */}
+        <button 
+          onClick={onClose} 
+          className={`absolute top-4 right-4 sm:top-6 sm:right-6 p-3 sm:p-4 hover:scale-110 active:scale-90 transition-all z-20 shadow-md md:shadow-xl group rounded-2xl ${
+            mode === 'login'
+              ? 'bg-slate-100 md:bg-white/10 hover:bg-slate-200 md:hover:bg-white border border-slate-200/50 md:border-white/20'
+              : 'bg-slate-100 md:bg-slate-100 hover:bg-slate-200 md:hover:bg-slate-200 border border-slate-200'
+          }`}
+        >
+          <X 
+            className={`w-5 h-5 group-hover:rotate-90 transition-transform duration-300 ${
+              mode === 'login'
+                ? 'text-slate-600 md:text-white md:group-hover:text-secondary'
+                : 'text-slate-600 md:text-slate-700'
+            }`} 
+          />
         </button>
  
         {/* Left Side: Toggle Panel */}
@@ -877,6 +901,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                       </div>
                     </div>
                   )}
+
+                  {mode === 'register' && (
+                    <div className="flex items-start gap-2.5 p-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-left select-none my-3">
+                      <input 
+                        type="checkbox" 
+                        id="agree-checkbox"
+                        checked={agreedToTerms}
+                        onChange={(e) => setAgreedToTerms(e.target.checked)}
+                        className="w-4 h-4 mt-0.5 rounded accent-primary border-slate-300 focus:ring-primary cursor-pointer shrink-0"
+                        required
+                      />
+                      <label htmlFor="agree-checkbox" className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-relaxed cursor-pointer select-none">
+                        I confirm that I agree to the <span className="text-primary hover:underline cursor-pointer" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setLegalTab('terms'); setShowLegal(true); }}>Terms of Service</span> and <span className="text-primary hover:underline cursor-pointer" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setLegalTab('privacy'); setShowLegal(true); }}>Privacy Policy</span> for FarmToHome.
+                      </label>
+                    </div>
+                  )}
  
                   <div className="pt-4 flex flex-col sm:flex-row sm:items-center sm:gap-6">
                     <button 
@@ -1005,6 +1045,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           </div>
         </motion.div>
       </motion.div>
+
+      {/* Embedded Legal Sub-Modal */}
+      <AnimatePresence>
+        {showLegal && (
+          <LegalModal
+            isOpen={showLegal}
+            onClose={() => setShowLegal(false)}
+            initialTab={legalTab}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

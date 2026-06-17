@@ -273,6 +273,45 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
     );
   };
 
+  const handleUpdateFarmerPhoto = async (newPhotoURL: string) => {
+    if (!user?.uid) return;
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      const updateData = { photoURL: newPhotoURL };
+
+      // Instant state and cache merge to avoid slow network feedback loops
+      localStorage.removeItem(`user_profile_${user.uid}`);
+      const updatedProfile = { ...(profile || {}), ...updateData };
+      localStorage.setItem(`user_profile_${user.uid}`, JSON.stringify(updatedProfile));
+
+      const isDemo = user.uid.startsWith('demo_');
+      if (isDemo) {
+        const storedDemoSession = localStorage.getItem('demo_profile_session');
+        if (storedDemoSession) {
+          try {
+            const parsed = JSON.parse(storedDemoSession);
+            const merged = { ...parsed, ...updateData };
+            localStorage.setItem('demo_profile_session', JSON.stringify(merged));
+          } catch (e) {}
+        }
+      }
+
+      if (!isDemo) {
+        await updateDoc(userRef, updateData);
+      } else {
+        try {
+          await setDoc(userRef, updateData, { merge: true });
+        } catch (e) {
+          console.warn("Firestore save skipped/failed for demo user:", e);
+        }
+      }
+
+      await refreshProfile();
+    } catch (err) {
+      console.error("Failed to instantly save farmer profile photo:", err);
+    }
+  };
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.uid) return;
@@ -1422,9 +1461,10 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
                             <button
                               key={idx}
                               type="button"
-                              onClick={() => {
+                              onClick={async () => {
                                 setProfileForm(v => ({ ...v, photoURL: url }));
                                 setShowPresetsInForm(false);
+                                await handleUpdateFarmerPhoto(url);
                               }}
                               className={`w-9 h-9 rounded-full overflow-hidden border-2 transition-all hover:scale-110 active:scale-90 ${profileForm.photoURL === url ? 'border-emerald-600 scale-105 shadow' : 'border-white hover:border-slate-300'}`}
                             >
@@ -1618,9 +1658,10 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
         isOpen={photoEditorOpen}
         imageSrc={tempImageSrc}
         onClose={() => setPhotoEditorOpen(false)}
-        onDone={(croppedBase64) => {
+        onDone={async (croppedBase64) => {
           setProfileForm(prev => ({ ...prev, photoURL: croppedBase64 }));
           setPhotoEditorOpen(false);
+          await handleUpdateFarmerPhoto(croppedBase64);
         }}
       />
     </div>

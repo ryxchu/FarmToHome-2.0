@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, orderBy, getDocs, doc, setDoc, updateDoc, deleteDoc, limit, where, onSnapshot } from 'firebase/firestore';
 import { db, safeSetItem } from '../lib/firebase';
 import { Post, UserProfile } from '../types';
-import { Heart, MessageCircle, Share2, MoreHorizontal, Send, Sparkles, Smile, Check } from 'lucide-react';
+import { Heart, MessageCircle, Share2, MoreHorizontal, Send, Sparkles, Smile, Check, Image, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { useConfirm } from '../context/ConfirmContext';
@@ -29,7 +29,25 @@ export const SocialFeed: React.FC = () => {
   
   // New post creation fields
   const [newPostContent, setNewPostContent] = useState('');
+  const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [isSubmittingPost, setIsSubmittingPost] = useState(false);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Image size must be less than 2MB.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setAttachedImage(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // Custom interactive states
   const [openCommentsPostId, setOpenCommentsPostId] = useState<string | null>(null);
@@ -114,7 +132,7 @@ export const SocialFeed: React.FC = () => {
 
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !newPostContent.trim()) return;
+    if (!user || (!newPostContent.trim() && !attachedImage)) return;
 
     setIsSubmittingPost(true);
     try {
@@ -123,13 +141,14 @@ export const SocialFeed: React.FC = () => {
         id: postRef.id,
         farmerId: user.uid, // author ID
         content: newPostContent.trim(),
-        media: [],
+        media: attachedImage ? [attachedImage] : [],
         likes: [],
         createdAt: new Date().toISOString()
       };
 
       await setDoc(postRef, postData);
       setNewPostContent('');
+      setAttachedImage(null);
 
       // Enrich and inject new post at the top of the feed instantly
       const enrichedNewPost = {
@@ -310,18 +329,47 @@ export const SocialFeed: React.FC = () => {
                 className="w-full text-sm font-medium border-none outline-none focus:ring-0 placeholder-slate-450 resize-none pt-1"
                 disabled={isSubmittingPost}
               />
+              
+              {/* Attached Image Preview */}
+              {attachedImage && (
+                <div className="relative mt-3 w-32 aspect-video rounded-xl overflow-hidden border border-slate-100 group">
+                  <img src={attachedImage} className="w-full h-full object-cover" />
+                  <button 
+                    onClick={() => setAttachedImage(null)}
+                    type="button"
+                    className="absolute top-1 right-1 p-1 bg-black/60 hover:bg-black/80 rounded-full text-white transition-all cursor-pointer shadow-sm"
+                    title="Remove attachment"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           
-          <div className="flex items-center justify-between pt-4 border-t border-zinc-50">
-            <div className="flex items-center gap-1.5 text-slate-400">
-              <Sparkles className="w-4 h-4 text-accent" />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Public Board</span>
+          <div className="flex items-center justify-between pt-4 border-t border-zinc-50 flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              {/* Image upload trigger */}
+              <label className="flex items-center gap-1.5 p-2 px-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl transition-all cursor-pointer select-none active:scale-95 group border border-slate-100">
+                <Image className="w-4 h-4 text-emerald-600 group-hover:text-emerald-700 transition-colors" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Attach Photo</span>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={handleFileChange} 
+                />
+              </label>
+
+              <div className="flex items-center gap-1.5 text-slate-400">
+                <Sparkles className="w-4 h-4 text-accent" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Public Board</span>
+              </div>
             </div>
             
             <button
               onClick={handleCreatePost}
-              disabled={isSubmittingPost || !newPostContent.trim()}
+              disabled={isSubmittingPost || (!newPostContent.trim() && !attachedImage)}
               className="px-6 py-3 bg-primary hover:bg-primary/95 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 shadow-sm"
             >
               {isSubmittingPost ? (

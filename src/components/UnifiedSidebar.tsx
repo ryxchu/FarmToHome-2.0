@@ -427,7 +427,7 @@ export const UnifiedSidebar: React.FC<UnifiedSidebarProps> = ({
             </div>
 
             {/* Categories Section - Only show for Buyers or Guests browsing Market */}
-            {role === 'buyer' && currentView === 'home' && marketViewMode === 'shop' && (
+            {(role === 'buyer' || role === 'admin') && currentView === 'home' && marketViewMode === 'shop' && (
               <div className="pt-2">
                 <h3 className="text-[9px] font-bold text-[#362511]/50 uppercase tracking-[0.25em] mb-4 px-2">
                   Sectors & Crops
@@ -505,7 +505,7 @@ export const UnifiedSidebar: React.FC<UnifiedSidebarProps> = ({
       {/* Geolocation Button & Logout at Bottom of Sidebar */}
       {isCollapsed ? (
         <div className="flex flex-col items-center gap-4 pt-5 border-t border-[#eceae3] w-full mt-auto">
-          {role === 'buyer' && (
+          {(role === 'buyer' || role === 'admin') && (
             <button 
               onClick={onNearMeToggle}
               title={`Near Me Filter: ${nearMeEnabled ? 'Active' : 'Disabled'}`}
@@ -542,7 +542,7 @@ export const UnifiedSidebar: React.FC<UnifiedSidebarProps> = ({
         </div>
       ) : (
         <div className="mt-auto space-y-3 pt-5 border-t border-[#eceae3] w-full">
-          {role === 'buyer' && (
+          {(role === 'buyer' || role === 'admin') && (
             <button 
               onClick={onNearMeToggle}
               className={`w-full rounded-2xl p-3.5 border flex items-center gap-3 transition-all text-left group select-none ${

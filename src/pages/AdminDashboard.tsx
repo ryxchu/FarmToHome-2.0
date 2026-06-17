@@ -55,24 +55,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTabProp, o
   useEffect(() => {
     // Only fetch data once to save quota, instead of constant listeners
     const fetchData = async () => {
-      if (!auth.currentUser) {
+      if (!user) {
         setLoading(false);
         return;
       }
+      
+      const isDemo = user.uid?.startsWith('demo_');
+      
       try {
         setLoading(true);
 
-        // Force-refresh or resolve Firebase Auth ID token so it's guaranteed to be attached
-        // to Firestore headers, avoiding "Missing or insufficient permissions" with empty providerInfo on localhost.
-        try {
-          await auth.currentUser.getIdToken(true);
-        } catch (tokenErr) {
-          console.warn("Retrying token synchronization...", tokenErr);
+        // Force-refresh or resolve Firebase Auth ID token if real user is active
+        if (auth.currentUser) {
+          try {
+            await auth.currentUser.getIdToken(true);
+          } catch (tokenErr) {
+            console.warn("Retrying token synchronization...", tokenErr);
+          }
         }
 
         // Try load system config from cache first for immediate UI
         const cachedConfig = localStorage.getItem('system_config');
-        if (cachedConfig) setConfig(JSON.parse(cachedConfig));
+        if (cachedConfig) {
+          setConfig(JSON.parse(cachedConfig));
+        } else {
+          // Default fallbacks for system configuration
+          setConfig({
+            maintenanceMode: false,
+            broadcastMessage: '',
+            broadcastType: 'info',
+            platformCommissionRate: 5,
+            lastUpdated: new Date().toISOString()
+          });
+        }
 
         // Load other lists from cache if available
         const cachedUsers = localStorage.getItem('admin_users');
@@ -84,41 +99,96 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTabProp, o
         const cachedAuditLogs = localStorage.getItem('admin_audit_logs');
         if (cachedAuditLogs) setAuditLogs(JSON.parse(cachedAuditLogs));
 
-        const usersSnap = await getDocs(query(collection(db, 'users'), limit(50)));
-        const usersData = usersSnap.docs.map(doc => ({ ...doc.data(), uid: doc.id } as UserProfile));
-        setUsers(usersData);
-        safeSetItem('admin_users', JSON.stringify(usersData.slice(0, 50)));
-
-        const productsSnap = await getDocs(query(collection(db, 'products'), limit(50)));
-        const productsData = productsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product));
-        setProducts(productsData);
-        safeSetItem('admin_products', JSON.stringify(productsData.slice(0, 50)));
-
-        const ordersSnap = await getDocs(query(collection(db, 'orders'), limit(50)));
-        const ordersData = ordersSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order));
-        setOrders(ordersData);
-        safeSetItem('admin_orders', JSON.stringify(ordersData.slice(0, 50)));
-
-        const configSnap = await getDoc(doc(db, 'system', 'config'));
-        if (configSnap.exists()) {
-          const configData = configSnap.data() as SystemConfig;
-          setConfig(configData);
-          safeSetItem('system_config', JSON.stringify(configData));
+        // If it's a demo admin, we can also seed mock lists if they are empty to ensure a full experience
+        if (isDemo) {
+          if (!cachedUsers) {
+            const seedUsers: UserProfile[] = [
+              { uid: 'demo_farmer_juan', email: 'juan@cagayan.farm', fullName: 'Mang Juan', phone: '09170001122', role: 'farmer', status: 'verified', createdAt: new Date().toISOString() },
+              { uid: 'demo_farmer_pedro', email: 'pedro@benguet.farm', fullName: 'Mang Pedro', phone: '09178889900', role: 'farmer', status: 'pending', createdAt: new Date().toISOString() },
+              { uid: 'demo_buyer_patricia', email: 'patricia@gmail.com', fullName: 'Patricia Salvador', phone: '09187654321', role: 'buyer', status: 'verified', createdAt: new Date().toISOString() },
+              { uid: 'demo_buyer_john', email: 'john@santos.ph', fullName: 'John Santos', phone: '09192223344', role: 'buyer', status: 'verified', createdAt: new Date().toISOString() }
+            ];
+            setUsers(seedUsers);
+            safeSetItem('admin_users', JSON.stringify(seedUsers));
+          }
+          if (!cachedProducts) {
+            const seedProducts: Product[] = [
+              { id: 'p_guimaras_mangoes', name: 'Guimaras Sweet Mangoes (Export Grade)', category: 'Fruits', price: 180, unit: 'kg', stock: 120, description: 'Famous sweet Guimaras mangoes, freshly harvested, organic, and pesticide-free.', images: ['https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&q=80&w=400'], rating: 4.9, reviewCount: 24, farmerId: 'demo_farmer_juan', isPublished: true, harvestDate: new Date().toISOString(), createdAt: new Date().toISOString() },
+              { id: 'p_calamansi', name: 'Fresh Native Calamansi', category: 'Fruits', price: 80, unit: 'kg', stock: 350, description: 'Zesty native calamansi, rich in Vitamin C, harvested daily.', images: ['https://images.unsplash.com/photo-1595855759920-86582396756a?auto=format&fit=crop&q=80&w=400'], rating: 4.8, reviewCount: 15, farmerId: 'demo_farmer_juan', isPublished: true, harvestDate: new Date().toISOString(), createdAt: new Date().toISOString() }
+            ];
+            setProducts(seedProducts);
+            safeSetItem('admin_products', JSON.stringify(seedProducts));
+          }
+          if (!cachedOrders) {
+            const seedOrders: Order[] = [
+              { id: 'order_demo_101', buyerId: 'demo_buyer_patricia', buyerName: 'Patricia Salvador', buyerPhone: '09187654321', buyerAddress: 'Unit 401, Serendra Condominium, BGC, Taguig City, Metro Manila', deliveryAddress: 'Unit 401, Serendra Condominium, BGC, Taguig City, Metro Manila', contactNumber: '09187654321', farmerId: 'demo_farmer_juan', items: [{ productId: 'p_guimaras_mangoes', name: 'Guimaras Sweet Mangoes (Export Grade)', price: 180, quantity: 3, image: 'https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&q=80&w=400' }], total: 590, paymentMethod: 'cash_on_delivery', status: 'pending', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+            ];
+            setOrders(seedOrders);
+            safeSetItem('admin_orders', JSON.stringify(seedOrders));
+          }
+          if (!cachedAuditLogs) {
+            const seedLogs: AuditLog[] = [
+              { id: 'log_001', action: 'System Initialization', details: 'FarmToHome administrative console prepared.', timestamp: new Date().toISOString(), adminId: user.uid }
+            ];
+            setAuditLogs(seedLogs);
+            safeSetItem('admin_audit_logs', JSON.stringify(seedLogs));
+          }
         }
 
-        const categoriesSnap = await getDoc(doc(db, 'system', 'categories'));
-        if (categoriesSnap.exists()) setCategories(categoriesSnap.data().list || ['Vegetables', 'Fruits', 'Root Crops', 'Herbs & Spices', 'Grains']);
+        // Fetch actual data from Firestore database
+        if (!isDemo) {
+          const usersSnap = await getDocs(query(collection(db, 'users'), limit(50)));
+          const usersData = usersSnap.docs.map(doc => ({ ...doc.data(), uid: doc.id } as UserProfile));
+          setUsers(usersData);
+          safeSetItem('admin_users', JSON.stringify(usersData.slice(0, 50)));
 
-        const logsSnap = await getDocs(query(collection(db, 'audit_logs'), limit(20)));
-        const logsData = logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AuditLog)).sort((a,b) => b.timestamp.localeCompare(a.timestamp));
-        setAuditLogs(logsData);
-        safeSetItem('admin_audit_logs', JSON.stringify(logsData));
-      } catch (error) {
-        if (!isQuotaError(error) && !isOfflineError(error)) {
-          handleFirestoreError(error, OperationType.LIST, 'admin_data');
+          const productsSnap = await getDocs(query(collection(db, 'products'), limit(50)));
+          const productsData = productsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product));
+          setProducts(productsData);
+          safeSetItem('admin_products', JSON.stringify(productsData.slice(0, 50)));
+
+          const ordersSnap = await getDocs(query(collection(db, 'orders'), limit(50)));
+          const ordersData = ordersSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order));
+          setOrders(ordersData);
+          safeSetItem('admin_orders', JSON.stringify(ordersData.slice(0, 50)));
+
+          const configSnap = await getDoc(doc(db, 'system', 'config'));
+          if (configSnap.exists()) {
+            const configData = configSnap.data() as SystemConfig;
+            setConfig(configData);
+            safeSetItem('system_config', JSON.stringify(configData));
+          }
+
+          const categoriesSnap = await getDoc(doc(db, 'system', 'categories'));
+          if (categoriesSnap.exists()) setCategories(categoriesSnap.data().list || ['Vegetables', 'Fruits', 'Root Crops', 'Herbs & Spices', 'Grains']);
+
+          const logsSnap = await getDocs(query(collection(db, 'audit_logs'), limit(20)));
+          const logsData = logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AuditLog)).sort((a,b) => b.timestamp.localeCompare(a.timestamp));
+          setAuditLogs(logsData);
+          safeSetItem('admin_audit_logs', JSON.stringify(logsData));
         } else {
-          setQuotaHit(true);
-          console.warn("Admin dashboard: partially using cached/last-known data due to quota limits or offline state");
+          // In demo mode, we can still try to read from public system/config if we can
+          try {
+            const configSnap = await getDoc(doc(db, 'system', 'config'));
+            if (configSnap.exists()) {
+              const configData = configSnap.data() as SystemConfig;
+              setConfig(configData);
+              safeSetItem('system_config', JSON.stringify(configData));
+            }
+          } catch (configErr) {
+            console.warn("Could not read remote config in demo mode, staying with cached configuration:", configErr);
+          }
+        }
+      } catch (error) {
+        if (!isDemo) {
+          if (!isQuotaError(error) && !isOfflineError(error)) {
+            handleFirestoreError(error, OperationType.LIST, 'admin_data');
+          } else {
+            setQuotaHit(true);
+            console.warn("Admin dashboard: partially using cached/last-known data due to quota limits or offline state");
+          }
+        } else {
+          console.warn("Using simulated data for demo user account. DB reads bypassed.");
         }
       } finally {
         setLoading(false);
@@ -128,7 +198,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTabProp, o
     fetchData();
 
     return () => {};
-  }, []);
+  }, [user]);
 
   const logAction = async (action: string, details: string) => {
     try {
@@ -275,6 +345,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTabProp, o
 
   // System Config
   const updateSystemConfig = async (updates: Partial<SystemConfig>) => {
+    const isDemo = user?.uid?.startsWith('demo_');
     try {
       const newConfig = {
         ...config,
@@ -282,15 +353,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTabProp, o
         lastUpdated: new Date().toISOString()
       } as SystemConfig;
 
-      await setDoc(doc(db, 'system', 'config'), newConfig, { merge: true });
-
-      // Update local state and cache
+      // Update local state and cache immediately for instantaneous UI responsiveness
       setConfig(newConfig);
       safeSetItem('system_config', JSON.stringify(newConfig));
+      window.dispatchEvent(new Event('system-config-update'));
 
-      logAction('System Update', `Updated system config`);
+      if (!isDemo) {
+        await setDoc(doc(db, 'system', 'config'), newConfig, { merge: true });
+        logAction('System Update', `Updated system config`);
+      } else {
+        try {
+          await setDoc(doc(db, 'system', 'config'), newConfig, { merge: true });
+          logAction('System Update', `Updated system config`);
+        } catch (dbErr) {
+          console.warn("Firestore save skipped/failed for demo admin:", dbErr);
+          logAction('System Update (Simulated)', `Updated system config locally`);
+        }
+      }
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'system/config');
+      if (!isDemo) {
+        handleFirestoreError(err, OperationType.WRITE, 'system/config');
+        alert('Failed to update system config in Firestore.');
+      }
     }
   };
 

@@ -23,7 +23,7 @@ import { AIChatbot } from './components/AIChatbot';
 import { InfoModal, InfoSectionType } from './components/InfoModal';
 import { LegalModal } from './components/LegalModal';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sprout, Search, ShoppingBag, Radio, Lock, MapPin, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Sprout, Search, ShoppingBag, Radio, Lock, MapPin, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import { useCart } from './context/CartContext';
 import { seedProducts, cleanupDuplicates } from './lib/seed';
 import { UnifiedSidebar } from './components/UnifiedSidebar';
@@ -45,7 +45,7 @@ const SideNavLink: React.FC<{ icon: string; label: string; active?: boolean; onC
 
 import { SystemConfig } from './types';
 import { db, handleFirestoreError, OperationType, isQuotaError, isOfflineError, safeSetItem } from './lib/firebase';
-import { doc, getDoc, collection, getDocs, query, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, limit, onSnapshot } from 'firebase/firestore';
 
 function AppContent() {
   const { 
@@ -63,6 +63,7 @@ function AppContent() {
   const { isOpen: showCart, setIsOpen: setShowCart, clearCart } = useCart();
   const [showMabuhaySuccess, setShowMabuhaySuccess] = useState(false);
   const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
+  const [dismissedBroadcast, setDismissedBroadcast] = useState<string | null>(null);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [infoModalSection, setInfoModalSection] = useState<InfoSectionType>('about');
   const [showLegalModal, setShowLegalModal] = useState(false);
@@ -324,7 +325,7 @@ function AppContent() {
             setCurrentView('dashboard');
           }
         } else if (profile.role === 'admin') {
-          if (currentView === 'home' || currentView === 'dashboard' || currentView === 'tracking') {
+          if (currentView === 'dashboard' || currentView === 'tracking') {
             setCurrentView('admin-dashboard');
           }
         }
@@ -357,22 +358,22 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    const fetchConfig = async () => {
-      // Try local cache first
-      const cached = localStorage.getItem('system_config');
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          if (parsed && typeof parsed === 'object') {
-            setSystemConfig(parsed);
-          }
-        } catch (e) {
-          localStorage.removeItem('system_config');
-        }
-      }
-
+    // Try local cache first
+    const cached = localStorage.getItem('system_config');
+    if (cached) {
       try {
-        const docSnap = await getDoc(doc(db, 'system', 'config'));
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed === 'object') {
+          setSystemConfig(parsed);
+        }
+      } catch (e) {
+        localStorage.removeItem('system_config');
+      }
+    }
+
+    const unsubscribe = onSnapshot(
+      doc(db, 'system', 'config'),
+      (docSnap) => {
         if (docSnap.exists()) {
           const config = docSnap.data() as SystemConfig;
           setSystemConfig(config);
@@ -388,7 +389,8 @@ function AppContent() {
           };
           setSystemConfig(defaultConfig);
         }
-      } catch (error) {
+      },
+      (error) => {
         if (isQuotaError(error) || isOfflineError(error)) {
           // If we have cached version, use it and don't throw
           if (localStorage.getItem('system_config')) {
@@ -413,8 +415,26 @@ function AppContent() {
           handleFirestoreError(error, OperationType.GET, 'system/config');
         }
       }
+    );
+
+    // Support local cache updates instantly (e.g., in client-only demo sessions)
+    const handleLocalConfigUpdate = () => {
+      const latestCached = localStorage.getItem('system_config');
+      if (latestCached) {
+        try {
+          const parsed = JSON.parse(latestCached);
+          if (parsed && typeof parsed === 'object') {
+            setSystemConfig(parsed);
+          }
+        } catch (e) {}
+      }
     };
-    fetchConfig();
+    window.addEventListener('system-config-update', handleLocalConfigUpdate);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('system-config-update', handleLocalConfigUpdate);
+    };
   }, []);
 
   if (loading) {
@@ -458,7 +478,7 @@ function AppContent() {
   return (
     <div className="relative min-h-screen bg-background flex flex-col">
       <AnimatePresence>
-        {systemConfig?.broadcastMessage && (
+        {systemConfig?.broadcastMessage && dismissedBroadcast !== systemConfig.broadcastMessage && (
           <motion.div 
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
@@ -466,10 +486,19 @@ function AppContent() {
             className={`${
               systemConfig.broadcastType === 'emergency' ? 'bg-red-500' : 
               systemConfig.broadcastType === 'warning' ? 'bg-amber-500' : 'bg-secondary'
-            } text-white px-6 py-3 flex items-center justify-center gap-4 text-[10px] font-bold uppercase tracking-[0.2em] relative z-[99]`}
+            } text-white px-6 py-3 flex items-center justify-between gap-4 text-[10px] font-bold uppercase tracking-[0.2em] relative z-[99] w-full`}
           >
-            <Radio className="w-4 h-4 animate-pulse" />
-            <span>{systemConfig.broadcastMessage}</span>
+            <div className="flex items-center justify-center gap-4 flex-1">
+              <Radio className="w-4 h-4 animate-pulse shrink-0" />
+              <span>{systemConfig.broadcastMessage}</span>
+            </div>
+            <button 
+              onClick={() => setDismissedBroadcast(systemConfig.broadcastMessage)}
+              className="p-1 hover:bg-white/10 rounded-full transition-colors cursor-pointer shrink-0"
+              title="Dismiss Broadcast"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </motion.div>
         )}
         {dbInterrupted && (

@@ -175,22 +175,30 @@ export const AIChatbot: React.FC = () => {
     e.preventDefault();
     if (!input.trim() || loading) return;
 
-    const userMsg = input;
-    const updatedMessages = [...messages, { role: 'user' as const, parts: [{ text: userMsg }] }];
-    setMessages(updatedMessages);
+    const userMsg = input.trim();
     setInput('');
     setLoading(true);
 
+    const newUserMsgObj = { role: 'user' as const, parts: [{ text: userMsg }] };
+    
+    // Safety Guard 3: Functional state updater to preserve previous message logs cleanly
+    setMessages(prev => [...prev, newUserMsgObj]);
+
     try {
+      // Create latest snapshots of history safely containing the new message
+      const latestHistory = [...messages, newUserMsgObj];
+
       const response = await fetch('/api/gemini/support-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           message: userMsg, 
           language: currentLanguage,
-          history: updatedMessages
+          history: latestHistory
         })
       });
+      
+      // Safety Guard 2: Robust response and error parsing inside bulletproof try/catch block
       const data = await response.json();
 
       if (data.success && data.text) {
@@ -199,7 +207,7 @@ export const AIChatbot: React.FC = () => {
         setMessages(prev => [...prev, { role: 'model', parts: [{ text: data.error || "I'm sorry, I couldn't process that. Can you try again?" }] }]);
       }
     } catch (err) {
-      console.error(err);
+      console.error("[Chatbot Error Handler]", err);
       setMessages(prev => [...prev, { role: 'model', parts: [{ text: "Sorry, I'm having trouble connecting right now. Please try again later." }] }]);
     } finally {
       setLoading(false);
@@ -402,8 +410,9 @@ export const AIChatbot: React.FC = () => {
                     type="text" 
                     value={input}
                     onChange={e => setInput(e.target.value)}
-                    placeholder={currentLanguage === 'tl' ? "Mag-type ng mensahe..." : "Type a message..."}
-                    className="flex-grow px-4 py-2 bg-zinc-150 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 bg-zinc-50"
+                    placeholder={loading ? (currentLanguage === 'tl' ? "Nag-iisip..." : "Thinking...") : (currentLanguage === 'tl' ? "Mag-type ng mensahe..." : "Type a message...")}
+                    className="flex-grow px-4 py-2 bg-zinc-150 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={loading}
                   />
                   <button 
                     type="submit"

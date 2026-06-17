@@ -152,6 +152,45 @@ export const Profile: React.FC = () => {
     );
   };
 
+  const handleUpdatePhotoURL = async (newPhotoURL: string) => {
+    if (!profile) return;
+    try {
+      const userRef = doc(db, 'users', profile.uid);
+      const updateData = { photoURL: newPhotoURL };
+
+      // Instant state and cache merge to avoid slow network feedback loops
+      localStorage.removeItem(`user_profile_${profile.uid}`);
+      const updatedProfile = { ...profile, ...updateData };
+      localStorage.setItem(`user_profile_${profile.uid}`, JSON.stringify(updatedProfile));
+
+      const isDemo = profile.uid.startsWith('demo_');
+      if (isDemo) {
+        const storedDemoSession = localStorage.getItem('demo_profile_session');
+        if (storedDemoSession) {
+          try {
+            const parsed = JSON.parse(storedDemoSession);
+            const merged = { ...parsed, ...updateData };
+            localStorage.setItem('demo_profile_session', JSON.stringify(merged));
+          } catch (e) {}
+        }
+      }
+
+      if (!isDemo) {
+        await updateDoc(userRef, updateData);
+      } else {
+        try {
+          await setDoc(userRef, updateData, { merge: true });
+        } catch (e) {
+          console.warn("Firestore save skipped/failed for demo user:", e);
+        }
+      }
+
+      await refreshProfile();
+    } catch (err) {
+      console.error("Failed to instantly save profile photo:", err);
+    }
+  };
+
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -255,18 +294,47 @@ export const Profile: React.FC = () => {
           <div className="flex flex-col md:flex-row items-start gap-6 sm:gap-8 mb-8 pb-8 border-b border-stone-100 text-left w-full">
             {/* Contained circular avatar at the top left of the white panel */}
             <div className="p-1 bg-slate-55 rounded-full border border-stone-100 shadow-sm shrink-0 self-start">
-              <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full bg-accent-light flex items-center justify-center overflow-hidden border border-stone-100">
+              <div 
+                onClick={() => document.getElementById('profile-avatar-direct-input')?.click()}
+                className="w-20 h-20 sm:w-28 sm:h-28 rounded-full bg-accent-light flex items-center justify-center overflow-hidden border border-stone-100 cursor-pointer relative group"
+                title="Click to change profile picture"
+              >
                 {profile.photoURL ? (
                   <img 
                     src={profile.photoURL} 
                     alt="Profile Picture" 
-                    className="w-full h-full object-cover bg-slate-50 hover:scale-105 transition-transform duration-300" 
+                    className="w-full h-full object-cover bg-slate-50 group-hover:scale-105 transition-transform duration-300" 
                     referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <User className="w-10 h-10 sm:w-16 sm:h-16 text-primary opacity-20" />
+                  <User className="w-10 h-10 sm:w-16 sm:h-16 text-primary opacity-20 group-hover:scale-105 transition-transform" />
                 )}
+                
+                {/* Visual Camera Overlay on hover */}
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <Camera className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                </div>
               </div>
+
+              {/* Hidden file input for direct upload */}
+              <input 
+                type="file"
+                id="profile-avatar-direct-input"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      setTempImageSrc(reader.result as string);
+                      setPhotoEditorOpen(true);
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                  e.target.value = '';
+                }}
+              />
             </div>
 
             {/* Profile key information and actions */}
@@ -650,9 +718,10 @@ export const Profile: React.FC = () => {
                             <button
                               key={idx}
                               type="button"
-                              onClick={() => {
+                              onClick={async () => {
                                 setEditForm(prev => ({ ...prev, photoURL: url }));
                                 setShowPresetsInForm(false);
+                                await handleUpdatePhotoURL(url);
                               }}
                               className={`w-9 h-9 rounded-full overflow-hidden border-2 transition-all hover:scale-110 active:scale-90 ${editForm.photoURL === url ? 'border-emerald-600 scale-105 shadow' : 'border-white hover:border-slate-300'}`}
                             >
@@ -912,9 +981,10 @@ export const Profile: React.FC = () => {
         isOpen={photoEditorOpen}
         imageSrc={tempImageSrc}
         onClose={() => setPhotoEditorOpen(false)}
-        onDone={(croppedBase64) => {
+        onDone={async (croppedBase64) => {
           setEditForm(prev => ({ ...prev, photoURL: croppedBase64 }));
           setPhotoEditorOpen(false);
+          await handleUpdatePhotoURL(croppedBase64);
         }}
       />
     </div>

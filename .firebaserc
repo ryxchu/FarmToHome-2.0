@@ -1,0 +1,16 @@
+{
+  "projects": {
+    "default": "gen-lang-client-0034352624",
+    "production": "farmtohomeph-85790"
+  },
+  "targets": {
+    "gen-lang-client-0034352624": {
+      "hosting": {
+        "default": [
+          "farmtohomeph"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

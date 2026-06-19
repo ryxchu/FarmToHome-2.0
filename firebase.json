@@ -1,10 +1,1 @@
-{
-  "projectId": "gen-lang-client-0034352624",
-  "appId": "1:846301848280:web:80487d5759afb4a04fadad",
-  "apiKey": "AIzaSyAfbHFjh41BJeshYgQN9S_xA4xK9deoVrQ",
-  "authDomain": "gen-lang-client-0034352624.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-57ca4155-5b3f-41be-85bd-2ab43e2a76bf",
-  "storageBucket": "gen-lang-client-0034352624.firebasestorage.app",
-  "messagingSenderId": "846301848280",
-  "measurementId": ""
-}
+{"hosting": {"public": "dist", "ignore": ["firebase.json", "**/.*", "**/node_modules/**"], "rewrites": [{"source": "**", "destination": "/index.html"}]}}

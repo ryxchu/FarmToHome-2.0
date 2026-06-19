@@ -16,10 +16,11 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode = 'login', initialRole = 'buyer' }) => {
-  const { loginSimulatedDemo, profile } = useAuth();
+  const { loginSimulatedDemo, profile, setAuthVariant } = useAuth();
   const [mode, setMode] = useState<'login' | 'register' | 'otp' | 'forgot-password'>(initialMode);
 
   const handleClose = async () => {
+    sessionStorage.removeItem('otp_lock_active');
     if (mode === 'otp' || (profile && profile.status === 'unverified')) {
       try {
         await auth.signOut();
@@ -71,7 +72,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       setMode(initialMode);
       setRole(initialRole);
       setError('');
-      setSuccessMessage('');
+      
+      // Retain or restore success message if saved during unmount/remount boundary transitions
+      const storedMsg = sessionStorage.getItem('auth_success_message');
+      if (storedMsg) {
+        setSuccessMessage(storedMsg);
+        sessionStorage.removeItem('auth_success_message');
+      } else {
+        setSuccessMessage('');
+      }
+
       setPassword('');
       setConfirmPassword('');
       setFullName('');
@@ -83,41 +93,38 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     }
   }, [isOpen, initialMode, initialRole]);
 
-  // Auto-close if user is authenticated and not in OTP mode
-    // 🔄 REFACTORED TO PREVENT DOUBLE-FIRING LOGIC LOOPS
+  // Auto-close if user is authenticated and not in OTP mode - cleaned up from volatile triggers like mode or otpMethod
   useEffect(() => {
-    // Only run this layout interceptor if the user is logged in but NOT on the OTP screen yet
-    if (isOpen && auth.currentUser && mode !== 'otp') {
+    if (isOpen && auth.currentUser) {
       const checkProfile = async () => {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', auth.currentUser!.uid));
-          if (userDoc.exists()) {
-            const profileData = userDoc.data();
-            if (profileData && profileData.status === 'unverified') {
-              const userEmail = profileData.email || '';
-              const userPhone = profileData.phone || '';
-              
-              setEmail(userEmail);
-              setPhone(userPhone);
-              setMode('otp');
-              
-              // Only trigger the initialization dispatch if it hasn't been cached yet
-              const alreadySent = sessionStorage.getItem('sandbox_otp_code');
-              if (!alreadySent) {
-                sendOtp('email', userEmail, userPhone);
+        const userDoc = await getDoc(doc(db, 'users', auth.currentUser!.uid));
+        if (userDoc.exists()) {
+          const profileData = userDoc.data();
+          if (profileData && profileData.status === 'unverified') {
+            setMode(currentMode => {
+              if (currentMode !== 'otp') {
+                const userEmail = profileData.email || '';
+                const userPhone = profileData.phone || '';
+                setEmail(userEmail);
+                setPhone(userPhone);
+                
+                // Directly trigger OTP send using active selection safely
+                setOtpMethod(currentMethod => {
+                  sendOtp(currentMethod, userEmail, userPhone);
+                  return currentMethod;
+                });
+                return 'otp';
               }
-            } else {
-              onClose();
-            }
+              return currentMode;
+            });
+          } else {
+            onClose();
           }
-        } catch (err) {
-          console.error("Profile check loop intercepted an issue:", err);
         }
       };
       checkProfile();
     }
-    // Remove 'mode' and 'otpMethod' from dependencies to kill the infinite lifecycle execution loop!
-  }, [isOpen, auth.currentUser, onClose]);
+  }, [isOpen, onClose]);
 
   const toggleMode = () => {
     const newMode = mode === 'login' ? 'register' : 'login';
@@ -394,6 +401,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   };
 
   const sendOtp = async (method: 'email' | 'phone', overrideEmail?: string, overridePhone?: string) => {
+    // Intercept and prevent redundant/infinite loop send dispatch triggers
+    if (sessionStorage.getItem('otp_lock_active') === 'true') {
+      console.warn("[OTP Prevention] Active session lock exists. Skipping repeated dispatch.");
+      return;
+    }
+
     setLoading(true);
     setDevOtp('');
     const targetEmail = overrideEmail || email;
@@ -420,6 +433,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           templateParams,
           (import.meta as any).env.VITE_EMAILJS_PUBLIC_KEY || ''
         );
+        
+        // Lock the session against spam loops or repeat automatic render invokes
+        sessionStorage.setItem('otp_lock_active', 'true');
         
         console.info(`[EmailJS] OTP verification code delivered to ${targetEmail}`);
       } else {
@@ -495,6 +511,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           await setDoc(doc(db, 'users', auth.currentUser.uid), {
             status: 'verified'
           }, { merge: true });
+        }
+        
+        // Save the success message across the unmount/remount flow
+        sessionStorage.setItem('auth_success_message', 'Account verified successfully! Please log in to your account.');
+        
+        // Update the central auth variant mode to login BEFORE signing out
+        if (setAuthVariant) {
+          setAuthVariant({ mode: 'login', role: role || 'buyer' });
         }
         
         // Sign out so they must log in using the newly created/verified account first
@@ -742,7 +766,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                     <div className="flex gap-4">
                       <button 
                         type="button"
-                        onClick={() => { setOtpMethod('email'); sendOtp('email'); }}
+                        onClick={() => { sessionStorage.removeItem('otp_lock_active'); setOtpMethod('email'); sendOtp('email'); }}
                         className={`flex-1 p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${otpMethod === 'email' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
                       >
                         <Mail className="w-5 h-5" />
@@ -750,7 +774,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                       </button>
                       <button 
                         type="button"
-                        onClick={() => { setOtpMethod('phone'); sendOtp('phone'); }}
+                        onClick={() => { sessionStorage.removeItem('otp_lock_active'); setOtpMethod('phone'); sendOtp('phone'); }}
                         className={`flex-1 p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${otpMethod === 'phone' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
                       >
                         <Phone className="w-5 h-5" />
@@ -765,18 +789,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                     <p className="text-[11px] text-slate-500 leading-relaxed">
                       We've sent a 6-digit code to your <span className="font-bold text-slate-800">{otpMethod === 'email' ? email : phone}</span>.
                     </p>
-
-                    {devOtp && (
-                      <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl text-emerald-800 text-[10px] font-bold uppercase tracking-tight flex flex-col gap-1.5 text-center my-3 animate-pulse">
-                        <span className="text-emerald-700">✉️ Simulated Sandbox OTP Code:</span>
-                        <div className="text-xl font-extrabold tracking-widest text-[#0f172a] bg-white border border-emerald-200/50 rounded-xl py-2 px-4 shadow-xs inline-block max-w-max mx-auto">
-                          {devOtp}
-                        </div>
-                        <p className="normal-case text-[9px] text-slate-500 font-medium leading-relaxed max-w-[280px] mx-auto">
-                          Standard email servers are unreachable. Please enter this code above to securely complete your registration.
-                        </p>
-                      </div>
-                    )}
 
                     <div className="flex justify-between gap-2">
                       {otp.map((digit, idx) => (
@@ -816,7 +828,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                     <button 
                       type="button"
                       disabled={resendCooldown > 0 || loading}
-                      onClick={() => sendOtp(otpMethod)}
+                      onClick={() => { sessionStorage.removeItem('otp_lock_active'); sendOtp(otpMethod); }}
                       className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-primary transition-colors disabled:opacity-50"
                     >
                       {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend verification code'}

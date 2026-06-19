@@ -446,11 +446,16 @@ async function startServer() {
       if (type === 'email') {
         try {
           const transporter = nodemailer.createTransport({
-            service: 'gmail',
+            host: 'smtp.gmail.com',
+            port: 465,
+            secure: true,
             auth: {
               user: smtpUser,
               pass: smtpPass,
             },
+            tls: {
+              rejectUnauthorized: false
+            }
           });
 
           await transporter.sendMail({
@@ -471,13 +476,24 @@ async function startServer() {
           });
           res.json({ success: true, message: "OTP sent to email" });
         } catch (error: any) {
-          console.warn("Failed to send SMTP email, falling back to simulated OTP on localhost:", error);
-          res.json({ 
-            success: true, 
-            message: "Verification simulated on Localhost (SMTP fallback)", 
-            dev: true,
-            otp: otp
-          });
+          const host = req.headers.host || '';
+          const isLocal = host.includes('localhost') || host.includes('127.0.0.1') || host.includes('3000');
+          
+          if (isLocal) {
+            console.warn("Failed to send SMTP email locally, falling back to simulated OTP:", error);
+            res.json({ 
+              success: true, 
+              message: "Verification simulated on Localhost (SMTP fallback)", 
+              dev: true,
+              otp: otp
+            });
+          } else {
+            console.error("SMTP Delivery failed in hosting environment:", error);
+            res.status(500).json({ 
+              success: false, 
+              message: `Failed to dispatch verification email: ${error.message || 'SMTP Handshake Error'}. Please contact administrator to check SMTP credentials or try again later.`
+            });
+          }
         }
       } else {
         // Safe cellphone normalize to prevent crashes if phone is missing or undefined

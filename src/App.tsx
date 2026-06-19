@@ -74,8 +74,11 @@ function AppContent() {
       alert('Your account has been banned from the FarmToHome ecosystem.');
       logout();
       setCurrentView('landing');
+    } else if (profile?.status === 'unverified') {
+      setAuthVariant({ mode: 'register', role: profile.role || 'buyer' });
+      setShowAuthModal(true);
     }
-  }, [profile, logout]);
+  }, [profile, logout, setAuthVariant, setShowAuthModal]);
   
   const [currentView, setCurrentView] = useState<'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages'>('landing');
   const [marketViewMode, setMarketViewMode] = useState<'shop' | 'community'>('shop');
@@ -715,7 +718,13 @@ function AppContent() {
         {showAuthModal && (
           <AuthModal 
             isOpen={showAuthModal} 
-            onClose={() => setShowAuthModal(false)} 
+            onClose={async () => {
+              if (profile?.status === 'unverified') {
+                await logout();
+                setCurrentView('landing');
+              }
+              setShowAuthModal(false);
+            }} 
             initialMode={authVariant.mode}
             initialRole={authVariant.role}
           />

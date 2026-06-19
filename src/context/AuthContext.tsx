@@ -250,20 +250,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const openAuth = (mode: 'login' | 'register' = 'login', role: 'buyer' | 'farmer' | 'admin' = 'buyer') => {
+  const openAuth = useCallback((mode: 'login' | 'register' = 'login', role: 'buyer' | 'farmer' | 'admin' = 'buyer') => {
     setAuthVariant({ mode, role });
     setShowAuthModal(true);
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     localStorage.removeItem('demo_user_session');
     localStorage.removeItem('demo_profile_session');
     setSimulatedUser(null);
     setSimulatedProfile(null);
     await signOut(auth);
-  };
+  }, []);
 
-  const loginSimulatedDemo = (selectedRole: 'buyer' | 'farmer' | 'admin', selectedEmail: string, selectedName: string) => {
+  const loginSimulatedDemo = useCallback((selectedRole: 'buyer' | 'farmer' | 'admin', selectedEmail: string, selectedName: string) => {
     const mockUid = `demo_${selectedRole}_${Date.now()}`;
     const mockUser = {
       uid: mockUid,
@@ -292,7 +292,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSimulatedProfile(mockProfile);
     setLoading(false);
     setShowAuthModal(false);
-  };
+  }, []);
 
   const fetchProfile = useCallback(async (uid: string) => {
     // Try cache first

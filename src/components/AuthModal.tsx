@@ -107,12 +107,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                 const userPhone = profileData.phone || '';
                 setEmail(userEmail);
                 setPhone(userPhone);
-                
-                // Directly trigger OTP send using active selection safely
-                setOtpMethod(currentMethod => {
-                  sendOtp(currentMethod, userEmail, userPhone);
-                  return currentMethod;
-                });
                 return 'otp';
               }
               return currentMode;
@@ -252,6 +246,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           }
         }
         onClose();
+        window.location.reload();
       } else {
         const userCred = await createUserWithEmailAndPassword(auth, email, password);
         // Force admin for the bootstrapped user
@@ -513,16 +508,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           }, { merge: true });
         }
         
-        // Save the success message across the unmount/remount flow
-        sessionStorage.setItem('auth_success_message', 'Account verified successfully! Please log in to your account.');
-        
-        // Update the central auth variant mode to login BEFORE signing out
-        if (setAuthVariant) {
-          setAuthVariant({ mode: 'login', role: role || 'buyer' });
-        }
-        
-        // Sign out so they must log in using the newly created/verified account first
-        await auth.signOut();
+        // Clear the touched validation tracking states
+        setFormSubmitted(false);
+        setTouched({});
         
         // Retain email for ease, reset password and otp state
         setPassword('');
@@ -530,8 +518,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         setOtp(['', '', '', '', '', '']);
         setDevOtp('');
         
+        // Save the success message across the unmount/remount flow
+        sessionStorage.setItem('auth_success_message', 'Account verified successfully! Please log in to your account.');
         setSuccessMessage('Account verified successfully! Please log in to your account.');
+        
+        // Update the central auth variant mode to login BEFORE signing out
+        if (setAuthVariant) {
+          setAuthVariant({ mode: 'login', role: role || 'buyer' });
+        }
+        
+        // Explicitly set local mode to login BEFORE signing out to prevent layout flash
         setMode('login');
+
+        // Sign out so they must log in using the newly created/verified account first
+        await auth.signOut();
       } else {
         setError('Invalid verification code.');
       }

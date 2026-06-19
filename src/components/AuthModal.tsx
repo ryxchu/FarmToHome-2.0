@@ -15,8 +15,19 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode = 'login', initialRole = 'buyer' }) => {
-  const { loginSimulatedDemo } = useAuth();
+  const { loginSimulatedDemo, profile } = useAuth();
   const [mode, setMode] = useState<'login' | 'register' | 'otp' | 'forgot-password'>(initialMode);
+
+  const handleClose = async () => {
+    if (mode === 'otp' || (profile && profile.status === 'unverified')) {
+      try {
+        await auth.signOut();
+      } catch (err) {
+        console.error("Error signing out unverified session on close:", err);
+      }
+    }
+    onClose();
+  };
   const [role, setRole] = useState<'buyer' | 'farmer' | 'admin'>(initialRole);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -509,7 +520,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       >
         {/* Dynmically styled Close button to preserve high accessibility & visibility regardless of mode placement */}
         <button 
-          onClick={onClose} 
+          onClick={handleClose} 
           className={`absolute top-4 right-4 sm:top-6 sm:right-6 p-3 sm:p-4 hover:scale-110 active:scale-90 transition-all z-20 shadow-md md:shadow-xl group rounded-2xl ${
             mode === 'login'
               ? 'bg-slate-100 md:bg-white/10 hover:bg-slate-200 md:hover:bg-white border border-slate-200/50 md:border-white/20'
@@ -704,6 +715,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                     <p className="text-[11px] text-slate-500 leading-relaxed">
                       We've sent a 6-digit code to your <span className="font-bold text-slate-800">{otpMethod === 'email' ? email : phone}</span>.
                     </p>
+
+                    {devOtp && (
+                      <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl text-emerald-800 text-[10px] font-bold uppercase tracking-tight flex flex-col gap-1.5 text-center my-3 animate-pulse">
+                        <span className="text-emerald-700">✉️ Simulated Sandbox OTP Code:</span>
+                        <div className="text-xl font-extrabold tracking-widest text-[#0f172a] bg-white border border-emerald-200/50 rounded-xl py-2 px-4 shadow-xs inline-block max-w-max mx-auto">
+                          {devOtp}
+                        </div>
+                        <p className="normal-case text-[9px] text-slate-500 font-medium leading-relaxed max-w-[280px] mx-auto">
+                          Standard email servers are unreachable. Please enter this code above to securely complete your registration.
+                        </p>
+                      </div>
+                    )}
+
                     <div className="flex justify-between gap-2">
                       {otp.map((digit, idx) => (
                         <input

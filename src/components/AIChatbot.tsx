@@ -20,22 +20,25 @@ const renderSafeMessageContent = (text: string) => {
   let inList = false;
   let currentListItems: React.ReactNode[] = [];
 
-  const parseLinksAndBoldText = (str: string): React.ReactNode[] => {
+  let keyCounter = 0;
+
+  const parseLinksAndBoldText = (str: string, sectionIndex: number): React.ReactNode[] => {
     const parts = str.split(/\[(.*?)\]\((product|page|farmer):(.*?)\)/g);
     const elements: React.ReactNode[] = [];
     
     for (let i = 0; i < parts.length; i += 4) {
       if (parts[i]) {
-        elements.push(...parseBoldOnly(parts[i]));
+        elements.push(...parseBoldOnly(parts[i], sectionIndex, i));
       }
       if (i + 1 < parts.length && parts[i + 1]) {
         const anchor = parts[i + 1];
         const type = parts[i + 2];
         const id = parts[i + 3];
+        const linkKeyId = keyCounter++;
         elements.push(
           <button
             type="button"
-            key={`link-${i}`}
+            key={`link-${sectionIndex}-${i}-${linkKeyId}`}
             onClick={() => {
               const event = new CustomEvent('chatbot-navigate-product', { 
                 detail: { 
@@ -56,11 +59,12 @@ const renderSafeMessageContent = (text: string) => {
     return elements;
   };
 
-  const parseBoldOnly = (str: string): React.ReactNode[] => {
+  const parseBoldOnly = (str: string, sectionIndex: number, phraseIndex: number): React.ReactNode[] => {
     const parts = str.split(/\*\*(.*?)\*\*/g);
     return parts.map((part, index) => {
       if (index % 2 === 1) {
-        return <strong key={index} className="font-bold text-slate-900">{part}</strong>;
+        const boldKeyId = keyCounter++;
+        return <strong key={`bold-${sectionIndex}-${phraseIndex}-${index}-${boldKeyId}`} className="font-bold text-slate-900">{part}</strong>;
       }
       return part;
     });
@@ -78,7 +82,7 @@ const renderSafeMessageContent = (text: string) => {
       const itemText = trimmed.substring(2);
       currentListItems.push(
         <li key={`li-${lineIndex}`} className="list-disc ml-5 pl-1 my-0.5 text-zinc-700 leading-relaxed text-sm">
-          {parseLinksAndBoldText(itemText)}
+          {parseLinksAndBoldText(itemText, lineIndex)}
         </li>
       );
     } else {
@@ -100,7 +104,7 @@ const renderSafeMessageContent = (text: string) => {
         // Standard text line
         renderedElements.push(
           <p key={`p-${lineIndex}`} className="text-zinc-700 leading-relaxed my-1 break-words text-sm">
-            {parseLinksAndBoldText(line)}
+            {parseLinksAndBoldText(line, lineIndex)}
           </p>
         );
       }

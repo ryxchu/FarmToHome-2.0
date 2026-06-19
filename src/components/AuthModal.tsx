@@ -84,28 +84,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   }, [isOpen, initialMode, initialRole]);
 
   // Auto-close if user is authenticated and not in OTP mode
+    // 🔄 REFACTORED TO PREVENT DOUBLE-FIRING LOGIC LOOPS
   useEffect(() => {
+    // Only run this layout interceptor if the user is logged in but NOT on the OTP screen yet
     if (isOpen && auth.currentUser && mode !== 'otp') {
-      // Check if profile exists before closing to ensure they have the role set
       const checkProfile = async () => {
-        const userDoc = await getDoc(doc(db, 'users', auth.currentUser!.uid));
-        if (userDoc.exists()) {
-          const profileData = userDoc.data();
-          if (profileData && profileData.status === 'unverified') {
-            const userEmail = profileData.email || '';
-            const userPhone = profileData.phone || '';
-            setEmail(userEmail);
-            setPhone(userPhone);
-            setMode('otp');
-            sendOtp(otpMethod, userEmail, userPhone);
-          } else {
-            onClose();
+        try {
+          const userDoc = await getDoc(doc(db, 'users', auth.currentUser!.uid));
+          if (userDoc.exists()) {
+            const profileData = userDoc.data();
+            if (profileData && profileData.status === 'unverified') {
+              const userEmail = profileData.email || '';
+              const userPhone = profileData.phone || '';
+              
+              setEmail(userEmail);
+              setPhone(userPhone);
+              setMode('otp');
+              
+              // Only trigger the initialization dispatch if it hasn't been cached yet
+              const alreadySent = sessionStorage.getItem('sandbox_otp_code');
+              if (!alreadySent) {
+                sendOtp('email', userEmail, userPhone);
+              }
+            } else {
+              onClose();
+            }
           }
+        } catch (err) {
+          console.error("Profile check loop intercepted an issue:", err);
         }
       };
       checkProfile();
     }
-  }, [isOpen, mode, onClose, otpMethod]);
+    // Remove 'mode' and 'otpMethod' from dependencies to kill the infinite lifecycle execution loop!
+  }, [isOpen, auth.currentUser, onClose]);
 
   const toggleMode = () => {
     const newMode = mode === 'login' ? 'register' : 'login';

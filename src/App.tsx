@@ -23,7 +23,7 @@ import { AIChatbot } from './components/AIChatbot';
 import { InfoModal, InfoSectionType } from './components/InfoModal';
 import { LegalModal } from './components/LegalModal';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sprout, Search, ShoppingBag, Radio, Lock, MapPin, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { Sprout, Search, ShoppingBag, Radio, Lock, MapPin, CheckCircle2, AlertCircle, X, Mail } from 'lucide-react';
 import { useCart } from './context/CartContext';
 import { seedProducts, cleanupDuplicates } from './lib/seed';
 import { UnifiedSidebar } from './components/UnifiedSidebar';
@@ -75,10 +75,15 @@ function AppContent() {
       logout();
       setCurrentView('landing');
     } else if (profile?.status === 'unverified') {
-      setAuthVariant({ mode: 'register', role: profile.role || 'buyer' });
-      setShowAuthModal(true);
+      const targetRole = profile.role || 'buyer';
+      if (authVariant.mode !== 'register' || authVariant.role !== targetRole) {
+        setAuthVariant({ mode: 'register', role: targetRole });
+      }
+      if (!showAuthModal) {
+        setShowAuthModal(true);
+      }
     }
-  }, [profile, logout, setAuthVariant, setShowAuthModal]);
+  }, [profile, logout, setAuthVariant, setShowAuthModal, authVariant, showAuthModal]);
   
   const [currentView, setCurrentView] = useState<'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages'>('landing');
   const [marketViewMode, setMarketViewMode] = useState<'shop' | 'community'>('shop');
@@ -474,6 +479,60 @@ function AppContent() {
             <p className="text-sm font-medium text-slate-600">{systemConfig?.broadcastMessage || "System optimization in progress."}</p>
           </div>
         </motion.div>
+      </div>
+    );
+  }
+
+  if (profile?.status === 'unverified') {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#FAF9F5] p-8 text-center relative z-50">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md w-full bg-white border border-slate-100 p-8 sm:p-12 rounded-[3.5rem] shadow-2xl space-y-6 forest-shadow"
+        >
+          <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-[2rem] flex items-center justify-center mx-auto mb-4 border border-emerald-100 shadow-inner">
+            <Mail className="w-8 h-8" />
+          </div>
+          <h1 className="text-3xl font-bold text-slate-800 font-serif italic tracking-tight">Verify Your Email</h1>
+          <p className="text-emerald-700 font-bold uppercase tracking-widest text-[9.5px]">
+            Authentication Required to Access Marketplace
+          </p>
+          <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
+            We've created your secure FarmToHome profile. Please complete the OTP verification step to verify your email address.
+          </p>
+          <div className="pt-4 flex flex-col gap-3">
+            <button 
+              onClick={() => {
+                setAuthVariant({ mode: 'register', role: profile.role || 'buyer' });
+                setShowAuthModal(true);
+              }}
+              className="w-full py-4 bg-primary text-white font-bold text-[10px] uppercase tracking-widest rounded-2xl hover:bg-primary-hover active:scale-95 transition-all shadow-md hover:shadow-xl cursor-pointer"
+            >
+              Verify Code Now
+            </button>
+            <button 
+              onClick={() => logout()}
+              className="w-full py-4 bg-slate-50 text-slate-500 border border-slate-200/60 font-bold text-[10px] uppercase tracking-widest rounded-2xl hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
+            >
+              Sign Out / Cancel
+            </button>
+          </div>
+        </motion.div>
+        {showAuthModal && (
+          <AuthModal 
+            isOpen={showAuthModal} 
+            onClose={async () => {
+              if (profile?.status === 'unverified') {
+                await logout();
+                setCurrentView('landing');
+              }
+              setShowAuthModal(false);
+            }} 
+            initialMode={authVariant.mode}
+            initialRole={authVariant.role}
+          />
+        )}
       </div>
     );
   }

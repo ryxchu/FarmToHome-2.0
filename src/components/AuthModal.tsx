@@ -261,6 +261,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         const loginEmail = isPhoneNumber ? `${inputIdentifier}@farmtohome.ph` : inputIdentifier;
         
         const userCred = await signInWithEmailAndPassword(auth, loginEmail, password);
+        
+        // Ensure browser auth token is fully written, saved, and synchronized to IndexedDB
+        await userCred.user.getIdToken(true);
+
         // Check if database profile exists. If not, it was deleted by an admin!
         if (loginEmail.toLowerCase() !== 'ryzabasas16@gmail.com') {
           const userDoc = await getDoc(doc(db, 'users', userCred.user.uid));
@@ -268,8 +272,28 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
             const { deleteUser } = await import('firebase/auth');
             await deleteUser(userCred.user);
             throw new Error("Your account has been deleted by an administrator. Your login has been completely cleared, and you can now register a fresh account with this email.");
+          } else {
+            // Write to local cache pre-emptively to prevent profile race condition across reloads
+            const profileData = { ...userDoc.data(), uid: userDoc.id };
+            localStorage.setItem(`user_profile_${userCred.user.uid}`, JSON.stringify(profileData));
           }
+        } else {
+          // Admin bootstrap cache
+          const adminProfile = {
+            uid: userCred.user.uid,
+            email: 'ryzabasas16@gmail.com',
+            fullName: userCred.user.displayName || 'Ryza Basas (Admin)',
+            phone: '09193604094',
+            role: 'admin',
+            status: 'verified',
+            createdAt: new Date().toISOString()
+          };
+          localStorage.setItem(`user_profile_${userCred.user.uid}`, JSON.stringify(adminProfile));
         }
+
+        // Wait a small physical delay (500ms) for IndexedDB session commit and cookie sync before reload
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         onClose();
         window.location.reload();
       } else {
@@ -578,27 +602,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         setOtp(['', '', '', '', '', '']);
         setDevOtp('');
         
-        if (role === 'farmer') {
-          onClose();
-          if (refreshProfile) {
-            await refreshProfile();
-          }
-        } else {
-          // Save the success message across the unmount/remount flow
-          sessionStorage.setItem('auth_success_message', 'Account verified successfully! Please log in to your account.');
-          setSuccessMessage('Account verified successfully! Please log in to your account.');
-          
-          // Update the central auth variant mode to login BEFORE signing out
-          if (setAuthVariant) {
-            setAuthVariant({ mode: 'login', role: role || 'buyer' });
-          }
-          
-          // Explicitly set local mode to login BEFORE signing out to prevent layout flash
-          setMode('login');
-
-          // Sign out so they must log in using the newly created/verified account first
-          await auth.signOut();
+        // Save the success message across the unmount/remount flow
+        sessionStorage.setItem('auth_success_message', 'Account verified successfully! Please log in to your account.');
+        setSuccessMessage('Account verified successfully! Please log in to your account.');
+        
+        // Update the central auth variant mode to login BEFORE signing out
+        if (setAuthVariant) {
+          setAuthVariant({ mode: 'login', role: role || 'buyer' });
         }
+        
+        // Explicitly set local mode to login BEFORE signing out to prevent layout flash
+        setMode('login');
+
+        // Sign out so they must log in using the newly created/verified account first
+        await auth.signOut();
+
+        onClose();
+        window.location.href = '/signin';
       } else {
         setError('Invalid verification code.');
       }

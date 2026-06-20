@@ -84,6 +84,17 @@ function AppContent() {
       }
     }
   }, [profile, logout, setAuthVariant, setShowAuthModal, authVariant, showAuthModal]);
+
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path === '/signin') {
+      setCurrentView('landing');
+      openAuth('login', 'buyer');
+    } else if (path === '/signup') {
+      setCurrentView('landing');
+      openAuth('register', 'buyer');
+    }
+  }, [openAuth]);
   
   const [currentView, setCurrentView] = useState<'landing' | 'home' | 'dashboard' | 'admin-dashboard' | 'product' | 'tracking' | 'profile' | 'farmer-profile' | 'messages'>('landing');
   const [marketViewMode, setMarketViewMode] = useState<'shop' | 'community'>('shop');
@@ -778,11 +789,14 @@ function AppContent() {
           <AuthModal 
             isOpen={showAuthModal} 
             onClose={async () => {
-              if (profile?.status === 'unverified') {
+              if (profile?.status === 'unverified' && profile?.role !== 'farmer') {
                 await logout();
                 setCurrentView('landing');
               }
               setShowAuthModal(false);
+              if (window.location.pathname === '/signin' || window.location.pathname === '/signup') {
+                window.history.replaceState({}, document.title, '/');
+              }
             }} 
             initialMode={authVariant.mode}
             initialRole={authVariant.role}

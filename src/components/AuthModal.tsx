@@ -16,7 +16,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode = 'login', initialRole = 'buyer' }) => {
-  const { loginSimulatedDemo, profile, setAuthVariant } = useAuth();
+  const { loginSimulatedDemo, profile, setAuthVariant, refreshProfile } = useAuth();
   const [mode, setMode] = useState<'login' | 'register' | 'otp' | 'forgot-password'>(initialMode);
 
   const handleClose = async () => {
@@ -35,6 +35,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [middleName, setMiddleName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -71,6 +74,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     if (isOpen) {
       setMode(initialMode);
       setRole(initialRole);
+      setOtpMethod(initialRole === 'farmer' ? 'phone' : 'email');
       setError('');
       
       // Retain or restore success message if saved during unmount/remount boundary transitions
@@ -85,6 +89,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       setPassword('');
       setConfirmPassword('');
       setFullName('');
+      setFirstName('');
+      setMiddleName('');
+      setLastName('');
       setPhone('');
       setOtp(['', '', '', '', '', '']);
       setDevOtp('');
@@ -144,23 +151,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   const getFieldError = (fieldName: string): string => {
     if (mode === 'login') {
       if (fieldName === 'email') {
-        if (!email) return 'Email is required';
-        if (!emailRegex.test(email)) return 'Please enter a valid email address (e.g., name@domain.com)';
+        if (!email) return 'Email or Phone is required';
       }
       if (fieldName === 'password') {
         if (!password) return 'Password is required';
       }
     } else if (mode === 'register') {
-      if (fieldName === 'fullName') {
-        if (!fullName.trim()) return 'Full name is required';
-        if (fullName.trim().length < 2) return 'Full name must be at least 2 characters';
-        if (/\d/.test(fullName)) return 'Full name must not contain numbers';
+      if (fieldName === 'firstName') {
+        if (!firstName.trim()) return 'First name is required';
+        if (firstName.trim().length < 2) return 'First name must be at least 2 characters';
+        if (/\d/.test(firstName)) return 'First name must not contain numbers';
+      }
+      if (fieldName === 'lastName') {
+        if (!lastName.trim()) return 'Last name is required';
+        if (lastName.trim().length < 2) return 'Last name must be at least 2 characters';
+        if (/\d/.test(lastName)) return 'Last name must not contain numbers';
+      }
+      if (fieldName === 'middleName') {
+        if (middleName.trim() && /\d/.test(middleName)) return 'Middle name must not contain numbers';
       }
       if (fieldName === 'phone') {
         if (!phone.trim()) return 'Phone number is required';
         if (!phoneRegex.test(phone.trim())) return 'Please enter a valid 10-12 digit phone number';
       }
       if (fieldName === 'email') {
+        if (role === 'farmer' && !email) return ''; // Email is optional for farmers
         if (!email) return 'Email is required';
         if (!emailRegex.test(email)) return 'Please enter a valid email address (e.g., name@domain.com)';
       }
@@ -181,13 +196,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
 
   const isFormValid = (() => {
     if (mode === 'login') {
-      return !!(email && emailRegex.test(email) && password);
+      return !!(email && password);
     } else if (mode === 'register') {
       return !!(
-        fullName.trim().length >= 2 &&
-        !/\d/.test(fullName) &&
+        firstName.trim().length >= 2 &&
+        !/\d/.test(firstName) &&
+        lastName.trim().length >= 2 &&
+        !/\d/.test(lastName) &&
+        (!middleName.trim() || !/\d/.test(middleName)) &&
         phoneRegex.test(phone.trim()) &&
-        email && emailRegex.test(email) &&
+        (role === 'farmer' ? (!email || emailRegex.test(email)) : (email && emailRegex.test(email))) &&
         Object.values(passChecks).every(v => v) &&
         agreedToTerms
       );
@@ -222,7 +240,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     e.preventDefault();
     setFormSubmitted(true);
     
-    const fields = mode === 'login' ? ['email', 'password'] : ['fullName', 'phone', 'email', 'password', 'confirmPassword'];
+    const fields = mode === 'login' 
+      ? ['email', 'password'] 
+      : ['firstName', 'lastName', 'phone', 'email', 'password', 'confirmPassword'];
+          
     const newTouched = { ...touched };
     fields.forEach(f => {
       newTouched[f] = true;
@@ -235,9 +256,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
 
     try {
       if (mode === 'login') {
-        const userCred = await signInWithEmailAndPassword(auth, email, password);
+        const inputIdentifier = email.trim();
+        const isPhoneNumber = /^\+?[0-9]{10,14}$/.test(inputIdentifier);
+        const loginEmail = isPhoneNumber ? `${inputIdentifier}@farmtohome.ph` : inputIdentifier;
+        
+        const userCred = await signInWithEmailAndPassword(auth, loginEmail, password);
         // Check if database profile exists. If not, it was deleted by an admin!
-        if (email.toLowerCase() !== 'ryzabasas16@gmail.com') {
+        if (loginEmail.toLowerCase() !== 'ryzabasas16@gmail.com') {
           const userDoc = await getDoc(doc(db, 'users', userCred.user.uid));
           if (!userDoc.exists()) {
             const { deleteUser } = await import('firebase/auth');
@@ -248,18 +273,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         onClose();
         window.location.reload();
       } else {
-        const userCred = await createUserWithEmailAndPassword(auth, email, password);
+        const finalEmail = (role === 'farmer' && !email) ? `${phone.trim()}@farmtohome.ph` : email;
+        const userCred = await createUserWithEmailAndPassword(auth, finalEmail, password);
         // Force admin for the bootstrapped user
-        const finalRole = email === 'ryzabasas16@gmail.com' ? 'admin' : role;
-        await setDoc(doc(db, 'users', userCred.user.uid), {
+        const finalRole = finalEmail === 'ryzabasas16@gmail.com' ? 'admin' : role;
+        const finalFullName = `${firstName.trim()} ${middleName.trim() ? middleName.trim() + ' ' : ''}${lastName.trim()}`;
+          
+        const targetStatus = finalRole === 'admin' ? 'verified' : 'unverified';
+        const registerData: any = {
           uid: userCred.user.uid,
-          email,
-          fullName,
+          email: finalEmail,
+          fullName: finalFullName,
+          firstName: firstName.trim(),
+          middleName: middleName.trim(),
+          lastName: lastName.trim(),
           phone,
           role: finalRole,
-          status: finalRole === 'admin' ? 'verified' : 'unverified',
+          status: targetStatus,
           createdAt: new Date().toISOString()
-        });
+        };
+        
+        if (finalRole === 'farmer') {
+          registerData.registration_status = "pending_documents";
+          registerData.is_verified = false;
+        }
+
+        await setDoc(doc(db, 'users', userCred.user.uid), registerData);
         setMode('otp');
         sendOtp(otpMethod);
       }
@@ -268,8 +307,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         setError('Email/Password login is not enabled in Firebase. Please enable it in the console or use Google Sign-in.');
       } else if (err.code === 'auth/email-already-in-use') {
         try {
+          const finalEmail = (role === 'farmer' && !email) ? `${phone.trim()}@farmtohome.ph` : email;
           // Attempt self-healing: see if we can log in with the typed password
-          const checkCred = await signInWithEmailAndPassword(auth, email, password);
+          const checkCred = await signInWithEmailAndPassword(auth, finalEmail, password);
           // If login succeeds, check if the Firestore document exists
           const userDoc = await getDoc(doc(db, 'users', checkCred.user.uid));
           if (!userDoc.exists()) {
@@ -278,17 +318,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
             await deleteUser(checkCred.user);
             
             // Now register a fresh account using the requested credentials
-            const newCred = await createUserWithEmailAndPassword(auth, email, password);
-            const finalRole = email === 'ryzabasas16@gmail.com' ? 'admin' : role;
-            await setDoc(doc(db, 'users', newCred.user.uid), {
+            const newCred = await createUserWithEmailAndPassword(auth, finalEmail, password);
+            const finalRole = finalEmail === 'ryzabasas16@gmail.com' ? 'admin' : role;
+            const finalFullName = `${firstName.trim()} ${middleName.trim() ? middleName.trim() + ' ' : ''}${lastName.trim()}`;
+              
+            const targetStatus = finalRole === 'admin' ? 'verified' : 'unverified';
+            const registerData: any = {
               uid: newCred.user.uid,
-              email,
-              fullName,
+              email: finalEmail,
+              fullName: finalFullName,
+              firstName: firstName.trim(),
+              middleName: middleName.trim(),
+              lastName: lastName.trim(),
               phone,
               role: finalRole,
-              status: finalRole === 'admin' ? 'verified' : 'unverified',
+              status: targetStatus,
               createdAt: new Date().toISOString()
-            });
+            };
+            
+            if (finalRole === 'farmer') {
+              registerData.registration_status = "pending_documents";
+              registerData.is_verified = false;
+            }
+
+            await setDoc(doc(db, 'users', newCred.user.uid), registerData);
             setMode('otp');
             sendOtp(otpMethod);
             return;
@@ -503,9 +556,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
 
       if (isVerified) {
         if (auth.currentUser) {
-          await setDoc(doc(db, 'users', auth.currentUser.uid), {
-            status: 'verified'
-          }, { merge: true });
+          // Farmers stay 'unverified' so they can undergo the onboarding wizard. Buyers can go active right away.
+          const targetStatus = role === 'farmer' ? 'unverified' : 'verified';
+          const updateObj: any = {
+            status: targetStatus
+          };
+          if (role === 'farmer') {
+            updateObj.registration_status = "pending_documents";
+            updateObj.is_verified = false;
+          }
+          await setDoc(doc(db, 'users', auth.currentUser.uid), updateObj, { merge: true });
         }
         
         // Clear the touched validation tracking states
@@ -518,20 +578,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         setOtp(['', '', '', '', '', '']);
         setDevOtp('');
         
-        // Save the success message across the unmount/remount flow
-        sessionStorage.setItem('auth_success_message', 'Account verified successfully! Please log in to your account.');
-        setSuccessMessage('Account verified successfully! Please log in to your account.');
-        
-        // Update the central auth variant mode to login BEFORE signing out
-        if (setAuthVariant) {
-          setAuthVariant({ mode: 'login', role: role || 'buyer' });
-        }
-        
-        // Explicitly set local mode to login BEFORE signing out to prevent layout flash
-        setMode('login');
+        if (role === 'farmer') {
+          onClose();
+          if (refreshProfile) {
+            await refreshProfile();
+          }
+        } else {
+          // Save the success message across the unmount/remount flow
+          sessionStorage.setItem('auth_success_message', 'Account verified successfully! Please log in to your account.');
+          setSuccessMessage('Account verified successfully! Please log in to your account.');
+          
+          // Update the central auth variant mode to login BEFORE signing out
+          if (setAuthVariant) {
+            setAuthVariant({ mode: 'login', role: role || 'buyer' });
+          }
+          
+          // Explicitly set local mode to login BEFORE signing out to prevent layout flash
+          setMode('login');
 
-        // Sign out so they must log in using the newly created/verified account first
-        await auth.signOut();
+          // Sign out so they must log in using the newly created/verified account first
+          await auth.signOut();
+        }
       } else {
         setError('Invalid verification code.');
       }
@@ -584,37 +651,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex justify-center p-4 md:p-8 bg-primary/40 backdrop-blur-xl overflow-y-auto">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 bg-primary/40 backdrop-blur-xl overflow-y-auto">
       <motion.div 
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: 20 }}
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        className="bg-white w-full max-w-5xl rounded-[3rem] md:rounded-[4rem] shadow-2xl relative border-4 border-white forest-shadow my-auto overflow-hidden flex flex-col md:flex-row"
+        className="bg-white w-full max-w-5xl md:h-[650px] rounded-[3rem] md:rounded-[4rem] shadow-2xl relative border-4 border-white forest-shadow my-auto overflow-hidden flex flex-col md:flex-row shadow-emerald-950/20"
       >
-        {/* Dynmically styled Close button to preserve high accessibility & visibility regardless of mode placement */}
-        <button 
-          onClick={handleClose} 
-          className={`absolute top-4 right-4 sm:top-6 sm:right-6 p-3 sm:p-4 hover:scale-110 active:scale-90 transition-all z-20 shadow-md md:shadow-xl group rounded-2xl ${
-            mode === 'login'
-              ? 'bg-slate-100 md:bg-white/10 hover:bg-slate-200 md:hover:bg-white border border-slate-200/50 md:border-white/20'
-              : 'bg-slate-100 md:bg-slate-100 hover:bg-slate-200 md:hover:bg-slate-200 border border-slate-200'
-          }`}
-        >
-          <X 
-            className={`w-5 h-5 group-hover:rotate-90 transition-transform duration-300 ${
-              mode === 'login'
-                ? 'text-slate-600 md:text-white md:group-hover:text-secondary'
-                : 'text-slate-600 md:text-slate-700'
-            }`} 
-          />
-        </button>
- 
         {/* Left Side: Toggle Panel */}
         <motion.div 
           layout
           transition={{ duration: 0.4, ease: "easeInOut" }}
-          className={`hidden md:flex w-full md:w-[40%] p-12 md:p-20 flex-col items-center justify-center text-center relative overflow-hidden ${mode === 'register' ? 'bg-primary text-white font-sans' : 'bg-secondary text-white font-sans md:order-last'}`}
+          className={`hidden md:flex w-full md:w-[40%] md:h-full p-12 md:p-14 flex-col items-center justify-center text-center relative overflow-hidden ${mode === 'register' ? 'bg-primary text-white font-sans' : 'bg-secondary text-white font-sans md:order-last'}`}
         >
           <div className="absolute inset-0 amakan-pattern opacity-10" />
           <div className="relative z-10 flex flex-col items-center">
@@ -648,126 +697,149 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         <motion.div 
           layout
           transition={{ duration: 0.4, ease: "easeInOut" }}
-          className="w-full md:w-[60%] p-6 sm:p-12 md:p-20 bg-white"
+          className="w-full md:w-[60%] md:h-full p-6 sm:p-10 md:p-12 md:py-10 bg-white relative flex flex-col min-h-0"
         >
-          <div className="max-w-md mx-auto">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={mode}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.3 }}
-              >
-                <h2 className="text-4xl md:text-5xl font-bold text-slate-800 tracking-tighter font-serif italic mb-8">
-                  {mode === 'register' ? 'Create Account' : mode === 'forgot-password' ? 'Reset Password' : 'Welcome Back!'}
-                </h2>
-              </motion.div>
-            </AnimatePresence>
+          {/* Dynamically positioned round close button that stays perfectly in white panel space */}
+          <button 
+            onClick={handleClose} 
+            className="absolute top-4 right-4 sm:top-5 sm:right-5 p-3 hover:scale-110 active:scale-90 transition-all z-30 shadow-md bg-slate-100 hover:bg-slate-200 border border-slate-200/60 rounded-2xl group"
+          >
+            <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300 text-slate-500" />
+          </button>
 
-            {mode === 'forgot-password' && (
-              <div className="mb-8">
-                <p className="text-[11px] text-slate-500 leading-relaxed">
-                  Enter your email address and we'll send you a link to reset your password.
-                </p>
-              </div>
-            )}
+          <div className="max-w-md mx-auto w-full h-full flex flex-col min-h-0">
+            {/* 1. Header Component Lock (PINNED) */}
+            <div className="flex-shrink-0 select-none pb-4">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={mode}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <h2 className="text-3xl md:text-4xl font-bold text-slate-800 tracking-tighter font-serif italic mb-4">
+                    {mode === 'register' ? 'Create Account' : mode === 'forgot-password' ? 'Reset Password' : 'Welcome Back!'}
+                  </h2>
+                </motion.div>
+              </AnimatePresence>
 
-            {mode === 'register' && (
-              <div className="flex bg-slate-50 p-1.5 rounded-2xl border border-slate-100 mb-6">
-                <button 
-                  type="button"
-                  onClick={() => setRole('buyer')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl transition-all ${role === 'buyer' ? 'bg-white shadow-md text-primary' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  <UserCircle className="w-4 h-4" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Buyer</span>
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => setRole('farmer')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl transition-all ${role === 'farmer' ? 'bg-white shadow-md text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  <motion.div animate={{ rotate: role === 'farmer' ? [0, 15, -15, 0] : 0 }} transition={{ repeat: Infinity, duration: 2 }}>
-                    <Sprout className="w-4 h-4" />
-                  </motion.div>
-                  <span className="text-[10px] font-black uppercase tracking-widest">Farmer</span>
-                </button>
-              </div>
-            )}
-
-            {mode === 'register' ? (
-              <div className="flex flex-col gap-4 mb-6">
-                <button 
-                  type="button" 
-                  onClick={handleGoogleSignIn}
-                  className="w-full py-4.5 bg-white shadow-sm border border-slate-200 hover:border-slate-300 hover:bg-slate-50 active:scale-95 rounded-2xl flex items-center justify-center gap-3 transition-all group font-sans animate-pulse"
-                  title="Continue with Google"
-                >
-                  <svg className="w-5 h-5 group-hover:scale-105 transition-transform" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                  </svg>
-                  <span className="text-[11px] font-black text-slate-700 uppercase tracking-widest group-hover:text-primary transition-colors">Continue with Google</span>
-                </button>
-                {isInAppBrowser && (
-                  <div className="p-4 bg-amber-50 border border-amber-200/60 rounded-2xl text-amber-900 text-[10px] font-bold uppercase tracking-wider flex flex-col gap-2 text-start">
-                    <span className="flex items-center gap-1.5 text-amber-800">
-                      <span className="w-2 h-2 bg-amber-500 rounded-full animate-ping shrink-0" />
-                      ⚠️ Restricted Webview Detected (Messenger / Viber)
-                    </span>
-                    <p className="normal-case text-slate-500 font-medium text-[10px] leading-relaxed">
-                      Social log-ins are blocked inside custom chat apps. Tap the three dots <strong>(...)</strong> in the top-right corner of your screen & select <strong>"Open in Browser / Chrome"</strong> to sign in securely, or register below using <strong>email & password</strong>.
-                    </p>
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <div className="h-px flex-1 bg-slate-100" />
-                  <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest shrink-0">or sign up with email</span>
-                  <div className="h-px flex-1 bg-slate-100" />
+              {mode === 'forgot-password' && (
+                <div className="mb-2">
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Enter your email address and we'll send you a link to reset your password.
+                  </p>
                 </div>
-              </div>
-            ) : (
-              <div className="mb-8 flex flex-col gap-4">
-                <button 
-                  type="button"
-                  onClick={handleGoogleSignIn}
-                  className="w-full py-4.5 bg-white shadow-sm border border-slate-200 hover:border-slate-300 hover:bg-slate-50 active:scale-95 rounded-2xl flex items-center justify-center gap-3 transition-all group font-sans"
-                >
-                  <svg className="w-5 h-5 group-hover:scale-105 transition-transform" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                  </svg>
-                  <span className="text-[11px] font-black text-slate-700 uppercase tracking-widest group-hover:text-primary transition-colors">Continue with Google</span>
-                </button>
-                {isInAppBrowser && (
-                  <div className="p-4 bg-amber-50 border border-amber-200/60 rounded-2xl text-amber-900 text-[10px] font-bold uppercase tracking-wider flex flex-col gap-2 text-start">
-                    <span className="flex items-center gap-1.5 text-amber-800">
-                      <span className="w-2 h-2 bg-amber-500 rounded-full animate-ping shrink-0" />
-                      ⚠️ Restricted Webview Detected (Messenger / Viber)
-                    </span>
-                    <p className="normal-case text-slate-500 font-medium text-[10px] leading-relaxed">
-                      Social log-ins are blocked inside custom chat apps. Tap the three dots <strong>(...)</strong> in the top-right corner of your screen & select <strong>"Open in Browser / Chrome"</strong> to sign in securely, or use your <strong>email & password</strong>.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
+              )}
 
-            <form onSubmit={mode === 'otp' ? (e) => { e.preventDefault(); handleVerify(); } : mode === 'forgot-password' ? handleResetPassword : handleAuth} className="space-y-6">
-              {mode === 'otp' ? (
-                <div className="space-y-8">
+              {mode === 'register' && (
+                <div className="flex bg-slate-50 p-1 rounded-2xl border border-slate-100">
+                  <button 
+                    type="button"
+                    onClick={() => setRole('buyer')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl transition-all ${role === 'buyer' ? 'bg-white shadow-sm text-primary' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    <UserCircle className="w-4 h-4" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Buyer</span>
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setRole('farmer')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl transition-all ${role === 'farmer' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    <motion.div animate={{ rotate: role === 'farmer' ? [0, 15, -15, 0] : 0 }} transition={{ repeat: Infinity, duration: 2 }}>
+                      <Sprout className="w-4 h-4" />
+                    </motion.div>
+                    <span className="text-[10px] font-black uppercase tracking-widest">Farmer</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Form layout wrapper containing the scrolling area and pinned bottom bar */}
+            <form 
+              onSubmit={mode === 'otp' ? (e) => { e.preventDefault(); handleVerify(); } : mode === 'forgot-password' ? handleResetPassword : handleAuth} 
+              className="flex-1 flex flex-col min-h-0 justify-between text-start"
+            >
+              {/* 2. Dynamic Scrollable Content Zone */}
+              <div className="flex-1 overflow-y-auto pr-2 -mr-2 space-y-4 text-start [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-slate-50 [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-300">
+                
+                {/* Google Auth Block inside scroll area */}
+                {mode === 'register' ? (
+                  <div className="flex flex-col gap-3">
+                    <button 
+                      type="button" 
+                      onClick={handleGoogleSignIn}
+                      className="w-full py-4.5 bg-white shadow-sm border border-slate-200 hover:border-slate-300 hover:bg-slate-50 active:scale-95 rounded-2xl flex items-center justify-center gap-3 transition-all group font-sans animate-pulse"
+                      title="Continue with Google"
+                    >
+                      <svg className="w-5 h-5 group-hover:scale-105 transition-transform" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                      </svg>
+                      <span className="text-[11px] font-black text-slate-700 uppercase tracking-widest group-hover:text-primary transition-colors">Continue with Google</span>
+                    </button>
+                    {isInAppBrowser && (
+                      <div className="p-4 bg-amber-50 border border-amber-200/60 rounded-2xl text-amber-900 text-[10px] font-bold uppercase tracking-wider flex flex-col gap-2 text-start">
+                        <span className="flex items-center gap-1.5 text-amber-800">
+                          <span className="w-2 h-2 bg-amber-500 rounded-full animate-ping shrink-0" />
+                          ⚠️ Restricted Webview Detected (Messenger / Viber)
+                        </span>
+                        <p className="normal-case text-slate-500 font-medium text-[10px] leading-relaxed">
+                          Social log-ins are blocked inside custom chat apps. Tap the three dots <strong>(...)</strong> in the top-right corner of your screen & select <strong>"Open in Browser / Chrome"</strong> to sign in securely, or register below using <strong>email & password</strong>.
+                        </p>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <div className="h-px flex-1 bg-slate-100" />
+                      <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest shrink-0">or sign up with email</span>
+                      <div className="h-px flex-1 bg-slate-100" />
+                    </div>
+                  </div>
+                ) : mode === 'login' ? (
                   <div className="flex flex-col gap-4">
+                    <button 
+                      type="button"
+                      onClick={handleGoogleSignIn}
+                      className="w-full py-4.5 bg-white shadow-sm border border-slate-200 hover:border-slate-300 hover:bg-slate-50 active:scale-95 rounded-2xl flex items-center justify-center gap-3 transition-all group font-sans"
+                    >
+                      <svg className="w-5 h-5 group-hover:scale-105 transition-transform" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                      </svg>
+                      <span className="text-[11px] font-black text-slate-700 uppercase tracking-widest group-hover:text-primary transition-colors">Continue with Google</span>
+                    </button>
+                    {isInAppBrowser && (
+                      <div className="p-4 bg-amber-50 border border-amber-200/60 rounded-2xl text-amber-900 text-[10px] font-bold uppercase tracking-wider flex flex-col gap-2 text-start">
+                        <span className="flex items-center gap-1.5 text-amber-800">
+                          <span className="w-2 h-2 bg-amber-500 rounded-full animate-ping shrink-0" />
+                          ⚠️ Restricted Webview Detected (Messenger / Viber)
+                        </span>
+                        <p className="normal-case text-slate-500 font-medium text-[10px] leading-relaxed">
+                          Social log-ins are blocked inside custom chat apps. Tap the three dots <strong>(...)</strong> in the top-right corner of your screen & select <strong>"Open in Browser / Chrome"</strong> to sign in securely, or use your <strong>email & password</strong>.
+                        </p>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <div className="h-px flex-1 bg-slate-100" />
+                      <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest shrink-0">or sign in with password</span>
+                      <div className="h-px flex-1 bg-slate-100" />
+                    </div>
+                  </div>
+                ) : null}
+              {mode === 'otp' ? (
+                <div className="space-y-6 pt-1 text-start">
+                  <div className="flex flex-col gap-3 text-start">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Verification Method</p>
                     <div className="flex gap-4">
                       <button 
                         type="button"
                         onClick={() => { sessionStorage.removeItem('otp_lock_active'); setOtpMethod('email'); sendOtp('email'); }}
-                        className={`flex-1 p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${otpMethod === 'email' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
+                        className={`flex-1 p-4 rounded-xl border transition-all flex flex-col items-center gap-2 ${otpMethod === 'email' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
                       >
                         <Mail className="w-5 h-5" />
                         <span className="text-[10px] font-black uppercase">Email</span>
@@ -775,7 +847,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                       <button 
                         type="button"
                         onClick={() => { sessionStorage.removeItem('otp_lock_active'); setOtpMethod('phone'); sendOtp('phone'); }}
-                        className={`flex-1 p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${otpMethod === 'phone' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
+                        className={`flex-1 p-4 rounded-xl border transition-all flex flex-col items-center gap-2 ${otpMethod === 'phone' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
                       >
                         <Phone className="w-5 h-5" />
                         <span className="text-[10px] font-black uppercase">Phone</span>
@@ -783,9 +855,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                     </div>
                   </div>
 
-
-
-                  <div className="space-y-4">
+                  <div className="space-y-3 text-start font-sans">
                     <p className="text-[11px] text-slate-500 leading-relaxed">
                       We've sent a 6-digit code to your <span className="font-bold text-slate-800">{otpMethod === 'email' ? email : phone}</span>.
                     </p>
@@ -811,25 +881,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                               document.getElementById(`otp-${idx - 1}`)?.focus();
                             }
                           }}
-                          className="w-full h-16 bg-slate-50 border border-slate-100 rounded-2xl text-center text-2xl font-bold focus:border-primary focus:bg-white transition-all"
+                          className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl text-center text-lg font-bold focus:border-primary focus:bg-white transition-all focus:ring-1 focus:ring-primary/20"
                         />
                       ))}
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-3">
                     <button 
                       type="submit"
                       disabled={loading || otp.some(d => !d)}
-                      className="w-full py-5 bg-slate-800 text-white rounded-full font-bold text-[11px] uppercase tracking-[0.3em] hover:bg-primary transition-all active:scale-95 disabled:opacity-40"
+                      className="w-full py-4 bg-slate-800 hover:bg-slate-900 text-white rounded-full font-bold text-[11px] uppercase tracking-[0.3em] transition-all active:scale-95 disabled:opacity-40"
                     >
-                      {loading ? 'Verifying...' : 'Verify Account'}
+                      {loading ? 'Verifying...' : 'Verify Code'}
                     </button>
                     <button 
                       type="button"
                       disabled={resendCooldown > 0 || loading}
                       onClick={() => { sessionStorage.removeItem('otp_lock_active'); sendOtp(otpMethod); }}
-                      className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-primary transition-colors disabled:opacity-50"
+                      className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-primary transition-colors disabled:opacity-50 mt-1 py-1"
                     >
                       {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend verification code'}
                     </button>
@@ -838,22 +908,49 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
               ) : (
                 <>
                   {mode === 'register' && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                      <div className="relative group text-start">
-                        <input 
-                          type="text" 
-                          placeholder="Full Name" 
-                          value={fullName} 
-                          onChange={(e) => setFullName(e.target.value)}
-                          onBlur={() => setTouched(prev => ({ ...prev, fullName: true }))}
-                          className={getInputStyles('fullName')}
-                        />
-                        {renderFieldError('fullName')}
+                    <div className="space-y-3 text-start">
+                      {/* Grid for structured name splits for both roles */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="relative group text-start">
+                          <input 
+                            type="text" 
+                            placeholder="First Name" 
+                            value={firstName} 
+                            onChange={(e) => setFirstName(e.target.value)}
+                            onBlur={() => setTouched(prev => ({ ...prev, firstName: true }))}
+                            className={getInputStyles('firstName')}
+                          />
+                          {renderFieldError('firstName')}
+                        </div>
+                        <div className="relative group text-start">
+                          <input 
+                            type="text" 
+                            placeholder="Middle (Opt)" 
+                            value={middleName} 
+                            onChange={(e) => setMiddleName(e.target.value)}
+                            onBlur={() => setTouched(prev => ({ ...prev, middleName: true }))}
+                            className={getInputStyles('middleName')}
+                          />
+                          {renderFieldError('middleName')}
+                        </div>
+                        <div className="relative group text-start">
+                          <input 
+                            type="text" 
+                            placeholder="Last Name" 
+                            value={lastName} 
+                            onChange={(e) => setLastName(e.target.value)}
+                            onBlur={() => setTouched(prev => ({ ...prev, lastName: true }))}
+                            className={getInputStyles('lastName')}
+                          />
+                          {renderFieldError('lastName')}
+                        </div>
                       </div>
+
+                      {/* Phone Input Box */}
                       <div className="relative group text-start">
                         <input 
                           type="tel" 
-                          placeholder="Phone" 
+                          placeholder="Phone Number (09xx xxx xxxx)" 
                           value={phone} 
                           onChange={(e) => setPhone(e.target.value)}
                           onBlur={() => setTouched(prev => ({ ...prev, phone: true }))}
@@ -867,12 +964,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                   <div className="relative group text-start">
                     <input 
                       type="email" 
-                      placeholder="Email Address" 
+                      placeholder={mode === 'login' ? "Email or Phone Number" : (role === 'farmer' ? "Email Address (Optional)" : "Email Address")} 
                       value={email} 
                       onChange={(e) => setEmail(e.target.value)}
                       onBlur={() => setTouched(prev => ({ ...prev, email: true }))}
                       className={getInputStyles('email')}
-                      required
+                      required={mode === 'login' || role !== 'farmer'}
                     />
                     {renderFieldError('email')}
                   </div>
@@ -1126,6 +1223,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                   )}
                 </div>
               )}
+              </div>
             </form>
 
           </div>

@@ -721,7 +721,7 @@ export const Profile: React.FC = () => {
                               onClick={async () => {
                                 setEditForm(prev => ({ ...prev, photoURL: url }));
                                 setShowPresetsInForm(false);
-                                await handleUpdatePhotoURL(url);
+                                // Under settings modal, we only update form state, saving happens on forms handleSubmit
                               }}
                               className={`w-9 h-9 rounded-full overflow-hidden border-2 transition-all hover:scale-110 active:scale-90 ${editForm.photoURL === url ? 'border-emerald-600 scale-105 shadow' : 'border-white hover:border-slate-300'}`}
                             >
@@ -984,7 +984,10 @@ export const Profile: React.FC = () => {
         onDone={async (croppedBase64) => {
           setEditForm(prev => ({ ...prev, photoURL: croppedBase64 }));
           setPhotoEditorOpen(false);
-          await handleUpdatePhotoURL(croppedBase64);
+          // If editing inside the modal, we do not update DB immediately; user must click "Save Changes" to save all profile info at once.
+          if (!isEditing) {
+            await handleUpdatePhotoURL(croppedBase64);
+          }
         }}
       />
     </div>

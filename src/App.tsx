@@ -74,7 +74,7 @@ function AppContent() {
       alert('Your account has been banned from the FarmToHome ecosystem.');
       logout();
       setCurrentView('landing');
-    } else if (profile?.status === 'unverified') {
+    } else if (profile?.status === 'unverified' && profile?.role !== 'farmer') {
       const targetRole = profile.role || 'buyer';
       if (authVariant.mode !== 'register' || authVariant.role !== targetRole) {
         setAuthVariant({ mode: 'register', role: targetRole });
@@ -483,7 +483,7 @@ function AppContent() {
     );
   }
 
-  if (profile?.status === 'unverified') {
+  if (profile?.status === 'unverified' && profile?.role !== 'farmer') {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#FAF9F5] p-8 text-center relative z-50">
         <motion.div 

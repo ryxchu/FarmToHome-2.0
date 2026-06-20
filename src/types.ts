@@ -18,6 +18,10 @@ export interface UserProfile {
   farmingMethods?: string;
   certifications?: string[];
   primaryCrops?: string;
+  govIdUrl?: string;
+  rsbsaNumber?: string;
+  alternativeCertUrl?: string;
+  declaredCapacity?: string;
   isApproved?: boolean;
   rewardsPoints?: number;
   ecoMetrics?: {

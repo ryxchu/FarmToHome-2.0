@@ -33,6 +33,7 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
   const [paymentOption, setPaymentOption] = useState<'cod' | 'gcash' | 'card'>('cod');
   const [shippingType, setShippingType] = useState<'standard' | 'express'>('standard');
   const [redeemCoins, setRedeemCoins] = useState(false);
+  const [showVoucherModal, setShowVoucherModal] = useState(false);
   
   // Checkbox select items state
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
@@ -439,65 +440,65 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
                 )}
 
                 {/* CROPS LIST */}
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {items.length > 0 ? (
                     items.map((item) => {
                       const isChecked = selectedItemIds.includes(item.id);
                       return (
                         <div 
                           key={item.id}
-                          className={`flex items-start gap-3 p-3.5 bg-white rounded-2.5xl border transition-all relative group overflow-hidden ${
+                          className={`flex items-center gap-2.5 p-2.5 bg-white rounded-2xl border transition-all relative group overflow-hidden ${
                             isChecked ? 'border-accent/30 shadow-md shadow-accent/5 bg-white' : 'border-stone-200 opacity-80'
                           }`}
                         >
                           {/* Item Custom Checkbox */}
-                          <div className="pt-5 pl-1">
+                          <div className="pl-1 shrink-0 flex items-center justify-center">
                             <input 
                               type="checkbox" 
                               checked={isChecked}
                               onChange={() => toggleItemSelection(item.id)}
-                              className="w-4.5 h-4.5 text-accent border-stone-300 rounded focus:ring-accent accent-accent"
+                              className="w-4 h-4 text-accent border-stone-300 rounded focus:ring-accent accent-accent cursor-pointer"
                             />
                           </div>
 
                           {/* Crop Thumbnail */}
-                          <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden bg-stone-50 border border-stone-100 shrink-0 relative">
+                          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-stone-50 border border-stone-100 shrink-0 relative">
                             <img src={item.images?.[0] || 'https://images.unsplash.com/photo-1615485290382-441e4d0c9cb5?auto=format&fit=crop&q=80&w=300'} className="w-full h-full object-cover" />
                             {!isChecked && <div className="absolute inset-0 bg-white/40 backdrop-blur-[0.5px]" />}
                           </div>
 
                           {/* Details and Controller */}
-                          <div className="flex-grow flex flex-col justify-between self-stretch py-0.5">
+                          <div className="flex-grow flex flex-col justify-between py-0.5 min-w-0 h-16 sm:h-20">
                             <div>
-                              <div className="flex justify-between items-start gap-2">
-                                <h4 className="font-bold text-slate-800 text-sm sm:text-base font-serif italic tracking-tight leading-snug line-clamp-1">{item.name}</h4>
+                              <div className="flex justify-between items-start gap-1.5">
+                                <h4 className="font-bold text-slate-800 text-xs sm:text-sm font-serif italic tracking-tight leading-snug line-clamp-1">{item.name}</h4>
                                 <button 
                                   onClick={() => removeFromCart(item.id)} 
-                                  className="text-stone-300 hover:text-stone-600 transition-colors shrink-0 p-1"
+                                  className="text-stone-300 hover:text-stone-600 transition-colors shrink-0 p-0.5"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
-                              <span className="text-[8px] sm:text-[9.5px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 block">₱{item.price} / {item.unit}</span>
+                              <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 block">₱{item.price} / {item.unit}</span>
                             </div>
 
-                            <div className="flex justify-between items-end mt-2">
-                              <p className="text-sm font-black text-slate-800">₱{item.price * item.quantity}</p>
+                            <div className="flex justify-between items-center mt-1">
+                              <p className="text-xs sm:text-sm font-black text-slate-800">₱{item.price * item.quantity}</p>
                               
                               {/* Inline Quantity Stepper */}
-                              <div className="flex items-center gap-1.5 bg-stone-50 rounded-xl border border-stone-150 p-1">
+                              <div className="flex items-center gap-1 bg-stone-50 rounded-lg border border-stone-150 p-0.5">
                                 <button 
                                   onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
-                                  className="w-6.5 h-6.5 flex items-center justify-center bg-white hover:bg-stone-100 rounded-lg text-slate-500 hover:text-slate-850 shadow-sm border border-stone-200 transition-all active:scale-90"
+                                  className="w-5.5 h-5.5 flex items-center justify-center bg-white hover:bg-stone-100 rounded text-slate-500 hover:text-slate-850 shadow-xs border border-stone-200 transition-all active:scale-95"
                                 >
-                                  <Minus className="w-2.5 h-2.5" />
+                                  <Minus className="w-2 h-2" />
                                 </button>
-                                <span className="text-xs font-black font-serif italic text-center w-5 text-slate-800">{item.quantity}</span>
+                                <span className="text-[11px] font-black font-serif italic text-center w-4 text-slate-800">{item.quantity}</span>
                                 <button 
                                   onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                  className="w-6.5 h-6.5 flex items-center justify-center bg-white hover:bg-stone-100 rounded-lg text-slate-500 hover:text-slate-850 shadow-sm border border-stone-200 transition-all active:scale-90"
+                                  className="w-5.5 h-5.5 flex items-center justify-center bg-white hover:bg-stone-100 rounded text-slate-500 hover:text-slate-850 shadow-xs border border-stone-200 transition-all active:scale-95"
                                 >
-                                  <Plus className="w-2.5 h-2.5" />
+                                  <Plus className="w-2 h-2" />
                                 </button>
                               </div>
                             </div>
@@ -735,40 +736,142 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
 
         {/* BOTTOM ACTION BAR & SUBSTANTIATIVE TOTALS BREAKDOWN */}
         {items.length > 0 && !isCheckingOut && (
-          <div className="p-6 bg-white border-t border-stone-150 space-y-5 shadow-2xl relative z-20">
-            {/* VOUCHER / PROMO INPUT & AUTO CHIPS */}
+          <div className="p-4 sm:p-5 bg-white border-t border-stone-150 space-y-3.5 shadow-2xl relative z-20">
+            {/* VOUCHER / PROMO SINGLE-LINE ENTRY POINT */}
             {stage === 'cart' && selectedItems.length > 0 && (
-              <div className="bg-stone-50 border border-stone-150 p-4 rounded-2xl space-y-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setPromoCode('');
+                  setPromoError(null);
+                  setPromoSuccessMsg(null);
+                  setShowVoucherModal(true);
+                }}
+                className="w-full flex items-center justify-between p-3.5 bg-stone-50 hover:bg-stone-100 rounded-xl border border-stone-200 transition-all text-left cursor-pointer group"
+              >
                 <div className="flex items-center gap-2">
-                  <Ticket className="w-4 h-4 text-primary" />
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-700">Farm Voucher & Promo Codes</span>
+                  <Ticket className="w-4 h-4 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" />
+                  <span className="text-[10px] font-black uppercase tracking-[0.06em] text-slate-700">
+                    {appliedPromo ? `FARM VOUCHER: ${appliedPromo}` : 'FARM VOUCHER & PROMO CODES (+)'}
+                  </span>
                 </div>
-                
-                {/* Applied status or input */}
-                {appliedPromo ? (
-                  <div className="bg-[#e9faf2] border border-[#a3e4c7] p-3 rounded-xl flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded bg-emerald-500/10 flex items-center justify-center text-emerald-600 font-mono text-xs font-bold">
-                        %
-                      </div>
-                      <div>
-                        <h6 className="text-xs font-black text-emerald-800 tracking-wide uppercase">{appliedPromo}</h6>
-                        <p className="text-[10px] text-emerald-700 font-bold font-serif italic">
-                          {appliedPromo === 'FIRSTBUYER20' && 'First Buyer 20% Off'}
-                          {appliedPromo === 'FRESHCROP10' && 'Fresh Crop 10% Off'}
-                          {appliedPromo === 'HARVEST15' && 'Seasonal Harvest 15% Off'}
-                          {appliedPromo === 'COOP50' && '₱50 Flat Cooperative Discount'}
-                        </p>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={handleRemovePromo}
-                      className="text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline px-2 py-1 cursor-pointer"
-                    >
-                      Remove
-                    </button>
-                  </div>
+                <div className="flex items-center gap-1.5">
+                  {appliedPromo ? (
+                    <span className="bg-emerald-55 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-emerald-250 shrink-0">
+                      -{appliedPromo === 'COOP50' ? '₱50' : appliedPromo === 'FIRSTBUYER20' ? '20%' : appliedPromo === 'FRESHCROP10' ? '10%' : '15%'}
+                    </span>
+                  ) : (
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider shrink-0">Select</span>
+                  )}
+                  <ChevronLeft className="w-3.5 h-3.5 rotate-180 text-slate-400 shrink-0" />
+                </div>
+              </button>
+            )}
+
+            {/* TOTAL PAYMENTS LINE CALCULATION */}
+            <div className="space-y-1.5 px-0.5">
+              <div className="flex justify-between text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
+                <span>Selected Items Subtotal</span>
+                <span className="text-slate-800 font-sans font-bold">₱{selectedSubtotal}</span>
+              </div>
+              <div className="flex justify-between text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
+                <span>Freight Logistics Shipping</span>
+                <span className="text-slate-800 font-sans font-bold">
+                  {selectedItems.length > 0 ? `₱${deliveryFee}` : '₱0'}
+                </span>
+              </div>
+              {appliedPromo && selectedItems.length > 0 && (
+                <div className="flex justify-between text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest">
+                  <span>Sourced Promo Save ({appliedPromo})</span>
+                  <span className="font-sans font-bold">-₱{discount}</span>
+                </div>
+              )}
+              {redeemCoins && selectedItems.length > 0 && (
+                <div className="flex justify-between text-[10px] font-extrabold text-amber-500 uppercase tracking-widest">
+                  <span>Farm Coins Deduct</span>
+                  <span className="font-sans font-bold">-₱{coinsDeduction}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-2xl font-black text-slate-850 pt-2.5 border-t border-stone-150 items-end">
+                <span className="text-xs font-black uppercase tracking-[0.15em] text-slate-400">Total Payment</span>
+                <span className="text-primary tracking-tighter text-3xl font-sans font-black">₱{selectedItems.length > 0 ? finalTotal : 0}</span>
+              </div>
+            </div>
+
+            {/* ACTION TRIGGERS */}
+            {stage === 'cart' ? (
+              <button
+                onClick={handleNextStage}
+                disabled={selectedItems.length === 0}
+                className="w-full py-4 bg-primary hover:bg-primary/95 disabled:bg-stone-205 disabled:text-stone-400 text-white rounded-xl font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-2.5 hover:scale-[1.01] active:scale-95 transition-all shadow-xl shadow-primary/10 cursor-pointer"
+              >
+                CHECKOUT ({selectedItemIds.length} {selectedItemIds.length === 1 ? 'ITEM' : 'ITEMS'})
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                onClick={handlePlaceOrder}
+                disabled={loading || selectedItems.length === 0}
+                className="w-full py-4 bg-primary hover:bg-primary/95 text-white rounded-xl font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-2.5 hover:scale-[1.01] active:scale-95 transition-all shadow-xl shadow-primary/10 cursor-pointer"
+              >
+                {loading ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
+                  <>
+                    PLACE ORDER (₱{finalTotal})
+                    <ShieldCheck className="w-4.5 h-4.5" />
+                  </>
+                )}
+              </button>
+            )}
+
+            <p className="text-[7.5px] sm:text-[8px] text-center text-stone-400 font-extrabold uppercase tracking-[0.1em] select-none pt-0.5 leading-relaxed">
+              CONNECTING COMMUNITY KITCHENS DIRECTLY TO UPLAND AGRICULTURAL FARMS
+            </p>
+          </div>
+        )}
+      </motion.div>
+
+      {/* Shopee-style Voucher Bottom-Sheet Modal Overlay */}
+      <AnimatePresence>
+        {showVoucherModal && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowVoucherModal(false)}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-[110]"
+            />
+            {/* Bottom Sheet sliding panel */}
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+              className="fixed bottom-0 right-0 left-0 sm:left-auto sm:right-0 w-full sm:max-w-lg bg-white rounded-t-[2rem] border-t border-stone-200 shadow-2xl p-5 z-[120] flex flex-col max-h-[85vh]"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between pb-3.5 border-b border-stone-100">
+                <div className="flex items-center gap-2">
+                  <Ticket className="w-5 h-5 text-emerald-600" />
+                  <h3 className="text-[13px] font-black text-slate-800 uppercase tracking-wider">Select Vouchers</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowVoucherModal(false)}
+                  className="p-1 px-2.5 py-1.5 hover:bg-stone-50 rounded-full text-slate-400 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Scrolling Content */}
+              <div className="overflow-y-auto py-3 space-y-4 flex-grow no-scrollbar">
+                {/* Input block */}
+                <div className="space-y-1.5">
+                  <span className="text-[9px] text-stone-400 font-extrabold uppercase tracking-widest block">Have a direct promo code?</span>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -779,35 +882,47 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
                         setPromoSuccessMsg(null);
                       }}
                       placeholder="e.g. FRESHCROP10"
-                      className="flex-1 bg-white border border-stone-300 rounded-xl px-3 py-2 text-xs font-bold focus:outline-none focus:border-primary uppercase placeholder-stone-400"
+                      className="flex-grow bg-stone-50 border border-stone-200 focus:border-emerald-600 rounded-xl px-4 py-2.5 text-xs font-bold outline-none uppercase placeholder-stone-400"
                     />
                     <button
                       onClick={handleApplyPromo}
-                      className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer transition-colors"
+                      className="px-5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors cursor-pointer"
                     >
                       Apply
                     </button>
                   </div>
-                )}
+                </div>
 
                 {/* Promo messages */}
                 {promoError && (
-                  <p className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-100 p-2 rounded-lg">
+                  <p className="text-[10px] font-bold text-rose-650 bg-rose-50 border border-rose-100 p-2.5 rounded-xl">
                     {promoError}
                   </p>
                 )}
                 {promoSuccessMsg && (
-                  <p className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 p-2 rounded-lg">
+                  <p className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 p-2.5 rounded-xl">
                     {promoSuccessMsg}
                   </p>
                 )}
 
-                {/* Preset Chips */}
-                <div className="space-y-1.5 pt-1">
-                  <span className="text-[9px] text-stone-400 font-extrabold uppercase tracking-widest block">Available Coop Tapping Promos:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {/* FIRSTBUYER20 */}
+                {/* Available Promo list */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between pb-1">
+                    <span className="text-[9px] text-stone-400 font-extrabold uppercase tracking-widest">Cooperative Promos</span>
+                    {appliedPromo && (
+                      <button 
+                        onClick={handleRemovePromo}
+                        className="text-[10px] font-black uppercase text-rose-600 hover:underline cursor-pointer"
+                      >
+                        Remove Selected
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {/* FIRSTBUYER20 card */}
                     <button
+                      type="button"
                       onClick={() => {
                         if (hasExistingOrders === true) {
                           setPromoError("This voucher code is exclusively for first-time buyers.");
@@ -819,132 +934,140 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
                         setPromoError(null);
                       }}
                       disabled={hasExistingOrders === true}
-                      className={`text-[9px] font-mono font-bold px-2 py-1 rounded-lg border flex items-center gap-1 transition-all cursor-pointer ${
+                      className={`w-full text-left p-3 rounded-xl border transition-all flex items-center justify-between cursor-pointer ${
                         appliedPromo === 'FIRSTBUYER20'
-                          ? 'bg-emerald-600 border-emerald-600 text-white'
+                          ? 'border-emerald-500 bg-emerald-50/20'
                           : hasExistingOrders === true
-                          ? 'bg-stone-100 border-stone-200 text-stone-400 line-through opacity-60 cursor-not-allowed'
-                          : 'bg-white border-stone-200 text-slate-700 hover:bg-stone-100'
+                          ? 'bg-stone-50 border-stone-100 opacity-50 cursor-not-allowed'
+                          : 'bg-white border-stone-200 hover:border-stone-300'
                       }`}
                     >
-                      FIRSTBUYER20 {hasExistingOrders === true && "🚷"}
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shrink-0 ${
+                          appliedPromo === 'FIRSTBUYER20' ? 'bg-emerald-55 text-[#2d4f1e]' : 'bg-stone-100 text-slate-700'
+                        }`}>
+                          %
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-wide">FIRSTBUYER20</h4>
+                            {hasExistingOrders === true && (
+                              <span className="text-[7.5px] font-bold text-slate-400 uppercase tracking-widest">Unavailable</span>
+                            )}
+                          </div>
+                          <p className="text-[9px] text-slate-500 font-bold mt-0.5">20% off your entire first organic farm purchase</p>
+                        </div>
+                      </div>
+                      {appliedPromo === 'FIRSTBUYER20' && (
+                        <span className="text-emerald-600 font-extrabold text-[10px] uppercase tracking-wider shrink-0">Selected</span>
+                      )}
                     </button>
 
-                    {/* FRESHCROP10 */}
+                    {/* FRESHCROP10 card */}
                     <button
+                      type="button"
                       onClick={() => {
                         setAppliedPromo('FRESHCROP10');
                         setPromoSuccessMsg('Success! 10% Fresh Crops promo applied!');
                         setPromoError(null);
                       }}
-                      className={`text-[9px] font-mono font-bold px-2 py-1 rounded-lg border transition-all cursor-pointer ${
+                      className={`w-full text-left p-3 rounded-xl border transition-all flex items-center justify-between cursor-pointer ${
                         appliedPromo === 'FRESHCROP10'
-                          ? 'bg-emerald-600 border-emerald-600 text-white'
-                          : 'bg-white border-stone-200 text-slate-700 hover:bg-stone-100'
+                          ? 'border-emerald-500 bg-emerald-50/20'
+                          : 'bg-white border-stone-200 hover:border-stone-300'
                       }`}
                     >
-                      FRESHCROP10 (10%)
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shrink-0 ${
+                          appliedPromo === 'FRESHCROP10' ? 'bg-emerald-55 text-[#2d4f1e]' : 'bg-stone-100 text-slate-700'
+                        }`}>
+                          %
+                        </div>
+                        <div>
+                          <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-wide">FRESHCROP10</h4>
+                          <p className="text-[9px] text-slate-500 font-bold mt-0.5">10% off high-quality organic highland crops</p>
+                        </div>
+                      </div>
+                      {appliedPromo === 'FRESHCROP10' && (
+                        <span className="text-emerald-600 font-extrabold text-[10px] uppercase tracking-wider shrink-0">Selected</span>
+                      )}
                     </button>
 
-                    {/* HARVEST15 */}
+                    {/* HARVEST15 card */}
                     <button
+                      type="button"
                       onClick={() => {
                         setAppliedPromo('HARVEST15');
                         setPromoSuccessMsg('Success! 15% Seasonal Harvest promo applied!');
                         setPromoError(null);
                       }}
-                      className={`text-[9px] font-mono font-bold px-2 py-1 rounded-lg border transition-all cursor-pointer ${
+                      className={`w-full text-left p-3 rounded-xl border transition-all flex items-center justify-between cursor-pointer ${
                         appliedPromo === 'HARVEST15'
-                          ? 'bg-emerald-600 border-emerald-600 text-white'
-                          : 'bg-white border-stone-200 text-slate-700 hover:bg-stone-100'
+                          ? 'border-emerald-500 bg-emerald-50/20'
+                          : 'bg-white border-stone-200 hover:border-stone-300'
                       }`}
                     >
-                      HARVEST15 (15%)
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shrink-0 ${
+                          appliedPromo === 'HARVEST15' ? 'bg-emerald-55 text-[#2d4f1e]' : 'bg-stone-100 text-slate-700'
+                        }`}>
+                          %
+                        </div>
+                        <div>
+                          <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-wide">HARVEST15</h4>
+                          <p className="text-[9px] text-slate-500 font-bold mt-0.5">15% off seasonal community harvest selections</p>
+                        </div>
+                      </div>
+                      {appliedPromo === 'HARVEST15' && (
+                        <span className="text-emerald-600 font-extrabold text-[10px] uppercase tracking-wider shrink-0">Selected</span>
+                      )}
                     </button>
 
-                    {/* COOP50 */}
+                    {/* COOP50 card */}
                     <button
+                      type="button"
                       onClick={() => {
                         setAppliedPromo('COOP50');
                         setPromoSuccessMsg('Success! ₱50 cooperative discount applied!');
                         setPromoError(null);
                       }}
-                      className={`text-[9px] font-mono font-bold px-2 py-1 rounded-lg border transition-all cursor-pointer ${
+                      className={`w-full text-left p-3 rounded-xl border transition-all flex items-center justify-between cursor-pointer ${
                         appliedPromo === 'COOP50'
-                          ? 'bg-emerald-600 border-emerald-600 text-white'
-                          : 'bg-white border-stone-200 text-slate-700 hover:bg-stone-100'
+                          ? 'border-emerald-500 bg-emerald-50/20'
+                          : 'bg-white border-stone-200 hover:border-stone-300'
                       }`}
                     >
-                      COOP50 (₱50)
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shrink-0 ${
+                          appliedPromo === 'COOP50' ? 'bg-emerald-55 text-[#2d4f1e]' : 'bg-stone-100 text-slate-700'
+                        }`}>
+                          ₱
+                        </div>
+                        <div>
+                          <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-wide">COOP50</h4>
+                          <p className="text-[9px] text-slate-500 font-bold mt-0.5">Flat ₱50 off partner agricultural hubs</p>
+                        </div>
+                      </div>
+                      {appliedPromo === 'COOP50' && (
+                        <span className="text-emerald-600 font-extrabold text-[10px] uppercase tracking-wider shrink-0">Selected</span>
+                      )}
                     </button>
                   </div>
                 </div>
               </div>
-            )}
 
-            {/* TOTAL PAYMENTS LINE CALCULATION */}
-            <div className="space-y-2 px-1">
-              <div className="flex justify-between text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
-                <span>Selected Items Subtotal</span>
-                <span className="text-slate-800 font-serif italic">₱{selectedSubtotal}</span>
-              </div>
-              <div className="flex justify-between text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
-                <span>Freight Logistics Shipping</span>
-                <span className="text-slate-800 font-serif italic">
-                  {selectedItems.length > 0 ? `₱${deliveryFee}` : '₱0'}
-                </span>
-              </div>
-              {appliedPromo && selectedItems.length > 0 && (
-                <div className="flex justify-between text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest">
-                  <span>Sourced Promo Save ({appliedPromo})</span>
-                  <span className="font-serif italic">-₱{discount}</span>
-                </div>
-              )}
-              {redeemCoins && selectedItems.length > 0 && (
-                <div className="flex justify-between text-[10px] font-extrabold text-amber-500 uppercase tracking-widest">
-                  <span>Farm Coins Deduct</span>
-                  <span className="font-serif italic">-₱{coinsDeduction}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-2xl font-black text-slate-850 pt-3 border-t border-stone-150 items-end">
-                <span className="font-serif italic text-xs text-slate-400 uppercase tracking-[0.2em] mb-1">Total Payment</span>
-                <span className="text-primary tracking-tighter text-3xl">₱{selectedItems.length > 0 ? finalTotal : 0}</span>
-              </div>
-            </div>
-
-            {/* ACTION TRIGGERS */}
-            {stage === 'cart' ? (
+              {/* Confirm footer */}
               <button
-                onClick={handleNextStage}
-                disabled={selectedItems.length === 0}
-                className="w-full py-4.5 bg-primary hover:bg-primary/95 disabled:bg-stone-200 disabled:text-stone-400 text-white rounded-2xl font-black text-xs uppercase tracking-[0.3em] flex items-center justify-center gap-3 hover:scale-[1.01] active:scale-95 transition-all shadow-xl shadow-primary/10"
+                type="button"
+                onClick={() => setShowVoucherModal(false)}
+                className="w-full mt-2 py-3.5 bg-slate-900 hover:bg-slate-950 text-white text-xs font-black uppercase tracking-[0.15em] rounded-xl transition-colors text-center cursor-pointer"
               >
-                Checkout ({selectedItemIds.length} Crops)
-                <ArrowRight className="w-4 h-4" />
+                Apply Voucher Selection
               </button>
-            ) : (
-              <button
-                onClick={handlePlaceOrder}
-                disabled={loading || selectedItems.length === 0}
-                className="w-full py-4.5 bg-primary hover:bg-primary/95 text-white rounded-2xl font-black text-xs uppercase tracking-[0.3em] flex items-center justify-center gap-3 hover:scale-[1.01] active:scale-95 transition-all shadow-xl shadow-primary/10"
-              >
-                {loading ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    Place Order (₱{finalTotal})
-                    <ShieldCheck className="w-4.5 h-4.5" />
-                  </>
-                )}
-              </button>
-            )}
-
-            <p className="text-[8.5px] text-center text-slate-400 font-bold uppercase tracking-widest flex items-center justify-center gap-2 italic">
-              <CreditCard className="w-4 h-4 text-emerald-600" /> Connecting community kitchens directly to upland agricultural farms
-            </p>
-          </div>
+            </motion.div>
+          </>
         )}
-      </motion.div>
+      </AnimatePresence>
 
       <GCashSandboxModal
         isOpen={showGCashSandbox}

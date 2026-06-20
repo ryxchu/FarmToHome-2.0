@@ -9,6 +9,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Chat } from '../components/Chat';
 import { SocialFeed } from '../components/SocialFeed';
 import { PhotoEditorModal } from '../components/PhotoEditorModal';
+import { FarmerOnboardingWizard } from '../components/FarmerOnboardingWizard';
+import { FarmerPendingApproval } from '../components/FarmerPendingApproval';
 
 interface FarmerDashboardProps {
   onEditProfile?: () => void;
@@ -495,6 +497,48 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
   const paginatedProducts = products
     .sort((a,b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
     .slice((currentProductPage - 1) * productsPerPage, currentProductPage * productsPerPage);
+
+  const handleOnboardingSubmit = async (onboardingData: any) => {
+    try {
+      if (!user) return;
+      await updateDoc(doc(db, 'users', user.uid), {
+        ...onboardingData,
+        status: 'pending',
+        updatedAt: new Date().toISOString()
+      });
+      await refreshProfile();
+    } catch (err) {
+      console.error("Failed to submit farmer onboarding form:", err);
+      alert("Hindi maipasa ang impormasyon. Pakisiguro na mayroon kang internet connection.");
+    }
+  };
+
+  const currentStatus = profile?.status;
+
+  if (currentStatus === 'unverified' || !currentStatus) {
+    return (
+      <div className="pt-4 pb-12 px-4 bg-[#FAF9F5] min-h-screen">
+        <FarmerOnboardingWizard 
+          initialEmail={user?.email || ''} 
+          initialName={profile?.fullName || ''}
+          onSubmit={handleOnboardingSubmit}
+          onLogout={logout}
+        />
+      </div>
+    );
+  }
+
+  if (currentStatus === 'pending') {
+    return (
+      <div className="pt-4 pb-12 px-4 bg-[#FAF9F5] min-h-screen">
+        <FarmerPendingApproval 
+          profile={profile}
+          onRefresh={refreshProfile}
+          onLogout={logout}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-2 sm:px-6 py-4 sm:py-6 overflow-x-hidden w-full">
@@ -1464,7 +1508,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
                               onClick={async () => {
                                 setProfileForm(v => ({ ...v, photoURL: url }));
                                 setShowPresetsInForm(false);
-                                await handleUpdateFarmerPhoto(url);
+                                // Under settings modal, we only update form state, saving happens on forms handleSubmit
                               }}
                               className={`w-9 h-9 rounded-full overflow-hidden border-2 transition-all hover:scale-110 active:scale-90 ${profileForm.photoURL === url ? 'border-emerald-600 scale-105 shadow' : 'border-white hover:border-slate-300'}`}
                             >
@@ -1661,7 +1705,10 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
         onDone={async (croppedBase64) => {
           setProfileForm(prev => ({ ...prev, photoURL: croppedBase64 }));
           setPhotoEditorOpen(false);
-          await handleUpdateFarmerPhoto(croppedBase64);
+          // If editing inside settings modal, we do not update DB immediately; user must click "Save Changes" to save all profile info at once.
+          if (!showEditProfileModal) {
+            await handleUpdateFarmerPhoto(croppedBase64);
+          }
         }}
       />
     </div>

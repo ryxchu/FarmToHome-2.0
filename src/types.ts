@@ -23,6 +23,7 @@ export interface UserProfile {
   alternativeCertUrl?: string;
   declaredCapacity?: string;
   isApproved?: boolean;
+  rejectionReason?: string;
   rewardsPoints?: number;
   ecoMetrics?: {
     carbonSavings: number;

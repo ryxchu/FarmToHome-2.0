@@ -46,6 +46,7 @@ service cloud.firestore {
              (!('rsbsaNumber' in data) || (data.rsbsaNumber is string)) &&
              (!('alternativeCertUrl' in data) || (data.alternativeCertUrl is string)) &&
              (!('declaredCapacity' in data) || (data.declaredCapacity is string)) &&
+             (!('rejectionReason' in data) || (data.rejectionReason is string || data.rejectionReason == null)) &&
              (!('updatedAt' in data) || (data.updatedAt is string)) &&
              (!('uid' in data) || (data.uid == request.auth.uid || isAdmin()));
     }

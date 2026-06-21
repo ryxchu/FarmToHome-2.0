@@ -22,6 +22,7 @@
         "rsbsaNumber": { "type": "string" },
         "alternativeCertUrl": { "type": "string" },
         "declaredCapacity": { "type": "string" },
+        "rejectionReason": { "type": "string" },
         "updatedAt": { "type": "string", "format": "date-time" },
         "coordinates": {
           "type": "object",

@@ -508,6 +508,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
       await updateDoc(doc(db, 'users', user.uid), {
         ...onboardingData,
         status: 'pending',
+        rejectionReason: null,
         updatedAt: new Date().toISOString()
       });
       await refreshProfile();
@@ -532,6 +533,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
           initialName={profile?.fullName || ''}
           onSubmit={handleOnboardingSubmit}
           onLogout={logout}
+          profile={profile}
         />
       </div>
     );

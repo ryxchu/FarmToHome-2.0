@@ -1542,7 +1542,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTabProp, o
                   if (reason !== null) {
                     await updateUserAttribute(selectedAuditee.uid, { 
                       status: 'unverified',
-                      isApproved: false
+                      isApproved: false,
+                      rejectionReason: reason
                     });
                     setSelectedAuditee(null);
                     alert("Kasosyo ay tinanggihan muna upang mai-correct. State updated directly!");

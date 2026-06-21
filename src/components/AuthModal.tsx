@@ -127,6 +127,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     }
   }, [isOpen, onClose]);
 
+  const isEmailBypassed = !email || email.endsWith('@farmtohome.ph') || (profile && (!profile.email || profile.email.endsWith('@farmtohome.ph')));
+
+  useEffect(() => {
+    if (mode === 'otp' && isEmailBypassed && otpMethod !== 'phone') {
+      setOtpMethod('phone');
+    }
+  }, [mode, isEmailBypassed, otpMethod]);
+
   const toggleMode = () => {
     const newMode = mode === 'login' ? 'register' : 'login';
     setMode(newMode);
@@ -856,14 +864,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                   <div className="flex flex-col gap-3 text-start">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Verification Method</p>
                     <div className="flex gap-4">
-                      <button 
-                        type="button"
-                        onClick={() => { sessionStorage.removeItem('otp_lock_active'); setOtpMethod('email'); sendOtp('email'); }}
-                        className={`flex-1 p-4 rounded-xl border transition-all flex flex-col items-center gap-2 ${otpMethod === 'email' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
-                      >
-                        <Mail className="w-5 h-5" />
-                        <span className="text-[10px] font-black uppercase">Email</span>
-                      </button>
+                      {!isEmailBypassed && (
+                        <button 
+                          type="button"
+                          onClick={() => { sessionStorage.removeItem('otp_lock_active'); setOtpMethod('email'); sendOtp('email'); }}
+                          className={`flex-1 p-4 rounded-xl border transition-all flex flex-col items-center gap-2 ${otpMethod === 'email' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
+                        >
+                          <Mail className="w-5 h-5" />
+                          <span className="text-[10px] font-black uppercase">Email</span>
+                        </button>
+                      )}
                       <button 
                         type="button"
                         onClick={() => { sessionStorage.removeItem('otp_lock_active'); setOtpMethod('phone'); sendOtp('phone'); }}
@@ -983,8 +993,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
  
                   <div className="relative group text-start">
                     <input 
-                      type="email" 
-                      placeholder={mode === 'login' ? "Email or Phone Number" : (role === 'farmer' ? "Email Address (Optional)" : "Email Address")} 
+                      type="text" 
+                      placeholder={mode === 'login' ? "Email or Mobile Phone Number" : (role === 'farmer' ? "Email Address (Optional)" : "Email Address")} 
                       value={email} 
                       onChange={(e) => setEmail(e.target.value)}
                       onBlur={() => setTouched(prev => ({ ...prev, email: true }))}

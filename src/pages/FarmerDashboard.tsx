@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Chat } from '../components/Chat';
 import { SocialFeed } from '../components/SocialFeed';
 import { PhotoEditorModal } from '../components/PhotoEditorModal';
+import { compressImage as compressImageUtil } from '../lib/utils';
 import { FarmerOnboardingWizard } from '../components/FarmerOnboardingWizard';
 import { FarmerPendingApproval } from '../components/FarmerPendingApproval';
 
@@ -228,15 +229,18 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
   const handleFormFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert("Image size must be less than 2MB.");
-        return;
-      }
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
         if (typeof reader.result === 'string') {
-          setTempImageSrc(reader.result as string);
-          setPhotoEditorOpen(true);
+          try {
+            // Pre-compress to max 800px so loading into canvas editor is instant and lightweight
+            const compressed = await compressImageUtil(reader.result, 800, 800, 0.7);
+            setTempImageSrc(compressed);
+            setPhotoEditorOpen(true);
+          } catch (err) {
+            setTempImageSrc(reader.result);
+            setPhotoEditorOpen(true);
+          }
         }
       };
       reader.readAsDataURL(file);
@@ -507,9 +511,14 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
         updatedAt: new Date().toISOString()
       });
       await refreshProfile();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to submit farmer onboarding form:", err);
-      alert("Hindi maipasa ang impormasyon. Pakisiguro na mayroon kang internet connection.");
+      if (err?.message && (err.message.includes("size") || err.message.includes("exceeds") || err.message.includes("large"))) {
+        alert("Hindi maipasa ang aplikasyon dahil masyadong malaki ang file size ng nakuha o in-upload na larawan. Paki-refresh ang pahina at subukang mag-upload muli; awtomatiko na itong liliit ngayon.");
+      } else {
+        alert("Hindi maipasa ang impormasyon. Pakisiguro na mayroon kang internet connection at subukan muli.");
+      }
+      throw err;
     }
   };
 
@@ -1703,11 +1712,19 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
         imageSrc={tempImageSrc}
         onClose={() => setPhotoEditorOpen(false)}
         onDone={async (croppedBase64) => {
-          setProfileForm(prev => ({ ...prev, photoURL: croppedBase64 }));
-          setPhotoEditorOpen(false);
-          // If editing inside settings modal, we do not update DB immediately; user must click "Save Changes" to save all profile info at once.
-          if (!showEditProfileModal) {
-            await handleUpdateFarmerPhoto(croppedBase64);
+          try {
+            const compressed = await compressImageUtil(croppedBase64, 400, 400, 0.7);
+            setProfileForm(prev => ({ ...prev, photoURL: compressed }));
+            setPhotoEditorOpen(false);
+            if (!showEditProfileModal) {
+              await handleUpdateFarmerPhoto(compressed);
+            }
+          } catch (err) {
+            setProfileForm(prev => ({ ...prev, photoURL: croppedBase64 }));
+            setPhotoEditorOpen(false);
+            if (!showEditProfileModal) {
+              await handleUpdateFarmerPhoto(croppedBase64);
+            }
           }
         }}
       />

@@ -30,18 +30,23 @@ service cloud.firestore {
     function isValidUser(data) {
       return (data.keys().hasAll(['uid', 'email', 'role', 'fullName']) || !isSignedIn()) &&
              (!('role' in data) || (
-               (data.role in ['buyer', 'farmer']) || 
-               (data.role == 'admin' && (isHardcodedAdmin() || isAdmin()))
+                (data.role in ['buyer', 'farmer']) || 
+                (data.role == 'admin' && (isHardcodedAdmin() || isAdmin()))
              )) &&
              (!('fullName' in data) || (data.fullName is string && data.fullName.size() <= 100)) &&
              (!('phone' in data) || (data.phone is string && data.phone.size() <= 20)) &&
-             (!('address' in data) || (data.address is string && data.address.size() <= 500)) &&
+             (!('address' in data) || (data.address is string && data.address.size() <= 2000)) &&
              (!('status' in data) || (data.status in ['verified', 'unverified', 'pending', 'banned'])) &&
              (!('coordinates' in data) || (data.coordinates is map || data.coordinates == null)) &&
              (!('photoURL' in data) || (data.photoURL is string)) &&
              (!('primaryCrops' in data) || (data.primaryCrops is string && data.primaryCrops.size() <= 1000)) &&
              (!('contactNumber' in data) || (data.contactNumber is string && data.contactNumber.size() <= 50)) &&
              (!('deliveryAddress' in data) || (data.deliveryAddress is string && data.deliveryAddress.size() <= 1000)) &&
+             (!('govIdUrl' in data) || (data.govIdUrl is string)) &&
+             (!('rsbsaNumber' in data) || (data.rsbsaNumber is string)) &&
+             (!('alternativeCertUrl' in data) || (data.alternativeCertUrl is string)) &&
+             (!('declaredCapacity' in data) || (data.declaredCapacity is string)) &&
+             (!('updatedAt' in data) || (data.updatedAt is string)) &&
              (!('uid' in data) || (data.uid == request.auth.uid || isAdmin()));
     }
 
@@ -106,7 +111,12 @@ service cloud.firestore {
       );
       allow create: if isOwner(userId) && isValidUser(incoming()) && incoming().uid == request.auth.uid;
       allow update: if (isOwner(userId) || isAdmin()) && isValidUser(incoming()) && 
-                    (isAdmin() || (incoming().uid == existing().uid && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'phone', 'address', 'photoURL', 'status', 'farmName', 'farmAddress', 'farmStory', 'farmingMethods', 'certifications', 'rewardsPoints', 'ecoMetrics', 'isApproved', 'coordinates', 'primaryCrops', 'contactNumber', 'deliveryAddress'])));
+                    (isAdmin() || (
+                      incoming().uid == existing().uid && 
+                      (!('role' in incoming()) || incoming().role == existing().role) &&
+                      (!('email' in incoming()) || incoming().email == existing().email) &&
+                      (!('isApproved' in incoming()) || incoming().isApproved == existing().isApproved)
+                    ));
     }
 
     match /products/{productId} {

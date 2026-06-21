@@ -62,3 +62,65 @@ export function getProductHighlights(description: string, category: string): str
   
   return highlights.slice(0, 2); // Return top 2 matching highlights
 }
+
+/**
+ * Compresses and resizes a base64 image (specifically for document uploads and product images)
+ * to prevent Firestore 1MB document size limits and localStorage Quota Exceeded errors.
+ */
+export function compressImage(base64Str: string, maxWidth = 600, maxHeight = 600, quality = 0.6): Promise<string> {
+  return new Promise((resolve) => {
+    // If it's not a base64 image string, resolve as-is
+    if (!base64Str || !base64Str.startsWith('data:image/')) {
+      resolve(base64Str);
+      return;
+    }
+
+    const img = new Image();
+    img.src = base64Str;
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+
+      // Adjust dimensions while preserving aspect ratio
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(base64Str);
+        return;
+      }
+
+      // Fill with solid white before drawing (handles transparent PNG/GIF conversion to JPEG gracefully)
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Export as a lightweight JPEG
+      try {
+        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedBase64);
+      } catch (err) {
+        console.warn("Canvas toDataURL failed, returning original image:", err);
+        resolve(base64Str);
+      }
+    };
+    img.onerror = () => {
+      resolve(base64Str);
+    };
+  });
+}
+

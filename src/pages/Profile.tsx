@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useConfirm } from '../context/ConfirmContext';
 import { PhotoEditorModal } from '../components/PhotoEditorModal';
+import { compressImage } from '../lib/utils';
 import { User, Mail, Phone, Shield, Calendar, MapPin, Award, X, Save, Loader2, Image as ImageIcon, Star, LogOut, Package, Clock, Settings, Camera, RefreshCw, Sprout, ShoppingBag, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, auth } from '../lib/firebase';
@@ -326,9 +327,15 @@ export const Profile: React.FC = () => {
                   const file = e.target.files?.[0];
                   if (file) {
                     const reader = new FileReader();
-                    reader.onloadend = () => {
-                      setTempImageSrc(reader.result as string);
-                      setPhotoEditorOpen(true);
+                    reader.onloadend = async () => {
+                      try {
+                        const compressed = await compressImage(reader.result as string, 800, 800, 0.7);
+                        setTempImageSrc(compressed);
+                        setPhotoEditorOpen(true);
+                      } catch (comError) {
+                        setTempImageSrc(reader.result as string);
+                        setPhotoEditorOpen(true);
+                      }
                     };
                     reader.readAsDataURL(file);
                   }
@@ -682,9 +689,15 @@ export const Profile: React.FC = () => {
                             const file = e.target.files?.[0];
                             if (file) {
                               const reader = new FileReader();
-                              reader.onloadend = () => {
-                                setTempImageSrc(reader.result as string);
-                                setPhotoEditorOpen(true);
+                              reader.onloadend = async () => {
+                                try {
+                                  const compressed = await compressImage(reader.result as string, 800, 800, 0.7);
+                                  setTempImageSrc(compressed);
+                                  setPhotoEditorOpen(true);
+                                } catch (comError) {
+                                  setTempImageSrc(reader.result as string);
+                                  setPhotoEditorOpen(true);
+                                }
                               };
                               reader.readAsDataURL(file);
                             }
@@ -982,11 +995,19 @@ export const Profile: React.FC = () => {
         imageSrc={tempImageSrc}
         onClose={() => setPhotoEditorOpen(false)}
         onDone={async (croppedBase64) => {
-          setEditForm(prev => ({ ...prev, photoURL: croppedBase64 }));
-          setPhotoEditorOpen(false);
-          // If editing inside the modal, we do not update DB immediately; user must click "Save Changes" to save all profile info at once.
-          if (!isEditing) {
-            await handleUpdatePhotoURL(croppedBase64);
+          try {
+            const compressed = await compressImage(croppedBase64, 400, 400, 0.7);
+            setEditForm(prev => ({ ...prev, photoURL: compressed }));
+            setPhotoEditorOpen(false);
+            if (!isEditing) {
+              await handleUpdatePhotoURL(compressed);
+            }
+          } catch (err) {
+            setEditForm(prev => ({ ...prev, photoURL: croppedBase64 }));
+            setPhotoEditorOpen(false);
+            if (!isEditing) {
+              await handleUpdatePhotoURL(croppedBase64);
+            }
           }
         }}
       />

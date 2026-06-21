@@ -6,6 +6,7 @@ import { Heart, MessageCircle, Share2, MoreHorizontal, Send, Sparkles, Smile, Ch
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { useConfirm } from '../context/ConfirmContext';
+import { compressImage } from '../lib/utils';
 
 interface EnrichedPost extends Post {
   farmer?: UserProfile;
@@ -35,14 +36,16 @@ export const SocialFeed: React.FC = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert("Image size must be less than 2MB.");
-        return;
-      }
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
         if (typeof reader.result === 'string') {
-          setAttachedImage(reader.result);
+          try {
+            // Compress social feed posts to 600x600 px range for fast loading and low storage footprint
+            const compressed = await compressImage(reader.result, 600, 600, 0.6);
+            setAttachedImage(compressed);
+          } catch (err) {
+            setAttachedImage(reader.result);
+          }
         }
       };
       reader.readAsDataURL(file);
@@ -101,7 +104,7 @@ export const SocialFeed: React.FC = () => {
         try {
           for (let i = 0; i < farmersToFetch.length; i += 10) {
             const batch = farmersToFetch.slice(i, i + 10);
-            const farmerQuery = query(collection(db, 'users'), where('uid', 'in', batch));
+            const farmerQuery = query(collection(db, 'users'), where('role', '==', 'farmer'), where('uid', 'in', batch));
             const farmerSnapshot = await getDocs(farmerQuery);
             farmerSnapshot.docs.forEach(d => {
               const data = { ...d.data(), uid: d.id } as UserProfile;

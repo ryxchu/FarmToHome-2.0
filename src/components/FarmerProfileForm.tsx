@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Camera, Check, Sparkles, User, AlertCircle, RefreshCw } from 'lucide-react';
+import { compressImage } from '../lib/utils';
 
 export interface FarmerProfileFormData {
   photoURL: string;
@@ -41,15 +42,17 @@ export const FarmerProfileForm: React.FC<FarmerProfileFormProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        setErrorMessage("Image size must be less than 2MB.");
-        return;
-      }
       setErrorMessage(null);
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
         if (typeof reader.result === 'string') {
-          setPhotoURL(reader.result);
+          try {
+            // Compress image to 400x400 for farmer avatar/profile photo
+            const compressed = await compressImage(reader.result, 400, 400, 0.7);
+            setPhotoURL(compressed);
+          } catch (err) {
+            setPhotoURL(reader.result);
+          }
         }
       };
       reader.onerror = () => {

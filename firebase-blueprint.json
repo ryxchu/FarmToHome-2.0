@@ -18,6 +18,11 @@
         "farmingMethods": { "type": "string" },
         "certifications": { "type": "array", "items": { "type": "string" } },
         "photoURL": { "type": "string" },
+        "govIdUrl": { "type": "string" },
+        "rsbsaNumber": { "type": "string" },
+        "alternativeCertUrl": { "type": "string" },
+        "declaredCapacity": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" },
         "coordinates": {
           "type": "object",
           "properties": {

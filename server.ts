@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import nodemailer from "nodemailer";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -1091,20 +1092,26 @@ IMPORTANT DIRECTIVES:
     }
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  // Determine if we are running in production mode (handles missing NODE_ENV on deployed containers)
+  const isProductionMode = process.env.NODE_ENV === "production" || 
+    (_cleanFilename && _cleanFilename.includes('dist')) ||
+    (!process.env.NODE_ENV && fs.existsSync(path.join(process.cwd(), 'dist', 'index.html')));
+
+  if (isProductionMode) {
+    process.env.NODE_ENV = "production";
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*all', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  } else {
+    // Vite middleware for development
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
   }
 
   app.listen(PORT, "0.0.0.0", () => {

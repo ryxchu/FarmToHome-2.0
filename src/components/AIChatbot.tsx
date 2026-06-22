@@ -136,7 +136,7 @@ export const AIChatbot: React.FC = () => {
 
   // Verify Gemini API key is available in environment on component mount
   useEffect(() => {
-    const key = (import.meta as any).env.VITE_GEMINI_API_KEY;
+    const key = import.meta.env.VITE_GEMINI_API_KEY;
     if (!key || key.trim() === '') {
       setIsApiKeyMissing(true);
     } else {
@@ -268,7 +268,7 @@ export const AIChatbot: React.FC = () => {
 
     try {
       // 1. API Key Check: Ensure VITE_GEMINI_API_KEY is defined in environment before any API call
-      const envKey = (import.meta as any).env.VITE_GEMINI_API_KEY;
+      const envKey = import.meta.env.VITE_GEMINI_API_KEY;
       if (!envKey || envKey.trim() === '') {
         throw new Error("VITE_GEMINI_API_KEY is missing or undefined at runtime. Please configure your hosting environment environment variables.");
       }

@@ -79,14 +79,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   const [touched, setTouched] = useState<{ [key: string] : boolean }>({});
   const [formSubmitted, setFormSubmitted] = useState(false);
 
-  // Detect restricted webviews (like FB Messenger, Viber, Line, Telegram, etc.)
+  // Detect restricted webviews
   useEffect(() => {
     const ua = navigator.userAgent || navigator.vendor || (window as any).opera || '';
     const isRestrictedWebview = /FBAN|FBAV|Instagram|Messenger|Viber|Line|Telegram|WeChat|Snapchat/i.test(ua);
     setIsInAppBrowser(isRestrictedWebview);
   }, []);
 
-  // Persist role selection in localStorage so social auth flows in AuthContext can reference it during registration
+  // Persist role selection
   useEffect(() => {
     localStorage.setItem('auth_intent_role', role);
   }, [role]);
@@ -458,21 +458,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     }
   };
 
-  // OTP SENDER ENGINE (SUPPORTING EMAILJS AND NATIVE RECAPTCHA SMS PROVIDER)
+  // OTP SENDER ENGINE
   const sendOtp = async (method: 'email' | 'phone', overrideEmail?: string, overridePhone?: string) => {
-    if (sessionStorage.getItem('otp_lock_active') === 'true') {
+    const currentEmail = overrideEmail || email;
+    
+    // 🚨 COGNITIVE METHOD SHUNT GAUNTLET: If the target has a placeholder signature, force standard Phone pipeline routing
+    let activeMethod = method;
+    if (currentEmail && currentEmail.endsWith('@farmtohome.ph')) {
+      activeMethod = 'phone';
+    }
+
+    if (sessionStorage.getItem('otp_lock_active') === 'true' && activeMethod === 'email') {
       console.warn("[OTP Prevention] Active session lock exists. Skipping repeated dispatch.");
       return;
     }
 
     setLoading(true);
     setDevOtp('');
-    const targetEmail = overrideEmail || email;
+    const targetEmail = currentEmail;
     const targetPhone = overridePhone || phone;
     const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
     
     try {
-      if (method === 'email') {
+      if (activeMethod === 'email') {
         const templateParams = {
           to_email: targetEmail,
           email: targetEmail,
@@ -494,7 +502,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         setDevOtp(generatedOtp);
         console.info(`[EmailJS] OTP delivered to ${targetEmail}`);
       } else {
-        // 📱 INVISIBLE RECAPTCHA ATTACHMENT FOR PHONE DELIVERIES
+        // 📱 INVISIBLE RECAPTCHA SMS DELIVERIES
         if (!window.recaptchaVerifier) {
           window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
             'size': 'invisible',
@@ -504,7 +512,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           });
         }
 
-        // Format code matching international parameters (+63)
         const formattedPhone = targetPhone.startsWith('+') 
           ? targetPhone 
           : `+63${targetPhone.replace(/^0/, '')}`;
@@ -543,7 +550,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     try {
       let isVerified = false;
 
-      if (otpMethod === 'email') {
+      // Ensure verification mode handles checks based on how code was dispatched
+      if (otpMethod === 'email' && !email.endsWith('@farmtohome.ph')) {
         const storedSandboxOtp = sessionStorage.getItem('sandbox_otp_code');
         if (storedSandboxOtp && enteredOtp === storedSandboxOtp) {
           isVerified = true;
@@ -552,7 +560,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           isVerified = true;
         }
       } else {
-        // 📱 RESOLVE FIREBASE LIVE SMS TOKEN VERIFICATION
+        // 📱 CONFIRM FIREBASE TELEPHONY CODES
         const confirmationResult = (window as any).confirmationResult;
         if (confirmationResult) {
           const result = await confirmationResult.confirm(enteredOtp);
@@ -560,7 +568,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
             isVerified = true;
           }
         } else {
-          throw new Error("No active phone verification session found. Please try requesting a code again.");
+          throw new Error("No active phone verification session found. Please request a new code.");
         }
       }
 
@@ -640,7 +648,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         className="bg-white w-full max-w-5xl md:h-[650px] rounded-[3rem] md:rounded-[4rem] shadow-2xl relative border-4 border-white forest-shadow my-auto overflow-hidden flex flex-col md:flex-row shadow-emerald-950/20"
       >
-        {/* Left Side: Toggle Panel */}
+        {/* Left Side Toggle Panel */}
         <motion.div 
           layout
           transition={{ duration: 0.4, ease: "easeInOut" }}
@@ -674,7 +682,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           </div>
         </motion.div>
 
-        {/* Right Side: Form Panel */}
+        {/* Right Side Form Panel */}
         <motion.div 
           layout
           transition={{ duration: 0.4, ease: "easeInOut" }}
@@ -814,7 +822,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                       )}
                       <button 
                         type="button"
-                        onClick={() => { sessionStorage.removeItem('otp_lock_active'); setOtpMethod('phone'); sendOtp('phone'); }}
+                        onClick={() => { 
+                          sessionStorage.removeItem('otp_lock_active'); 
+                          setOtpMethod('phone'); 
+                          sendOtp('phone', email || `${phone.trim()}@farmtohome.ph`, phone); 
+                        }}
                         className={`flex-1 p-4 rounded-xl border transition-all flex flex-col items-center gap-2 ${otpMethod === 'phone' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
                       >
                         <Phone className="w-5 h-5" />

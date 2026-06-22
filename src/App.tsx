@@ -68,6 +68,14 @@ function AppContent() {
   const [infoModalSection, setInfoModalSection] = useState<InfoSectionType>('about');
   const [showLegalModal, setShowLegalModal] = useState(false);
   const [legalModalTab, setLegalModalTab] = useState<'privacy' | 'terms'>('privacy');
+  const [showIntroAnimation, setShowIntroAnimation] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowIntroAnimation(false);
+    }, 2800);
+    return () => clearTimeout(timer);
+  }, []);
   
   useEffect(() => {
     if (profile?.status === 'banned') {
@@ -456,14 +464,113 @@ function AppContent() {
     };
   }, []);
 
-  if (loading) {
+  if (loading || showIntroAnimation) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-background">
-        <motion.div 
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full"
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-accent-light relative overflow-hidden select-none">
+        {/* Subtle amakan/banig cultural background texture for hand-crafted authenticity */}
+        <div className="absolute inset-0 amakan-pattern opacity-15 pointer-events-none" />
+        
+        {/* Radial ambient background highlight glow */}
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: [1, 1.15, 1], opacity: [0.15, 0.3, 0.15] }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute w-80 h-80 rounded-full bg-primary/10 blur-3xl pointer-events-none"
         />
+
+        <div className="flex flex-col items-center justify-center relative z-10 text-center px-6">
+          {/* Logo Card with organic micro-spring entering animation & float loop */}
+          <motion.div
+            initial={{ scale: 0.3, opacity: 0, y: 40, rotate: -15 }}
+            animate={{ scale: 1, opacity: 1, y: 0, rotate: 0 }}
+            transition={{ 
+              type: "spring",
+              stiffness: 110,
+              damping: 14,
+              delay: 0.1
+            }}
+            className="w-24 h-24 sm:w-28 sm:h-28 rounded-[2.25rem] bg-white border border-primary/10 flex items-center justify-center p-5 shadow-2xl relative forest-shadow"
+          >
+            {/* Custom leaf-glowing pulse ripple */}
+            <motion.div 
+              animate={{ scale: [1, 1.4, 1], opacity: [0.3, 0, 0.3] }}
+              transition={{ duration: 2.2, repeat: Infinity, ease: "easeOut" }}
+              className="absolute inset-0 rounded-[2.25rem] border-2 border-primary/20 pointer-events-none"
+            />
+            
+            <motion.img
+              src="/logo.png"
+              alt="FarmToHome Logo"
+              className="w-full h-full object-contain relative z-10 filter drop-shadow-sm"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                const parent = e.currentTarget.parentElement;
+                if (parent && !parent.querySelector('.fallback-icon')) {
+                  const fallback = document.createElement('div');
+                  fallback.className = 'fallback-icon flex flex-col items-center justify-center';
+                  fallback.innerHTML = `
+                    <span class="text-4xl text-primary animate-bounce">🌾</span>
+                  `;
+                  parent.appendChild(fallback);
+                }
+              }}
+              animate={{ 
+                y: [-3, 3, -3],
+                scale: [0.97, 1.03, 0.97]
+              }}
+              transition={{
+                duration: 3,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+            />
+          </motion.div>
+
+          {/* Typography Pairings: Display Brand Name */}
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.7, ease: "easeOut" }}
+            className="mt-8 space-y-2.5"
+          >
+            <h1 className="text-3xl sm:text-4xl font-serif italic font-black tracking-tight text-primary flex items-center justify-center gap-2">
+              <motion.span
+                animate={{ rotate: [0, 10, -10, 0] }}
+                transition={{ duration: 2, repeat: Infinity, delay: 0.8 }}
+                className="inline-block origin-bottom shrink-0 text-2xl sm:text-3xl"
+              >
+                🌱
+              </motion.span>
+              FarmToHome
+            </h1>
+            
+            <p className="text-stone-500 font-black uppercase tracking-[0.18em] text-[8.5px] sm:text-[9.5px]">
+              Direct Organic Farm Trade
+            </p>
+          </motion.div>
+
+          {/* Sleek horizontal micro-status progress line container */}
+          <div className="mt-8 space-y-4">
+            <div className="w-48 h-[3px] bg-stone-200/50 rounded-full overflow-hidden relative mx-auto">
+              <motion.div 
+                initial={{ left: "-100%" }}
+                animate={{ left: "100%" }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute top-0 bottom-0 w-1/2 bg-gradient-to-r from-primary/10 via-primary to-primary/10 rounded-full"
+              />
+            </div>
+
+            {/* Cycling Philippine agri-contextual labels */}
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.7 }}
+              transition={{ delay: 0.6 }}
+              className="text-[9px] font-mono text-stone-400 uppercase tracking-widest text-center animate-pulse"
+            >
+              Establishing secure harvest lane...
+            </motion.p>
+          </div>
+        </div>
       </div>
     );
   }

@@ -442,6 +442,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTabProp, o
   }, []).slice(-7);
 
   const filteredUsers = users.filter(u => {
+    if (!u) return false;
     const matchesSearch = (u?.fullName || '').toLowerCase().includes((searchTerm || '').toLowerCase()) || 
                          (u?.email || '').toLowerCase().includes((searchTerm || '').toLowerCase());
     const matchesTab = 

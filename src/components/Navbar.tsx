@@ -444,7 +444,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <button className="flex items-center gap-4 group/btn">
                     <div className="text-right hidden sm:block">
                       <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-0.5">Member</p>
-                      <p className="text-sm font-bold text-white">{profile?.fullName.split(' ')[0]}</p>
+                      <p className="text-sm font-bold text-white">{(profile?.fullName || '').split(' ')[0]}</p>
                     </div>
                     <div className="w-12 h-12 rounded-[1.25rem] bg-accent-light p-1 group-hover/btn:scale-110 transition-all duration-500 shadow-sm border border-primary/5">
                       <div className="w-full h-full rounded-[1rem] bg-primary/20 flex items-center justify-center overflow-hidden">

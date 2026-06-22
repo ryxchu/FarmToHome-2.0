@@ -345,26 +345,29 @@ export const AIChatbot: React.FC = () => {
                     Pending Verification Docs ({pendingFarmers.length})
                   </p>
                   
-                  {pendingFarmers.map(f => (
-                    <div key={f.uid} className="p-3 bg-white rounded-2xl border border-slate-100 shadow-xs flex flex-col gap-2.5 hover:border-emerald-250 transition-all">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center font-bold text-sm text-slate-700 italic shrink-0">
-                          {(f?.fullName || '').charAt(0)}
+                  {pendingFarmers.map(f => {
+                    if (!f) return null;
+                    return (
+                      <div key={f.uid} className="p-3 bg-white rounded-2xl border border-slate-100 shadow-xs flex flex-col gap-2.5 hover:border-emerald-250 transition-all">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center font-bold text-sm text-slate-700 italic shrink-0">
+                            {(f.fullName || '').charAt(0)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-slate-800 leading-tight truncate">{f.fullName}</p>
+                            <p className="text-[9.5px] font-medium text-slate-400 truncate mt-0.5">{f.email}</p>
+                          </div>
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-bold text-slate-800 leading-tight truncate">{f.fullName}</p>
-                          <p className="text-[9.5px] font-medium text-slate-400 truncate mt-0.5">{f.email}</p>
-                        </div>
-                      </div>
 
-                      <button 
-                        onClick={() => handleVerifyFarmerFromAlert(f.uid)}
-                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white transition-all rounded-xl font-bold uppercase tracking-wider text-[8.5px] flex items-center justify-center gap-1 shadow-md shadow-emerald-600/10 cursor-pointer"
-                      >
-                        <CheckCircle className="w-3.5 h-3.5" /> Approved / Verify profile
-                      </button>
-                    </div>
-                  ))}
+                        <button 
+                          onClick={() => handleVerifyFarmerFromAlert(f.uid)}
+                          className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white transition-all rounded-xl font-bold uppercase tracking-wider text-[8.5px] flex items-center justify-center gap-1 shadow-md shadow-emerald-600/10 cursor-pointer"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" /> Approved / Verify profile
+                        </button>
+                      </div>
+                    );
+                  })}
 
                   {pendingFarmers.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-10 text-center bg-white rounded-2xl p-4 border border-slate-100 shadow-inner">

@@ -303,7 +303,7 @@ PLATFORM NAVIGATION INTEGRATION (Provide exact redirection markdown links only w
 - [Track Delivery Progress](page:tracking) - to view delivery statuses of active orders.
 - [View Account Profile](page:profile) - to edit delivery addresses, contact details, and account settings.`;
 
-      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${envKey}`, {
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${envKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

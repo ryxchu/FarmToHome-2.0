@@ -6,6 +6,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { UserProfile } from '../types';
+import { FARMTOHOME_KNOWLEDGE_BASE } from '../data/chatbotKnowledgeBase';
 
 // Custom high-grade safe markdown elements renderer
 const renderSafeMessageContent = (text: string) => {
@@ -275,13 +276,41 @@ export const AIChatbot: React.FC = () => {
       // Create latest snapshots of history safely containing the new message
       const latestHistory = [...messages, newUserMsgObj];
 
-      response = await fetch('/api/gemini/support-chat', {
+      // Format history turns precisely as the Gemini generateContent API expects
+      const formattedContents = latestHistory.map((item) => ({
+        role: item.role === 'model' ? 'model' : 'user',
+        parts: [{ text: item.parts?.[0]?.text || '' }]
+      }));
+
+      const languageInstruction = (currentLanguage.toUpperCase() === 'TL' || currentLanguage === 'tl')
+        ? 'Always respond in Filipino/Tagalog. Translate all answers from the knowledge base into natural conversational Filipino.'
+        : 'Always respond in English.';
+
+      const systemInstructionText = `You are a helpful support assistant for FarmToHome, a Filipino farm-to-consumer marketplace.
+Use ONLY the following knowledge base to answer questions.
+If the answer is not in the knowledge base, say: "I'm not sure about that. Please contact our support team for help."
+Never repeat your introduction as an answer. Always read the user's actual message and respond to it directly and conversationally.
+
+KNOWLEDGE BASE:
+${FARMTOHOME_KNOWLEDGE_BASE}
+
+${languageInstruction}
+
+PLATFORM NAVIGATION INTEGRATION (Provide exact redirection markdown links only when highly relevant to the query):
+- [Go to Shop/Marketplace](page:home) - to let users browse and purchase fresh crops.
+- [Go to Farmer Dashboard](page:dashboard) - for farmers to upload land certifications, post crops, and view earnings.
+- [Go to Inbox/Messages](page:messages) - to chat in real-time with farmers/buyers.
+- [Track Delivery Progress](page:tracking) - to view delivery statuses of active orders.
+- [View Account Profile](page:profile) - to edit delivery addresses, contact details, and account settings.`;
+
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${envKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          message: userMsg, 
-          language: currentLanguage,
-          history: latestHistory
+          contents: formattedContents,
+          systemInstruction: {
+            parts: [{ text: systemInstructionText }]
+          }
         })
       });
       
@@ -298,10 +327,13 @@ export const AIChatbot: React.FC = () => {
 
       const data = await response.json();
 
-      if (data.success && data.text) {
-        setMessages(prev => [...prev, { role: 'model', parts: [{ text: data.text }] }]);
+      // Extract response content securely using the specific candidates structure
+      const replyText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (replyText) {
+        setMessages(prev => [...prev, { role: 'model', parts: [{ text: replyText }] }]);
       } else {
-        setMessages(prev => [...prev, { role: 'model', parts: [{ text: data.error || "I'm sorry, I couldn't process that. Can you try again?" }] }]);
+        throw new Error("Invalid response schema from Gemini API: missing candidates content parts text.");
       }
     } catch (err: any) {
       // 4. Detailed error handling and logging for production diagnostics

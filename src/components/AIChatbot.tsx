@@ -349,7 +349,7 @@ export const AIChatbot: React.FC = () => {
                     <div key={f.uid} className="p-3 bg-white rounded-2xl border border-slate-100 shadow-xs flex flex-col gap-2.5 hover:border-emerald-250 transition-all">
                       <div className="flex items-center gap-2.5">
                         <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center font-bold text-sm text-slate-700 italic shrink-0">
-                          {f.fullName.charAt(0)}
+                          {(f?.fullName || '').charAt(0)}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-bold text-slate-800 leading-tight truncate">{f.fullName}</p>

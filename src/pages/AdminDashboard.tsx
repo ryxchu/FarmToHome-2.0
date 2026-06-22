@@ -735,7 +735,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTabProp, o
                               {u.photoURL ? (
                                 <img src={u.photoURL} alt={u.fullName} className="w-full h-full object-contain bg-slate-50" />
                               ) : (
-                                u.fullName.charAt(0)
+                                (u?.fullName || '').charAt(0)
                               )}
                             </div>
                             <div>
@@ -825,7 +825,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTabProp, o
                         {u.photoURL ? (
                           <img src={u.photoURL} alt={u.fullName} className="w-full h-full object-contain bg-slate-50" />
                         ) : (
-                          u.fullName.charAt(0)
+                          (u?.fullName || '').charAt(0)
                         )}
                       </div>
                       <div className="min-w-0 flex-1">

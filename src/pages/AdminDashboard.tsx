@@ -442,8 +442,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTabProp, o
   }, []).slice(-7);
 
   const filteredUsers = users.filter(u => {
-    const matchesSearch = u.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         u.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (u?.fullName || '').toLowerCase().includes((searchTerm || '').toLowerCase()) || 
+                         (u?.email || '').toLowerCase().includes((searchTerm || '').toLowerCase());
     const matchesTab = 
       userFilterTab === 'all' ? true :
       userFilterTab === 'pending-farmers' ? (u.role === 'farmer' && (u.status === 'pending' || !u.status)) :

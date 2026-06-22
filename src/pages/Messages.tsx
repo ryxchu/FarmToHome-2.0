@@ -72,8 +72,8 @@ export const Messages: React.FC<MessagesProps> = ({ setView }) => {
   };
 
   const filteredConversations = conversations.filter(conv => {
-    const name = conv.buyerId === profile?.uid ? conv.farmerName : conv.buyerName;
-    return name.toLowerCase().includes(searchQuery.toLowerCase());
+    const name = (conv?.buyerId === profile?.uid ? conv?.farmerName : conv?.buyerName) || '';
+    return name.toLowerCase().includes((searchQuery || '').toLowerCase());
   });
 
   return (

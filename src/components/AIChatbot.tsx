@@ -5,8 +5,6 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, where, onSnapshot, updateDoc, doc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
 import { UserProfile } from '../types';
 
 // Custom high-grade safe markdown elements renderer
@@ -138,25 +136,9 @@ export const AIChatbot: React.FC = () => {
   const [pendingFarmers, setPendingFarmers] = useState<UserProfile[]>([]);
   const [isAdminPanelActive, setIsAdminPanelActive] = useState(true);
 
-  // Set up real-time pending farmers listener if logged in as Admin
+  // Set up real-time pending farmers listener if logged in as Admin (local state fallback)
   useEffect(() => {
-    if (!user || profile?.role !== 'admin') {
-      setPendingFarmers([]);
-      return;
-    }
-
-    // Load active registrations
-    const q = query(collection(db, 'users'), where('role', '==', 'farmer'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs
-        .map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile))
-        .filter(u => u.status === 'pending' || !u.status);
-      setPendingFarmers(list);
-    }, (err) => {
-      console.warn("Real-time admin alert subscription error:", err);
-    });
-
-    return () => unsubscribe();
+    setPendingFarmers([]);
   }, [user, profile]);
 
   // Update initial message when language changes
@@ -222,12 +204,8 @@ export const AIChatbot: React.FC = () => {
   };
 
   const handleVerifyFarmerFromAlert = async (uid: string) => {
-    try {
-      // Direct Firestore update in real-time
-      await updateDoc(doc(db, 'users', uid), { status: 'verified' });
-    } catch (err) {
-      console.error("Verification from FAB alert error:", err);
-    }
+    // Client-side Firestore update removed for security and compliance
+    console.info("Verification not implemented client-side in the floating chatbot. Please use the Admin Dashboard.", uid);
   };
 
   return (

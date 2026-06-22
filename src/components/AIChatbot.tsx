@@ -170,67 +170,84 @@ export const AIChatbot: React.FC = () => {
 
   // Emergency Client-side Fallback Response Generator
   const generateClientMockResponse = (message: string, language: 'en' | 'tl'): string => {
-    const msg = message.toLowerCase();
-    const isTagalog = language === 'tl' || msg.includes('kumusta') || msg.includes('salamat') || msg.includes('nasaan') || msg.includes('magsasaka') || msg.includes('paano') || msg.includes('benta');
+    const msg = message.toLowerCase().trim();
+    const isTagalog = language === 'tl' || msg.includes('kumusta') || msg.includes('salamat') || msg.includes('nasaan') || msg.includes('magsasaka') || msg.includes('paano') || msg.includes('benta') || msg.includes('tagalog');
 
-    if (msg.includes('post product') || msg.includes('how to post') || msg.includes('sell') || msg.includes('magbenta') || msg.includes('benta') || msg.includes('pananim')) {
+    // 1. Greetings & Politeness
+    if (msg.includes('hello') || msg.includes('hi') || msg.includes('hey') || msg.includes('kumusta')) {
       if (isTagalog) {
-        return `Upang magbenta o mag-post ng iyong mga pananim/gulay sa FarmToHome:
-1. Siguraduhing naka-login ka gamit ang **Farmer Account**.
-2. Pumunta sa iyong [Go to Farmer Dashboard](page:dashboard).
-3. Pagkatapos ma-approve ng admin ang iyong certification docs, i-click lamang ang **"Add Crop"** button upang mag-upload ng pananim! Itatakda mo dito ang presyo, stock, at larawan ng iyong ani sa shop [Go to Shop/Marketplace](page:home).`;
+        return `Kumusta! Ako ang iyong FarmToHome AI Assistant. 🧑‍🌾 Paano kita matutulungan ngayon?`;
+      }
+      return `Hi! I'm your FarmToHome AI Assistant. 🧑‍🌾 How can I help you today?`;
+    }
+
+    if (msg.includes('thank') || msg.includes('salamat') || msg.includes('thanks') || msg.includes('ty')) {
+      if (isTagalog) {
+        return `Walang anuman! Masaya akong makatulong sa iyo. Sabihin mo lang kung mayroon ka pang ibang katanungan.`;
+      }
+      return `You're very welcome! Glad I could help. Let me know if you have any other questions!`;
+    }
+
+    // 2. Listing Crops / Selling
+    if (msg.includes('post product') || msg.includes('how to post') || msg.includes('sell') || msg.includes('magbenta') || msg.includes('benta') || msg.includes('pananim') || msg.includes('add crop')) {
+      if (isTagalog) {
+        return `Upang magbenta o mag-post ng iyong mga pananim o gulay sa FarmToHome:
+1. Siguraduhing naka-login ka gamit ang isang **Farmer Account**.
+2. Mag-upload ng iyong Certification Documents sa iyong [Go to Farmer Dashboard](page:dashboard).
+3. Matapos ma-approve ng admin ang iyong dokumento, i-click lamang ang **"Add Crop"** button sa iyong dashboard upang mag-post ng pananim. Lalabas agad ito sa shop [Go to Shop/Marketplace](page:home)!`;
       }
       return `To list or publish your organic crops/products on FarmToHome:
 1. Ensure you are registered and logged into a **Farmer Account**.
-2. Navigate to your [Go to Farmer Dashboard](page:dashboard).
+2. Head over to your [Go to Farmer Dashboard](page:dashboard) and upload proof of land ownership/credentials.
 3. Once the admin team approves your certifications, click **"Add Crop"** to upload product details, pricing, and stock. Your items will instantly go live in the marketplace [Go to Shop/Marketplace](page:home)!`;
     }
 
-    if (msg.includes('profile') || msg.includes('nasaan') || msg.includes('account') || msg.includes('address')) {
+    // 3. User Profile / Settings
+    if (msg.includes('profile') || msg.includes('account') || msg.includes('address') || msg.includes('nasaan ang profile')) {
       if (isTagalog) {
-        return `Maaari mong baguhin ang iyong mga detalye at tingnan ang iyong orders sa iyong profile page:
-- Pumunta rito: [View Account Profile](page:profile).
-- Dito mo rin mae-edit ang default physical delivery address at contact details.`;
+        return `Maaari mong baguhin ang iyong personal na detalye, address presets, at contact info:
+- Pumunta sa iyong profile settings dito: [View Account Profile](page:profile).
+- Dito mo rin mae-edit ang default physical delivery address para sa mga dumarating na order.`;
       }
-      return `You can manage your farm coordinates, profile details, and track your active order delivery statuses:
-- Navigate to your account panel: [View Account Profile](page:profile).
-- Here you can update your physical delivery address presets and contact information easily.`;
+      return `You can manage your coordinates, profile details, and track active order statuses:
+- Navigate to your account settings here: [View Account Profile](page:profile).
+- Here you can update your physical delivery address presets and contact details easily.`;
     }
 
-    if (msg.includes('register') || msg.includes('sign up') || msg.includes('create') || msg.includes('rehistro') || msg.includes('pumili')) {
+    // 4. Register or Sign Up
+    if (msg.includes('register') || msg.includes('sign up') || msg.includes('create') || msg.includes('rehistro') || msg.includes('pumili') || msg.includes('register account')) {
       if (isTagalog) {
         return `Madali lamang gumawa ng account sa FarmToHome:
-1. Piliin kung ikaw ay **Buyer** o **Farmer** sa main gate.
+1. Piliin kung ikaw ay **Buyer** o **Farmer** sa login modal.
 2. Ilagay ang iyong Email address.
-3. Ilagay ang 6-digit OTP code na ipapadala namin sa iyong inbox para makapasok nang secure at walang password!`;
+3. Ilagay ang 6-digit OTP code na ipapadala namin sa iyong email upang makapasok nang ligtas at walang password!`;
       }
       return `To create an account or sign up on FarmToHome:
-1. Choose either the **Buyer** or **Farmer** role at the login gate.
+1. Choose either the **Buyer** or **Farmer** role at the login section.
 2. Enter your validated Email address.
 3. Enter the secure 6-digit OTP code sent directly to your inbox to log in password-free!`;
     }
 
-    if (msg.includes('payment') || msg.includes('bayad') || msg.includes('gcash') || msg.includes('cod')) {
+    // 5. Payments
+    if (msg.includes('payment') || msg.includes('bayad') || msg.includes('gcash') || msg.includes('cod') || msg.includes('magbayad')) {
       if (isTagalog) {
-        return `Para sa mga transaksyon sa FarmToHome:
-- Ang aming trade platform ay sumusuporta sa **Cash on Delivery (COD)** o manu-manong pag-upload ng **GCash reference slips** kapag nagpapadala ng patunay ng harvest order. Pinoprotektahan nito ang ating mga lokal na magsasaka at mamimili!`;
+        return `Para sa ligtas na transaksyon sa FarmToHome, sumusuporta kami sa:
+- **Cash on Delivery (COD)** o manu-manong pag-upload ng **GCash reference details** kapag nagpapatunay ng iyong order. Upang mapanatiling zero ang service fee ng ating mga magsasaka, hindi kami gumagamit ng mga awtomatikong credit card gateways.`;
       }
       return `For secure payments and trade transactions:
-- FarmToHome uses standard **Cash on Delivery (COD)** or manual uploads of **GCash receipts**. Direct electronic card gateways are not supported to keep transaction costs zero for our local farming community!`;
+- FarmToHome supports **Cash on Delivery (COD)** or manual uploads of **GCash transaction receipts** during checkout. We do not use automated third-party card processors to avoid service charges and keep fees completely free for our local farming community!`;
     }
 
-    if (msg.includes('code') || msg.includes('programming') || msg.includes('javascript') || msg.includes('python')) {
-      return `Here is some quick helper coding assistance from your AI engine:\n\n\`\`\`javascript\n// Simple FarmToHome transaction visualizer\nfunction listCrop(name, price) {\n  console.log("Listing brand new crop:", name, "for ₱" + price);\n  return true;\n}\nlistCrop("Sweet Guimaras Mangoes", 150);\n\`\`\``;
+    // 6. Programming (ChatGPT Core Fallback helper)
+    if (msg.includes('code') || msg.includes('programming') || msg.includes('javascript') || msg.includes('python') || msg.includes('typescript')) {
+      return `Here is some quick coding assistance from your AI engine:\n\n\`\`\`javascript\n// Simple FarmToHome transaction listing helper\nfunction listCrop(name, price) {\n  console.log("Listing brand new crop:", name, "for ₱" + price);\n  return true;\n}\nlistCrop("Sweet Guimaras Mangoes", 150);\n\`\`\``;
     }
 
+    // 7. General Fallback Answers
     if (isTagalog) {
-      return `Kumusta! Ako ang iyong FarmToHome AI Assistant. 🧑‍🌾 
-
-Gusto mo bang malaman kung paano bumili ng gulay sa shop [Go to Shop/Marketplace](page:home), mag-post ng pananim sa [Go to Farmer Dashboard](page:dashboard), makipag-chat sa kaparehang magsasaka gamit ang [Go to Inbox/Messages](page:messages), o i-manage ang iyong [View Account Profile](page:profile)? Tanungin mo lang ako at tutulungan kita!`;
+      return `Salamat sa iyong katanungan! Ako ang iyong FarmToHome assistant. Maaari mo akong tanungin tungkol sa pagbili ng mga sariwang gulay o prutas, pagre-register bilang magsasaka, pag-track ng mga order, o tungkol sa anumang paksa na nais mong malaman. Paano kita magagabayan ngayon?`;
     }
-    return `Hi! I'm your local FarmToHome AI Assistant. 🧑‍🌾
-
-Would you like to learn how to browse crops in the shop [Go to Shop/Marketplace](page:home), post your organic harvest in the [Go to Farmer Dashboard](page:dashboard), chat with farmers in [Go to Inbox/Messages](page:messages), or edit your default shipping address in the [View Account Profile](page:profile)? Ask me anything!`;
+    return `Thank you for your message! I'm your conversational FarmToHome support assistant. Feel free to ask me anything about browsing the marketplace, registering as a farmer, how order tracking works, or general/technical topics. What can I help you with today?`;
   };
 
   const handleSend = async (e: React.FormEvent) => {

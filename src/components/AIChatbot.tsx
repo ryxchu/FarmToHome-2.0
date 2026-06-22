@@ -131,6 +131,17 @@ export const AIChatbot: React.FC = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
+
+  // Verify Gemini API key is available in environment on component mount
+  useEffect(() => {
+    const key = (import.meta as any).env.VITE_GEMINI_API_KEY;
+    if (!key || key.trim() === '') {
+      setIsApiKeyMissing(true);
+    } else {
+      setIsApiKeyMissing(false);
+    }
+  }, []);
 
   // Admin-specific lists and views
   const [pendingFarmers, setPendingFarmers] = useState<UserProfile[]>([]);
@@ -235,11 +246,19 @@ Would you like to learn how to browse crops in the shop [Go to Shop/Marketplace]
     // Safety Guard 3: Functional state updater to preserve previous message logs cleanly
     setMessages(prev => [...prev, newUserMsgObj]);
 
+    let response: Response | undefined = undefined;
+
     try {
+      // 1. API Key Check: Ensure VITE_GEMINI_API_KEY is defined in environment before any API call
+      const envKey = (import.meta as any).env.VITE_GEMINI_API_KEY;
+      if (!envKey || envKey.trim() === '') {
+        throw new Error("VITE_GEMINI_API_KEY is missing or undefined at runtime. Please configure your hosting environment environment variables.");
+      }
+
       // Create latest snapshots of history safely containing the new message
       const latestHistory = [...messages, newUserMsgObj];
 
-      const response = await fetch('/api/gemini/support-chat', {
+      response = await fetch('/api/gemini/support-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -249,15 +268,15 @@ Would you like to learn how to browse crops in the shop [Go to Shop/Marketplace]
         })
       });
       
-      // Safety Guard 2: Robust response and error parsing inside bulletproof try/catch block
-      if (!response.ok) {
-        throw new Error(`Server status returned ${response.status}`);
+      // 2. Response validation: Check HTTP status is 200 first
+      if (!response || response.status !== 200) {
+        throw new Error(`HTTP Error Status ${response ? response.status : 'unknown'}: Failed to execute support chat operation.`);
       }
 
+      // Validate response is actually valid JSON instead of HTML error fallbacks
       const contentType = response.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) {
-        // Server returned standard html (e.g. 404/index.html of Vite single-page fallback or network proxy pages)
-        throw new SyntaxError("Unexpected token '<' representing HTML page instead of JSON");
+        throw new TypeError(`Expected response Content-Type to be 'application/json' but received '${contentType}', representing a server exception page.`);
       }
 
       const data = await response.json();
@@ -268,7 +287,12 @@ Would you like to learn how to browse crops in the shop [Go to Shop/Marketplace]
         setMessages(prev => [...prev, { role: 'model', parts: [{ text: data.error || "I'm sorry, I couldn't process that. Can you try again?" }] }]);
       }
     } catch (err: any) {
-      console.warn("[Chatbot Client-Side Fallback Engaged]", err);
+      // 4. Detailed error handling and logging for production diagnostics
+      console.error("[Chatbot Error Handler] Production API Error details:", {
+        message: err?.message || String(err),
+        status: response?.status || 'No Response'
+      });
+      
       // Beautiful and seamless offline response fallback
       const fallbackReply = generateClientMockResponse(userMsg, currentLanguage);
       setMessages(prev => [...prev, { role: 'model', parts: [{ text: fallbackReply }] }]);
@@ -438,6 +462,17 @@ Would you like to learn how to browse crops in the shop [Go to Shop/Marketplace]
               /* Support AI Chat View */
               <>
                 <div ref={scrollRef} className="flex-grow overflow-y-auto p-4 space-y-4 bg-zinc-50">
+                  {isApiKeyMissing && (
+                    <div className="p-3.5 bg-amber-50 border-l-4 border-amber-500 rounded-lg text-amber-800 shadow-xs leading-normal" id="api-key-warning-box">
+                      <div className="flex items-center gap-2 font-black uppercase text-[10px] tracking-wider text-amber-600 mb-1">
+                        <ShieldAlert className="w-4 h-4" /> VITE_GEMINI_API_KEY Unavailable
+                      </div>
+                      <p className="text-[11px] text-amber-700 font-medium">
+                        The chatbot has detected that VITE_GEMINI_API_KEY is undefined in this environment. Direct AI requests are routed through local offline backup modes.
+                      </p>
+                    </div>
+                  )}
+
                   {messages.map((m, i) => (
                     <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[85%] p-3 rounded-2xl text-sm shadow-sm break-words whitespace-pre-wrap ${

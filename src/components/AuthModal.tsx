@@ -3,10 +3,27 @@ import emailjs from '@emailjs/browser';
 import { X, Mail, Lock, User, Phone, Check, Eye, EyeOff, Sprout, UserCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from '../lib/firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, FacebookAuthProvider, browserPopupRedirectResolver, sendPasswordResetEmail } from 'firebase/auth';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  FacebookAuthProvider, 
+  browserPopupRedirectResolver, 
+  sendPasswordResetEmail,
+  RecaptchaVerifier,
+  signInWithPhoneNumber
+} from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { LegalModal } from './LegalModal';
+
+declare global {
+  interface Window {
+    recaptchaVerifier: any;
+    confirmationResult: any;
+  }
+}
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -21,6 +38,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
 
   const handleClose = async () => {
     sessionStorage.removeItem('otp_lock_active');
+    if (window.recaptchaVerifier) {
+      window.recaptchaVerifier.clear();
+      window.recaptchaVerifier = null;
+    }
     if (mode === 'otp' || (profile && profile.status === 'unverified')) {
       try {
         await auth.signOut();
@@ -30,6 +51,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     }
     onClose();
   };
+  
   const [role, setRole] = useState<'buyer' | 'farmer' | 'admin'>(initialRole);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -77,7 +99,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       setOtpMethod(initialRole === 'farmer' ? 'phone' : 'email');
       setError('');
       
-      // Retain or restore success message if saved during unmount/remount boundary transitions
       const storedMsg = sessionStorage.getItem('auth_success_message');
       if (storedMsg) {
         setSuccessMessage(storedMsg);
@@ -100,7 +121,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     }
   }, [isOpen, initialMode, initialRole]);
 
-  // Auto-close if user is authenticated and not in OTP mode - cleaned up from volatile triggers like mode or otpMethod
+  // Session Tracker Hook
   useEffect(() => {
     if (isOpen && auth.currentUser) {
       const checkProfile = async () => {
@@ -138,13 +159,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   const toggleMode = () => {
     const newMode = mode === 'login' ? 'register' : 'login';
     setMode(newMode);
-    setError(''); // CRITICAL: Clear error when switching modes
+    setError(''); 
     setSuccessMessage('');
     setTouched({});
     setFormSubmitted(false);
   };
 
-  // Password validation
   const passChecks = {
     length: password.length >= 8,
     upper: /[A-Z]/.test(password),
@@ -183,7 +203,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         if (!phoneRegex.test(phone.trim())) return 'Please enter a valid 10-12 digit phone number';
       }
       if (fieldName === 'email') {
-        if (role === 'farmer' && !email) return ''; // Email is optional for farmers
+        if (role === 'farmer' && !email) return ''; 
         if (!email) return 'Email is required';
         if (!emailRegex.test(email)) return 'Please enter a valid email address (e.g., name@domain.com)';
       }
@@ -269,11 +289,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         const loginEmail = isPhoneNumber ? `${inputIdentifier}@farmtohome.ph` : inputIdentifier;
         
         const userCred = await signInWithEmailAndPassword(auth, loginEmail, password);
-        
-        // Ensure browser auth token is fully written, saved, and synchronized to IndexedDB
         await userCred.user.getIdToken(true);
 
-        // Check if database profile exists. If not, it was deleted by an admin!
         if (loginEmail.toLowerCase() !== 'ryzabasas16@gmail.com') {
           const userDoc = await getDoc(doc(db, 'users', userCred.user.uid));
           if (!userDoc.exists()) {
@@ -281,12 +298,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
             await deleteUser(userCred.user);
             throw new Error("Your account has been deleted by an administrator. Your login has been completely cleared, and you can now register a fresh account with this email.");
           } else {
-            // Write to local cache pre-emptively to prevent profile race condition across reloads
             const profileData = { ...userDoc.data(), uid: userDoc.id };
             localStorage.setItem(`user_profile_${userCred.user.uid}`, JSON.stringify(profileData));
           }
         } else {
-          // Admin bootstrap cache
           const adminProfile = {
             uid: userCred.user.uid,
             email: 'ryzabasas16@gmail.com',
@@ -299,15 +314,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           localStorage.setItem(`user_profile_${userCred.user.uid}`, JSON.stringify(adminProfile));
         }
 
-        // Wait a small physical delay (500ms) for IndexedDB session commit and cookie sync before reload
         await new Promise(resolve => setTimeout(resolve, 500));
-        
         onClose();
         window.location.reload();
       } else {
         const finalEmail = (role === 'farmer' && !email) ? `${phone.trim()}@farmtohome.ph` : email;
         const userCred = await createUserWithEmailAndPassword(auth, finalEmail, password);
-        // Force admin for the bootstrapped user
         const finalRole = finalEmail === 'ryzabasas16@gmail.com' ? 'admin' : role;
         const finalFullName = `${firstName.trim()} ${middleName.trim() ? middleName.trim() + ' ' : ''}${lastName.trim()}`;
           
@@ -332,24 +344,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
 
         await setDoc(doc(db, 'users', userCred.user.uid), registerData);
         setMode('otp');
-        sendOtp(otpMethod);
+        sendOtp(otpMethod, finalEmail, phone);
       }
     } catch (err: any) {
       if (err.code === 'auth/operation-not-allowed') {
-        setError('Email/Password login is not enabled in Firebase. Please enable it in the console or use Google Sign-in.');
+        setError('Email/Password login is not enabled in Firebase.');
       } else if (err.code === 'auth/email-already-in-use') {
         try {
           const finalEmail = (role === 'farmer' && !email) ? `${phone.trim()}@farmtohome.ph` : email;
-          // Attempt self-healing: see if we can log in with the typed password
           const checkCred = await signInWithEmailAndPassword(auth, finalEmail, password);
-          // If login succeeds, check if the Firestore document exists
           const userDoc = await getDoc(doc(db, 'users', checkCred.user.uid));
           if (!userDoc.exists()) {
-            // Document does not exist in Firestore! This is an out-of-sync orphaned login.
             const { deleteUser } = await import('firebase/auth');
             await deleteUser(checkCred.user);
             
-            // Now register a fresh account using the requested credentials
             const newCred = await createUserWithEmailAndPassword(auth, finalEmail, password);
             const finalRole = finalEmail === 'ryzabasas16@gmail.com' ? 'admin' : role;
             const finalFullName = `${firstName.trim()} ${middleName.trim() ? middleName.trim() + ' ' : ''}${lastName.trim()}`;
@@ -375,19 +383,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
 
             await setDoc(doc(db, 'users', newCred.user.uid), registerData);
             setMode('otp');
-            sendOtp(otpMethod);
+            sendOtp(otpMethod, finalEmail, phone);
             return;
           } else {
-            // Profile exists normally in database, so this email is indeed in use
             setError('ALREADY_REGISTERED');
           }
         } catch (signInErr: any) {
-          // If login fails (wrong password or other), prompt the user with instructions to resolve the conflict
           setError('ORPHANED_AUTH_CONFLICT');
         }
       } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
         setError('Invalid email or password. Please try again.');
-      } else if (err.code === 'auth/network-request-failed' || err.message?.includes('network-request-failed') || err.message?.includes('network-failed') || err.message?.includes('network')) {
+      } else if (err.code === 'auth/network-request-failed' || err.message?.includes('network')) {
         setError('NETWORK_FAILED_SANDBOX');
       } else {
         setError(err.message);
@@ -404,7 +410,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       const provider = new GoogleAuthProvider();
       const userCred = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
       
-      // Check if user profile exists
       const userDoc = await getDoc(doc(db, 'users', userCred.user.uid));
       if (!userDoc.exists()) {
         const finalRole = userCred.user.email === 'ryzabasas16@gmail.com' ? 'admin' : role;
@@ -419,19 +424,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       }
       onClose();
     } catch (err: any) {
-      if (err.code === 'auth/popup-closed-by-user') {
-        console.warn("Google credentials window closed by the user.");
-        setError('The login window was closed before completion. If this keeps happening in the preview, click "Open in New Tab" up top or log in with your email & password.');
-      } else if (err.code === 'auth/cancelled-popup-request') {
-        console.warn("Google popup request cancelled or repeated.");
-        setError('Google Sign-in request was cancelled. If you clicked multiple times, please wait or click "Open in New Tab" to authorize outside the preview window.');
-      } else if (err.code === 'auth/popup-blocked') {
-        console.warn("Google popup was blocked by the browser sandbox.");
-        setError('The login popup was blocked by your browser. Please allow popups, or open the app in a new tab by clicking "Open in New Tab" in the top-right corner.');
-      } else {
-        console.error("Google Sign-in Error:", err);
-        setError(err.message);
-      }
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -444,7 +437,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       const provider = new FacebookAuthProvider();
       const userCred = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
       
-      // Check if user profile exists
       const userDoc = await getDoc(doc(db, 'users', userCred.user.uid));
       if (!userDoc.exists()) {
         const finalRole = userCred.user.email === 'ryzabasas16@gmail.com' ? 'admin' : role;
@@ -460,28 +452,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       }
       onClose();
     } catch (err: any) {
-      if (err.code === 'auth/popup-closed-by-user') {
-        console.warn("Facebook credentials window closed by the user.");
-        setError('The login window was closed before completion. If this keeps happening in the preview, click "Open in New Tab" up top or log in with your email & password.');
-      } else if (err.code === 'auth/cancelled-popup-request') {
-        console.warn("Facebook popup request cancelled or repeated.");
-        setError('Facebook Sign-in request was cancelled. If you clicked multiple times, please wait or click "Open in New Tab" to authorize outside the preview window.');
-      } else if (err.code === 'auth/popup-blocked') {
-        console.warn("Facebook popup was blocked by the browser sandbox.");
-        setError('The login popup was blocked by your browser. Please allow popups, or open the app in a new tab by clicking "Open in New Tab" in the top-right corner.');
-      } else if (err.code === 'auth/operation-not-allowed') {
-        setError('Facebook auth is not enabled in backend. Please use Google Sign-in or email & password.');
-      } else {
-        console.error("Facebook Sign-in Error:", err);
-        setError(err.message || 'Failed to sign in with Facebook');
-      }
+      setError(err.message || 'Failed to sign in with Facebook');
     } finally {
       setLoading(false);
     }
   };
 
+  // OTP SENDER ENGINE (SUPPORTING EMAILJS AND NATIVE RECAPTCHA SMS PROVIDER)
   const sendOtp = async (method: 'email' | 'phone', overrideEmail?: string, overridePhone?: string) => {
-    // Intercept and prevent redundant/infinite loop send dispatch triggers
     if (sessionStorage.getItem('otp_lock_active') === 'true') {
       console.warn("[OTP Prevention] Active session lock exists. Skipping repeated dispatch.");
       return;
@@ -491,8 +469,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     setDevOtp('');
     const targetEmail = overrideEmail || email;
     const targetPhone = overridePhone || phone;
-    
-    // Generate a secure 6-digit verification code purely on the client-side
     const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
     
     try {
@@ -506,7 +482,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           to_name: fullName || 'User'
         };
 
-        // Send direct, secure, serverless email delivery using EmailJS
         await emailjs.send(
           (import.meta as any).env.VITE_EMAILJS_SERVICE_ID || 'service_bgzc415',
           (import.meta as any).env.VITE_EMAILJS_TEMPLATE_ID || 'template_jguos4q',
@@ -514,23 +489,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           (import.meta as any).env.VITE_EMAILJS_PUBLIC_KEY || ''
         );
         
-        // Lock the session against spam loops or repeat automatic render invokes
         sessionStorage.setItem('otp_lock_active', 'true');
-        
-        console.info(`[EmailJS] OTP verification code delivered to ${targetEmail}`);
+        sessionStorage.setItem('sandbox_otp_code', generatedOtp);
+        setDevOtp(generatedOtp);
+        console.info(`[EmailJS] OTP delivered to ${targetEmail}`);
       } else {
-        // Simulated Phone delivery with sandbox trace
-        console.info(`[SMS SIMULATOR] Direct carrier bypass code generated: ${generatedOtp} sent to: ${targetPhone}`);
+        // 📱 INVISIBLE RECAPTCHA ATTACHMENT FOR PHONE DELIVERIES
+        if (!window.recaptchaVerifier) {
+          window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+            'size': 'invisible',
+            'callback': () => {
+              console.log('reCAPTCHA validated successfully!');
+            }
+          });
+        }
+
+        // Format code matching international parameters (+63)
+        const formattedPhone = targetPhone.startsWith('+') 
+          ? targetPhone 
+          : `+63${targetPhone.replace(/^0/, '')}`;
+
+        const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier);
+        (window as any).confirmationResult = confirmationResult;
+        console.info(`[Firebase Auth] SMS OTP dispatched to ${formattedPhone}`);
       }
 
-      // Record state verification token
-      sessionStorage.setItem('sandbox_otp_code', generatedOtp);
-      setDevOtp(generatedOtp);
       setResendCooldown(60);
       setOtp(['', '', '', '', '', '']);
     } catch (err: any) {
-      console.warn("Direct EmailJS delivery encountered issues, fallback to simulator:", err);
-      // Fallback so that developers/testers are never locked out of testing sign up
+      console.warn("Direct delivery encountered issues, fallback to simulator parameters:", err);
       sessionStorage.setItem('sandbox_otp_code', generatedOtp);
       setDevOtp(generatedOtp);
       setResendCooldown(60);
@@ -556,39 +543,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     try {
       let isVerified = false;
 
-      // 1. Check local secure sandbox/EmailJS generated codes first for frictionless verification
-      const storedSandboxOtp = sessionStorage.getItem('sandbox_otp_code');
-      if (storedSandboxOtp && enteredOtp === storedSandboxOtp) {
-        isVerified = true;
-        sessionStorage.removeItem('sandbox_otp_code');
-      } else if (devOtp && enteredOtp === devOtp) {
-        isVerified = true;
+      if (otpMethod === 'email') {
+        const storedSandboxOtp = sessionStorage.getItem('sandbox_otp_code');
+        if (storedSandboxOtp && enteredOtp === storedSandboxOtp) {
+          isVerified = true;
+          sessionStorage.removeItem('sandbox_otp_code');
+        } else if (devOtp && enteredOtp === devOtp) {
+          isVerified = true;
+        }
       } else {
-        // 2. Secondary fallback to fetch API if user was initialized server-side earlier
-        try {
-          const response = await fetch('/api/verify-otp', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              identifier: otpMethod === 'email' ? email : phone,
-              otp: enteredOtp
-            })
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success) {
-              isVerified = true;
-            }
+        // 📱 RESOLVE FIREBASE LIVE SMS TOKEN VERIFICATION
+        const confirmationResult = (window as any).confirmationResult;
+        if (confirmationResult) {
+          const result = await confirmationResult.confirm(enteredOtp);
+          if (result.user) {
+            isVerified = true;
           }
-        } catch (apiErr) {
-          console.warn("API base OTP check omitted/failed, using standalone client state verification", apiErr);
+        } else {
+          throw new Error("No active phone verification session found. Please try requesting a code again.");
         }
       }
 
       if (isVerified) {
         if (auth.currentUser) {
-          // Farmers stay 'unverified' so they can undergo the onboarding wizard. Buyers can go active right away.
           const targetStatus = role === 'farmer' ? 'unverified' : 'verified';
           const updateObj: any = {
             status: targetStatus
@@ -600,33 +577,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           await setDoc(doc(db, 'users', auth.currentUser.uid), updateObj, { merge: true });
         }
         
-        // Clear the touched validation tracking states
         setFormSubmitted(false);
         setTouched({});
-        
-        // Retain email for ease, reset password and otp state
         setPassword('');
         setConfirmPassword('');
         setOtp(['', '', '', '', '', '']);
         setDevOtp('');
         
-        // Save the success message across the unmount/remount flow
         sessionStorage.setItem('auth_success_message', 'Account verified successfully! Please log in to your account.');
         setSuccessMessage('Account verified successfully! Please log in to your account.');
         
-        // Update the central auth variant mode to login BEFORE signing out
         if (setAuthVariant) {
           setAuthVariant({ mode: 'login', role: role || 'buyer' });
         }
         
-        // Explicitly set local mode to login BEFORE signing out to prevent layout flash
         setMode('login');
-
-        // Sign out so they must log in using the newly created/verified account first
         await auth.signOut();
 
         onClose();
-        window.location.href = '/signin';
+        window.location.reload();
       } else {
         setError('Invalid verification code.');
       }
@@ -649,27 +618,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     setLoading(true);
     setError('');
     try {
-      // 1. Trigger Firebase standard reset link
       await sendPasswordResetEmail(auth, email);
-      
-      // 2. Send custom SMTP notification (optional, but helpful to verify SMTP is working)
-      try {
-        await fetch('/api/forgot-password-notify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email })
-        });
-      } catch (notifyErr) {
-        console.warn("Failed to send SMTP notification, but Firebase reset was triggered.");
-      }
-
       setError('PASSWORD_RESET_SENT');
     } catch (err: any) {
-      console.error("Reset Error:", err);
       if (err.code === 'auth/user-not-found') {
         setError('No account found with this email.');
-      } else if (err.code === 'auth/network-request-failed' || err.message?.includes('unavailable')) {
-        setError('Connection issue. Please check your internet or try again later.');
       } else {
         setError('Failed to send reset email. Please check your email address.');
       }
@@ -727,7 +680,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           transition={{ duration: 0.4, ease: "easeInOut" }}
           className="w-full md:w-[60%] md:h-full p-6 sm:p-10 md:p-12 md:py-10 bg-white relative flex flex-col min-h-0"
         >
-          {/* Dynamically positioned round close button that stays perfectly in white panel space */}
           <button 
             onClick={handleClose} 
             className="absolute top-4 right-4 sm:top-5 sm:right-5 p-3 hover:scale-110 active:scale-90 transition-all z-30 shadow-md bg-slate-100 hover:bg-slate-200 border border-slate-200/60 rounded-2xl group"
@@ -736,7 +688,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           </button>
 
           <div className="max-w-md mx-auto w-full h-full flex flex-col min-h-0">
-            {/* 1. Header Component Lock (PINNED) */}
             <div className="flex-shrink-0 select-none pb-4">
               <AnimatePresence mode="wait">
                 <motion.div
@@ -784,21 +735,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
               )}
             </div>
 
-            {/* Form layout wrapper containing the scrolling area and pinned bottom bar */}
             <form 
               onSubmit={mode === 'otp' ? (e) => { e.preventDefault(); handleVerify(); } : mode === 'forgot-password' ? handleResetPassword : handleAuth} 
               className="flex-1 flex flex-col min-h-0 justify-between text-start"
             >
-              {/* 2. Dynamic Scrollable Content Zone */}
               <div className="flex-1 overflow-y-auto pr-2 -mr-2 space-y-4 text-start [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-slate-50 [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-300">
                 
-                {/* Google Auth Block inside scroll area */}
                 {mode === 'register' ? (
                   <div className="flex flex-col gap-3">
                     <button 
                       type="button" 
                       onClick={handleGoogleSignIn}
-                      className="w-full py-4.5 bg-white shadow-sm border border-slate-200 hover:border-slate-300 hover:bg-slate-50 active:scale-95 rounded-2xl flex items-center justify-center gap-3 transition-all group font-sans animate-pulse"
+                      className="w-full py-4.5 bg-white shadow-sm border border-slate-200 hover:border-slate-300 hover:bg-slate-50 active:scale-95 rounded-2xl flex items-center justify-center gap-3 transition-all group font-sans"
                       title="Continue with Google"
                     >
                       <svg className="w-5 h-5 group-hover:scale-105 transition-transform" viewBox="0 0 24 24">
@@ -816,7 +764,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                           ⚠️ Restricted Webview Detected (Messenger / Viber)
                         </span>
                         <p className="normal-case text-slate-500 font-medium text-[10px] leading-relaxed">
-                          Social log-ins are blocked inside custom chat apps. Tap the three dots <strong>(...)</strong> in the top-right corner of your screen & select <strong>"Open in Browser / Chrome"</strong> to sign in securely, or register below using <strong>email & password</strong>.
+                          Social log-ins are blocked inside custom chat apps. Tap the three dots <strong>(...)</strong> in the top-right corner of your screen & select <strong>"Open in Browser"</strong> to sign in securely.
                         </p>
                       </div>
                     )}
@@ -829,7 +777,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                 ) : mode === 'login' ? (
                   <div className="flex flex-col gap-4">
                     <button 
-                      type="button"
+                      type="button" 
                       onClick={handleGoogleSignIn}
                       className="w-full py-4.5 bg-white shadow-sm border border-slate-200 hover:border-slate-300 hover:bg-slate-50 active:scale-95 rounded-2xl flex items-center justify-center gap-3 transition-all group font-sans"
                     >
@@ -841,17 +789,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                       </svg>
                       <span className="text-[11px] font-black text-slate-700 uppercase tracking-widest group-hover:text-primary transition-colors">Continue with Google</span>
                     </button>
-                    {isInAppBrowser && (
-                      <div className="p-4 bg-amber-50 border border-amber-200/60 rounded-2xl text-amber-900 text-[10px] font-bold uppercase tracking-wider flex flex-col gap-2 text-start">
-                        <span className="flex items-center gap-1.5 text-amber-800">
-                          <span className="w-2 h-2 bg-amber-500 rounded-full animate-ping shrink-0" />
-                          ⚠️ Restricted Webview Detected (Messenger / Viber)
-                        </span>
-                        <p className="normal-case text-slate-500 font-medium text-[10px] leading-relaxed">
-                          Social log-ins are blocked inside custom chat apps. Tap the three dots <strong>(...)</strong> in the top-right corner of your screen & select <strong>"Open in Browser / Chrome"</strong> to sign in securely, or use your <strong>email & password</strong>.
-                        </p>
-                      </div>
-                    )}
                     <div className="flex items-center gap-2">
                       <div className="h-px flex-1 bg-slate-100" />
                       <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest shrink-0">or sign in with password</span>
@@ -859,6 +796,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                     </div>
                   </div>
                 ) : null}
+
               {mode === 'otp' ? (
                 <div className="space-y-6 pt-1 text-start">
                   <div className="flex flex-col gap-3 text-start">
@@ -939,7 +877,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                 <>
                   {mode === 'register' && (
                     <div className="space-y-3 text-start">
-                      {/* Grid for structured name splits for both roles */}
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="relative group text-start">
                           <input 
@@ -976,7 +913,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                         </div>
                       </div>
 
-                      {/* Phone Input Box */}
                       <div className="relative group text-start">
                         <input 
                           type="tel" 
@@ -1150,7 +1086,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                     )}
                   </div>
 
-                  {/* Elegant mobile-only switch helper */}
                   <div className="md:hidden text-center mt-8 pt-6 border-t border-slate-100">
                     <button
                       type="button"
@@ -1255,10 +1190,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
               )}
               </div>
             </form>
-
           </div>
         </motion.div>
       </motion.div>
+
+      {/* Firebase Invisible reCAPTCHA Anchor */}
+      <div id="recaptcha-container" className="hidden"></div>
 
       {/* Embedded Legal Sub-Modal */}
       <AnimatePresence>

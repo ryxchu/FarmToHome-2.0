@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sprout, MapPin, Camera, Check, Upload, ArrowRight, ArrowLeft, Award, FileText, CheckCircle2, ShieldAlert, Navigation, Sparkles } from 'lucide-react';
 import { compressImage } from '../lib/utils';
+import { UserProfile } from '../types';
 
 interface FarmerOnboardingWizardProps {
   initialEmail: string;
@@ -18,6 +19,7 @@ interface FarmerOnboardingWizardProps {
     coordinates: { lat: number; lng: number };
   }) => Promise<void>;
   onLogout: () => void;
+  profile?: UserProfile | null;
 }
 
 export const FarmerOnboardingWizard: React.FC<FarmerOnboardingWizardProps> = ({
@@ -25,20 +27,29 @@ export const FarmerOnboardingWizard: React.FC<FarmerOnboardingWizardProps> = ({
   initialName,
   onSubmit,
   onLogout,
+  profile,
 }) => {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Fields State
-  const [farmName, setFarmName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
-  const [govIdUrl, setGovIdUrl] = useState('');
-  const [rsbsaNumber, setRsbsaNumber] = useState('');
-  const [alternativeCertUrl, setAlternativeCertUrl] = useState('');
-  const [primaryCrops, setPrimaryCrops] = useState('');
-  const [declaredCapacity, setDeclaredCapacity] = useState('100-500'); // Default range in kg
-  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
+  const [farmName, setFarmName] = useState(profile?.farmName || '');
+  const [phone, setPhone] = useState(profile?.phone || '');
+  const [address, setAddress] = useState(profile?.address || '');
+  const [govIdUrl, setGovIdUrl] = useState(profile?.govIdUrl || '');
+  const [rsbsaNumber, setRsbsaNumber] = useState(profile?.rsbsaNumber || '');
+  const [alternativeCertUrl, setAlternativeCertUrl] = useState(profile?.alternativeCertUrl || '');
+  const [primaryCrops, setPrimaryCrops] = useState(profile?.primaryCrops || '');
+  const [declaredCapacity, setDeclaredCapacity] = useState(() => {
+    if (profile?.declaredCapacity) {
+      const match = profile.declaredCapacity.split(' ')[0];
+      if (['Under', '100-500', '500-1000', '1000+'].includes(match)) {
+        return match;
+      }
+    }
+    return '100-500';
+  });
+  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(profile?.coordinates || null);
   const [isLocating, setIsLocating] = useState(false);
   const [locatingError, setLocatingError] = useState<string | null>(null);
   
@@ -226,6 +237,23 @@ export const FarmerOnboardingWizard: React.FC<FarmerOnboardingWizardProps> = ({
   return (
     <div className="max-w-3xl mx-auto my-6 p-4 sm:p-8 bg-white border border-slate-100 rounded-3xl shadow-xl shadow-slate-100/50">
       
+      {profile?.rejectionReason && (
+        <div className="mb-6 p-5 bg-red-50 border border-red-200 rounded-2xl flex gap-3.5 text-slate-800 text-[12px] leading-relaxed shadow-sm">
+          <ShieldAlert className="w-5.5 h-5.5 text-red-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <span className="font-extrabold text-red-800 text-xs tracking-wider uppercase block mb-1">
+              Paunawa: May Kailangang Ayusin sa Iyong Aplikasyon
+            </span>
+            <p className="font-bold text-red-900 bg-red-100/50 px-3 py-2 rounded-lg border border-red-200/50 mt-1.5 break-words">
+              Dahilan ng Administrator: "{profile.rejectionReason}"
+            </p>
+            <p className="mt-2 text-slate-600 text-[11px]">
+              Mangyaring suriin at i-update ang kaugnay na impormasyon sa mga hakbang sa ibaba, pagkatapos ay i-submit muli upang maisumite ito para sa muling pagsusuri.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Upper Progress Stepper */}
       <div className="mb-8">
         <div className="flex justify-between items-center mb-6">

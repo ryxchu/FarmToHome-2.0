@@ -869,13 +869,20 @@ async function startServer() {
 
       if (adminDb) {
         try {
-          const prodSnapshot = await adminDb.collection('products').where('isPublished', '==', true).limit(100).get();
+          const prodSnapshot = await adminDb.collection('products').limit(100).get();
           if (!prodSnapshot.empty) {
-            const prods = prodSnapshot.docs.map((doc: any) => {
-              const d = doc.data();
-              return `- **Crop Name**: ${d.name}, **Price**: ₱${d.price}/unit, **Stock**: ${d.stock || 0} units, **Id**: ${doc.id}, **Category**: ${d.category || 'General'}, **Description**: ${d.description || ''}`;
-            });
-            productsContext = prods.join("\n");
+            const prods = prodSnapshot.docs
+              .map((doc: any) => {
+                const d = doc.data();
+                return { id: doc.id, ...d };
+              })
+              .filter((p: any) => p.isPublished === true)
+              .map((p: any) => {
+                return `- **Crop Name**: ${p.name}, **Price**: ₱${p.price}/unit, **Stock**: ${p.stock || 0} units, **Id**: ${p.id}, **Category**: ${p.category || 'General'}, **Description**: ${p.description || ''}`;
+              });
+            if (prods.length > 0) {
+              productsContext = prods.join("\n");
+            }
           }
         } catch (err) {
           console.log("[Support Chat] Info: products loaded using fallback dataset.");

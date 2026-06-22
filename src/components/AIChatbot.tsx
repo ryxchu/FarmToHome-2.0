@@ -203,6 +203,9 @@ export const AIChatbot: React.FC = () => {
       });
       
       // Safety Guard 2: Robust response and error parsing inside bulletproof try/catch block
+      if (!response.ok) {
+        throw new Error(`Server status returned ${response.status}`);
+      }
       const data = await response.json();
 
       if (data.success && data.text) {

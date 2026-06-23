@@ -6,7 +6,6 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { UserProfile } from '../types';
-import { FARMTOHOME_KNOWLEDGE_BASE } from '../data/chatbotKnowledgeBase';
 
 // Custom high-grade safe markdown elements renderer
 const renderSafeMessageContent = (text: string) => {
@@ -132,17 +131,7 @@ export const AIChatbot: React.FC = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
-
-  // Verify Gemini API key is available in environment on component mount
-  useEffect(() => {
-    const key = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!key || key.trim() === '') {
-      setIsApiKeyMissing(true);
-    } else {
-      setIsApiKeyMissing(false);
-    }
-  }, []);
+  const [isApiKeyMissing] = useState(false);
 
   // Admin-specific lists and views
   const [pendingFarmers, setPendingFarmers] = useState<UserProfile[]>([]);
@@ -264,71 +253,23 @@ export const AIChatbot: React.FC = () => {
     // Safety Guard 3: Functional state updater to preserve previous message logs cleanly
     setMessages(prev => [...prev, newUserMsgObj]);
 
-    let response: Response | undefined = undefined;
-
     try {
-      // 1. API Key Check: Ensure VITE_GEMINI_API_KEY is defined in environment before any API call
-      const envKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!envKey || envKey.trim() === '') {
-        throw new Error("VITE_GEMINI_API_KEY is missing or undefined at runtime. Please configure your hosting environment environment variables.");
-      }
-
-      // Create latest snapshots of history safely containing the new message
-      const latestHistory = [...messages, newUserMsgObj];
-
-      // Format history turns precisely as the Gemini generateContent API expects
-      const formattedContents = latestHistory.map((item) => ({
-        role: item.role === 'model' ? 'model' : 'user',
-        parts: [{ text: item.parts?.[0]?.text || '' }]
-      }));
-
-      const languageInstruction = (currentLanguage.toUpperCase() === 'TL' || currentLanguage === 'tl')
-        ? 'Always respond in Filipino/Tagalog. Translate all answers from the knowledge base into natural conversational Filipino.'
-        : 'Always respond in English.';
-
-      const systemInstructionText = `You are a helpful support assistant for FarmToHome, a Filipino farm-to-consumer marketplace.
-Use ONLY the following knowledge base to answer questions.
-If the answer is not in the knowledge base, say: "I'm not sure about that. Please contact our support team for help."
-Never repeat your introduction as an answer. Always read the user's actual message and respond to it directly and conversationally.
-
-KNOWLEDGE BASE:
-${FARMTOHOME_KNOWLEDGE_BASE}
-
-${languageInstruction}
-
-PLATFORM NAVIGATION INTEGRATION (Provide exact redirection markdown links only when highly relevant to the query):
-- [Go to Shop/Marketplace](page:home) - to let users browse and purchase fresh crops.
-- [Go to Farmer Dashboard](page:dashboard) - for farmers to upload land certifications, post crops, and view earnings.
-- [Go to Inbox/Messages](page:messages) - to chat in real-time with farmers/buyers.
-- [Track Delivery Progress](page:tracking) - to view delivery statuses of active orders.
-- [View Account Profile](page:profile) - to edit delivery addresses, contact details, and account settings.`;
-
-      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${envKey}`, {
+      const response = await fetch('/api/gemini/support-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          contents: formattedContents,
-          systemInstruction: {
-            parts: [{ text: systemInstructionText }]
-          }
+        body: JSON.stringify({
+          message: userMsg,
+          language: currentLanguage,
+          history: messages
         })
       });
-      
-      // 2. Response validation: Check HTTP status is 200 first
-      if (!response || response.status !== 200) {
-        throw new Error(`HTTP Error Status ${response ? response.status : 'unknown'}: Failed to execute support chat operation.`);
-      }
 
-      // Validate response is actually valid JSON instead of HTML error fallbacks
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        throw new TypeError(`Expected response Content-Type to be 'application/json' but received '${contentType}', representing a server exception page.`);
+      if (!response.ok) {
+        throw new Error(`HTTP Error Status ${response.status}`);
       }
 
       const data = await response.json();
-
-      // Extract response content securely using the specific candidates structure
-      const replyText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      const replyText = data.text;
 
       if (replyText) {
         setMessages(prev => [...prev, { role: 'model', parts: [{ text: replyText }] }]);
@@ -336,10 +277,8 @@ PLATFORM NAVIGATION INTEGRATION (Provide exact redirection markdown links only w
         throw new Error("Invalid response schema from Gemini API: missing candidates content parts text.");
       }
     } catch (err: any) {
-      // 4. Detailed error handling and logging for production diagnostics
       console.error("[Chatbot Error Handler] Production API Error details:", {
-        message: err?.message || String(err),
-        status: response?.status || 'No Response'
+        message: err?.message || String(err)
       });
       
       // Beautiful and seamless offline response fallback
@@ -511,16 +450,6 @@ PLATFORM NAVIGATION INTEGRATION (Provide exact redirection markdown links only w
               /* Support AI Chat View */
               <>
                 <div ref={scrollRef} className="flex-grow overflow-y-auto p-4 space-y-4 bg-zinc-50">
-                  {isApiKeyMissing && (
-                    <div className="p-3.5 bg-amber-50 border-l-4 border-amber-500 rounded-lg text-amber-800 shadow-xs leading-normal" id="api-key-warning-box">
-                      <div className="flex items-center gap-2 font-black uppercase text-[10px] tracking-wider text-amber-600 mb-1">
-                        <ShieldAlert className="w-4 h-4" /> VITE_GEMINI_API_KEY Unavailable
-                      </div>
-                      <p className="text-[11px] text-amber-700 font-medium">
-                        The chatbot has detected that VITE_GEMINI_API_KEY is undefined in this environment. Direct AI requests are routed through local offline backup modes.
-                      </p>
-                    </div>
-                  )}
 
                   {messages.map((m, i) => (
                     <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>

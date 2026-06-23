@@ -82,7 +82,7 @@ function generateMockResponse(message: string, language: string): string {
     if (isTagalog) {
       return `Maaari mong mahanap ang iyong account at profile settings dito:
 - Mag-navigate nang direkta sa iyong profile page: [View Account Profile](page:profile).
-- Sa pahinang ito, maaari mong baguhin ang iyong physical delivery address preset, contact number, mobile identity, at tingnan ang iyong active order tracking history. Maaari mo ring i-toggle ang dark o light mode features!`;
+- Sa pahinang ito, maaari mong baguhin ang iyong physical delivery address preset, contact number, mobile identity, at tingnan ang iyong active order tracking history. Maaari mo parenting i-toggle ang dark o light mode features!`;
     }
     return `You can find your account or profile configuration center here:
 - Simply navigate to your profile by clicking this link: [View Account Profile](page:profile).
@@ -937,7 +937,9 @@ async function startServer() {
         console.warn("[Support Chat] GEMINI_API_KEY is missing/invalid. Falling back to local offline smart response.");
         console.log(`[Support Chat] Returning fallback text: "${fallbackText.substring(0, 60)}..."`);
         return res.json({ success: true, text: fallbackText });
-      }      // Clean and map chat history to the structure the newer @google/genai SDK expects
+      }
+
+      // Clean and map chat history to the structure the newer @google/genai SDK expects
       let chatHistory = (history || []).map((msg: any) => {
         const textVal = msg.parts?.[0]?.text || msg.text || "";
         const roleVal = msg.role === 'model' || msg.role === 'bot' ? 'model' : 'user';
@@ -1079,7 +1081,7 @@ IMPORTANT: Keep your responses highly conversational, warm, and direct. Only sug
       if (errorMsg.includes("429") || errorMsg.includes("prepayment") || errorMsg.includes("RESOURCE_EXHAUSTED") || errorMsg.includes("credits")) {
         console.warn("Gemini API key quota/prepayment exhausted (429). Falling back securely to high-quality local price generation.");
       } else {
-        console.error("Gemini price suggestion error, falling back to local simulation:", error);
+        console.error("Gemini price suggestion error, falling some realistic simulation:", error);
       }
       let price = 50 + Math.floor(Math.random() * 120);
       if (cat.toLowerCase().includes('fruit')) {

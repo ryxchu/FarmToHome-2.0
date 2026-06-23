@@ -253,7 +253,11 @@ export const AIChatbot: React.FC = () => {
     // Safety Guard 3: Functional state updater to preserve previous message logs cleanly
     setMessages(prev => [...prev, newUserMsgObj]);
 
+<<<<<<< HEAD
 try {
+=======
+    try {
+>>>>>>> 3ae7ca5854089a929e7570964c2cddda670c0b63
       const response = await fetch('/api/gemini/support-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -276,7 +280,11 @@ try {
       } else {
         throw new Error("Invalid response schema from Gemini API: missing candidates content parts text.");
       }
+<<<<<<< HEAD
       } catch (err: any) {
+=======
+    } catch (err: any) {
+>>>>>>> 3ae7ca5854089a929e7570964c2cddda670c0b63
       console.error("[Chatbot Error Handler] Production API Error details:", {
         message: err?.message || String(err)
       });

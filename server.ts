@@ -971,7 +971,7 @@ async function startServer() {
 
       console.log(`[Support Chat] Sending history of ${chatHistory.length} turns to Gemini with rich live database context...`);
       const response = await client.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-2.5-flash",
         contents: chatHistory,
         config: {
           systemInstruction: `You are a supportive, warm, and highly conversational customer service AI Assistant designed for the FarmToHome platform—an e-commerce system bridging local farmers in Mexico, Pampanga with consumers. 
@@ -1059,7 +1059,7 @@ IMPORTANT: Keep your responses highly conversational, warm, and direct. Only sug
       }
 
       const response = await client.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-2.5-flash",
         contents: `Recommend a fair market price in Philippine Pesos (PHP) for ${name} in the category of ${category}. Consider seasonal trends. Return only the number.`,
         config: {
           responseMimeType: "application/json",

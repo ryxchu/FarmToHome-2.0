@@ -43,11 +43,6 @@ function getGeminiClient(): GoogleGenAI | null {
   if (!aiClient) {
     aiClient = new GoogleGenAI({
       apiKey: key,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
     });
   }
   return aiClient;
@@ -992,7 +987,7 @@ async function startServer() {
     } catch (error: any) {
       const errorMsg = error?.message || error?.toString() || "";
       if (errorMsg.includes("429") || errorMsg.includes("prepayment") || errorMsg.includes("RESOURCE_EXHAUSTED") || errorMsg.includes("credits")) {
-        console.warn("[Support Chat] Gemini API key quota/prepayment exhausted (429). Falling back securely to high-quality local chatbot simulation.");
+        console.warn("[Support Chat] Gemini API key quota/prepayment exhausted (429). Full error:", JSON.stringify(error?.response?.data || error, null, 2));
       } else {
         console.error("[Support Chat] Gemini support chat error, falling back securely to local simulation:", error);
       }
